@@ -1,0 +1,18 @@
+{
+    "configurations": [
+        {
+            "name": "gcc",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${fileDirname}/build/${fileBasenameNoExtension}",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${fileDirname}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb",
+            "preLaunchTask": "gcc"
+        }
+    ],
+    "version": "2.0.0"
+}
