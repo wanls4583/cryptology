@@ -2,33 +2,33 @@
 triple:          'arm64-apple-darwin'
 binary-path:     '/Users/lisong/github/cryptology/build/aes'
 relocations:
-  - { offsetInCU: 0x26, offset: 0x26, size: 0x8, addend: 0x0, symName: _xor, symObjAddr: 0x0, symBinAddr: 0x100002818, symSize: 0x68 }
+  - { offsetInCU: 0x26, offset: 0x26, size: 0x8, addend: 0x0, symName: _xor, symObjAddr: 0x0, symBinAddr: 0x10000281C, symSize: 0x68 }
   - { offsetInCU: 0x4D, offset: 0x4D, size: 0x8, addend: 0x0, symName: _sbox, symObjAddr: 0x13FC, symBinAddr: 0x100008000, symSize: 0x0 }
   - { offsetInCU: 0x7B, offset: 0x7B, size: 0x8, addend: 0x0, symName: _mixBox, symObjAddr: 0x14FC, symBinAddr: 0x100008100, symSize: 0x0 }
   - { offsetInCU: 0xA2, offset: 0xA2, size: 0x8, addend: 0x0, symName: _invSbox, symObjAddr: 0x150C, symBinAddr: 0x100008110, symSize: 0x0 }
   - { offsetInCU: 0xB7, offset: 0xB7, size: 0x8, addend: 0x0, symName: _mixInvBox, symObjAddr: 0x160C, symBinAddr: 0x100008210, symSize: 0x0 }
-  - { offsetInCU: 0xC5, offset: 0xC5, size: 0x8, addend: 0x0, symName: _xor, symObjAddr: 0x0, symBinAddr: 0x100002818, symSize: 0x68 }
-  - { offsetInCU: 0x105, offset: 0x105, size: 0x8, addend: 0x0, symName: _gfMul2, symObjAddr: 0x68, symBinAddr: 0x100002880, symSize: 0x3C }
-  - { offsetInCU: 0x12D, offset: 0x12D, size: 0x8, addend: 0x0, symName: _gfMul, symObjAddr: 0xA4, symBinAddr: 0x1000028BC, symSize: 0xA4 }
-  - { offsetInCU: 0x19B, offset: 0x19B, size: 0x8, addend: 0x0, symName: _rotWord, symObjAddr: 0x148, symBinAddr: 0x100002960, symSize: 0x58 }
-  - { offsetInCU: 0x1CD, offset: 0x1CD, size: 0x8, addend: 0x0, symName: _subWord, symObjAddr: 0x1A0, symBinAddr: 0x1000029B8, symSize: 0x94 }
-  - { offsetInCU: 0x21B, offset: 0x21B, size: 0x8, addend: 0x0, symName: _subKeyExpand, symObjAddr: 0x234, symBinAddr: 0x100002A4C, symSize: 0x280 }
-  - { offsetInCU: 0x2A1, offset: 0x2A1, size: 0x8, addend: 0x0, symName: _subState, symObjAddr: 0x4B4, symBinAddr: 0x100002CCC, symSize: 0xD4 }
-  - { offsetInCU: 0x319, offset: 0x319, size: 0x8, addend: 0x0, symName: _shiftRows, symObjAddr: 0x588, symBinAddr: 0x100002DA0, symSize: 0x1A4 }
-  - { offsetInCU: 0x392, offset: 0x392, size: 0x8, addend: 0x0, symName: _mixColums, symObjAddr: 0x72C, symBinAddr: 0x100002F44, symSize: 0x218 }
-  - { offsetInCU: 0x44A, offset: 0x44A, size: 0x8, addend: 0x0, symName: _wordXor, symObjAddr: 0x944, symBinAddr: 0x10000315C, symSize: 0xF0 }
-  - { offsetInCU: 0x49C, offset: 0x49C, size: 0x8, addend: 0x0, symName: _aesBlockEncrypt, symObjAddr: 0xA34, symBinAddr: 0x10000324C, symSize: 0x264 }
-  - { offsetInCU: 0x5AF, offset: 0x5AF, size: 0x8, addend: 0x0, symName: _aesBlockDecrypt, symObjAddr: 0xC98, symBinAddr: 0x1000034B0, symSize: 0x268 }
-  - { offsetInCU: 0x6C2, offset: 0x6C2, size: 0x8, addend: 0x0, symName: _aesEncrypt, symObjAddr: 0xF00, symBinAddr: 0x100003718, symSize: 0x148 }
-  - { offsetInCU: 0x760, offset: 0x760, size: 0x8, addend: 0x0, symName: _aesDecrypt, symObjAddr: 0x1048, symBinAddr: 0x100003860, symSize: 0x140 }
-  - { offsetInCU: 0x7FE, offset: 0x7FE, size: 0x8, addend: 0x0, symName: _aes128Encrypt, symObjAddr: 0x1188, symBinAddr: 0x1000039A0, symSize: 0x50 }
-  - { offsetInCU: 0x86F, offset: 0x86F, size: 0x8, addend: 0x0, symName: _aes256Encrypt, symObjAddr: 0x11D8, symBinAddr: 0x1000039F0, symSize: 0x50 }
-  - { offsetInCU: 0x8E0, offset: 0x8E0, size: 0x8, addend: 0x0, symName: _aes128Decrypt, symObjAddr: 0x1228, symBinAddr: 0x100003A40, symSize: 0x50 }
-  - { offsetInCU: 0x951, offset: 0x951, size: 0x8, addend: 0x0, symName: _aes256Decrypt, symObjAddr: 0x1278, symBinAddr: 0x100003A90, symSize: 0x50 }
-  - { offsetInCU: 0x9C2, offset: 0x9C2, size: 0x8, addend: 0x0, symName: _main, symObjAddr: 0x12C8, symBinAddr: 0x100003AE0, symSize: 0x134 }
-  - { offsetInCU: 0x26, offset: 0xABF, size: 0x8, addend: 0x0, symName: _hex_decode, symObjAddr: 0x0, symBinAddr: 0x100003C14, symSize: 0x16C }
-  - { offsetInCU: 0x4D, offset: 0xAE6, size: 0x8, addend: 0x0, symName: _hex_decode, symObjAddr: 0x0, symBinAddr: 0x100003C14, symSize: 0x16C }
-  - { offsetInCU: 0xC9, offset: 0xB62, size: 0x8, addend: 0x0, symName: _show_hex, symObjAddr: 0x16C, symBinAddr: 0x100003D80, symSize: 0x84 }
-  - { offsetInCU: 0x26, offset: 0xBF3, size: 0x8, addend: 0x0, symName: __main, symObjAddr: 0x0, symBinAddr: 0x100003E04, symSize: 0xB0 }
-  - { offsetInCU: 0x41, offset: 0xC0E, size: 0x8, addend: 0x0, symName: __main, symObjAddr: 0x0, symBinAddr: 0x100003E04, symSize: 0xB0 }
+  - { offsetInCU: 0xC5, offset: 0xC5, size: 0x8, addend: 0x0, symName: _xor, symObjAddr: 0x0, symBinAddr: 0x10000281C, symSize: 0x68 }
+  - { offsetInCU: 0x105, offset: 0x105, size: 0x8, addend: 0x0, symName: _gfMul2, symObjAddr: 0x68, symBinAddr: 0x100002884, symSize: 0x3C }
+  - { offsetInCU: 0x12D, offset: 0x12D, size: 0x8, addend: 0x0, symName: _gfMul, symObjAddr: 0xA4, symBinAddr: 0x1000028C0, symSize: 0xA4 }
+  - { offsetInCU: 0x19B, offset: 0x19B, size: 0x8, addend: 0x0, symName: _rotWord, symObjAddr: 0x148, symBinAddr: 0x100002964, symSize: 0x58 }
+  - { offsetInCU: 0x1CD, offset: 0x1CD, size: 0x8, addend: 0x0, symName: _subWord, symObjAddr: 0x1A0, symBinAddr: 0x1000029BC, symSize: 0x94 }
+  - { offsetInCU: 0x21B, offset: 0x21B, size: 0x8, addend: 0x0, symName: _subKeyExpand, symObjAddr: 0x234, symBinAddr: 0x100002A50, symSize: 0x280 }
+  - { offsetInCU: 0x2A1, offset: 0x2A1, size: 0x8, addend: 0x0, symName: _subState, symObjAddr: 0x4B4, symBinAddr: 0x100002CD0, symSize: 0xD4 }
+  - { offsetInCU: 0x319, offset: 0x319, size: 0x8, addend: 0x0, symName: _shiftRows, symObjAddr: 0x588, symBinAddr: 0x100002DA4, symSize: 0x1A4 }
+  - { offsetInCU: 0x392, offset: 0x392, size: 0x8, addend: 0x0, symName: _mixColums, symObjAddr: 0x72C, symBinAddr: 0x100002F48, symSize: 0x218 }
+  - { offsetInCU: 0x44A, offset: 0x44A, size: 0x8, addend: 0x0, symName: _wordXor, symObjAddr: 0x944, symBinAddr: 0x100003160, symSize: 0xF0 }
+  - { offsetInCU: 0x49C, offset: 0x49C, size: 0x8, addend: 0x0, symName: _aesBlockEncrypt, symObjAddr: 0xA34, symBinAddr: 0x100003250, symSize: 0x264 }
+  - { offsetInCU: 0x5AF, offset: 0x5AF, size: 0x8, addend: 0x0, symName: _aesBlockDecrypt, symObjAddr: 0xC98, symBinAddr: 0x1000034B4, symSize: 0x268 }
+  - { offsetInCU: 0x6C2, offset: 0x6C2, size: 0x8, addend: 0x0, symName: _aesEncrypt, symObjAddr: 0xF00, symBinAddr: 0x10000371C, symSize: 0x148 }
+  - { offsetInCU: 0x760, offset: 0x760, size: 0x8, addend: 0x0, symName: _aesDecrypt, symObjAddr: 0x1048, symBinAddr: 0x100003864, symSize: 0x140 }
+  - { offsetInCU: 0x7FE, offset: 0x7FE, size: 0x8, addend: 0x0, symName: _aes128Encrypt, symObjAddr: 0x1188, symBinAddr: 0x1000039A4, symSize: 0x50 }
+  - { offsetInCU: 0x86F, offset: 0x86F, size: 0x8, addend: 0x0, symName: _aes256Encrypt, symObjAddr: 0x11D8, symBinAddr: 0x1000039F4, symSize: 0x50 }
+  - { offsetInCU: 0x8E0, offset: 0x8E0, size: 0x8, addend: 0x0, symName: _aes128Decrypt, symObjAddr: 0x1228, symBinAddr: 0x100003A44, symSize: 0x50 }
+  - { offsetInCU: 0x951, offset: 0x951, size: 0x8, addend: 0x0, symName: _aes256Decrypt, symObjAddr: 0x1278, symBinAddr: 0x100003A94, symSize: 0x50 }
+  - { offsetInCU: 0x9C2, offset: 0x9C2, size: 0x8, addend: 0x0, symName: _main, symObjAddr: 0x12C8, symBinAddr: 0x100003AE4, symSize: 0x134 }
+  - { offsetInCU: 0x26, offset: 0xAC1, size: 0x8, addend: 0x0, symName: _hex_decode, symObjAddr: 0x0, symBinAddr: 0x100003C18, symSize: 0x16C }
+  - { offsetInCU: 0x4D, offset: 0xAE8, size: 0x8, addend: 0x0, symName: _hex_decode, symObjAddr: 0x0, symBinAddr: 0x100003C18, symSize: 0x16C }
+  - { offsetInCU: 0xC9, offset: 0xB64, size: 0x8, addend: 0x0, symName: _show_hex, symObjAddr: 0x16C, symBinAddr: 0x100003D84, symSize: 0x84 }
+  - { offsetInCU: 0x26, offset: 0xBF5, size: 0x8, addend: 0x0, symName: __main, symObjAddr: 0x0, symBinAddr: 0x100003E08, symSize: 0xB0 }
+  - { offsetInCU: 0x41, offset: 0xC10, size: 0x8, addend: 0x0, symName: __main, symObjAddr: 0x0, symBinAddr: 0x100003E08, symSize: 0xB0 }
 ...

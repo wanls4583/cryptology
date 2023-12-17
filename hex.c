@@ -17,11 +17,9 @@ int hex_decode(const unsigned char* input, unsigned char** decoded) {
     return size;
 }
 
-#ifdef TEST_HEX
 void show_hex(const unsigned char* array, int length) {
     for (int i = 0; i < length; i++) {
         printf("%.02x", array[i]);
     }
     printf("\n");
 }
-#endif
