@@ -181,6 +181,7 @@ unsigned char gfMul2(unsigned char x) {
     return (x << 1) ^ ((x & 0x80) ? 0x1b : 0x00);
 }
 
+// gf(2^8)域上的乘法
 unsigned char gfMul(unsigned char x, unsigned char y) {
     unsigned char mask = 0x01;
     unsigned char res = 0;
@@ -192,6 +193,35 @@ unsigned char gfMul(unsigned char x, unsigned char y) {
         x = gfMul2(x);
     }
     return res;
+}
+
+// gf(2^128)上的乘法
+void gf128Mul(unsigned char* A, unsigned char* B, unsigned char* Z) {
+    int lsb = 0;
+    unsigned char V[AES_BLOCK_SIZE];
+    unsigned char R[AES_BLOCK_SIZE];
+
+    memset(Z, 0, AES_BLOCK_SIZE);
+    memset(R, 0, AES_BLOCK_SIZE);
+    memcpy(V, B, AES_BLOCK_SIZE);
+
+    R[0] = 0xE1;
+
+    for (int i = 0; i < 16; i++) {
+        for (int mask = 0x80; mask; mask >>= 1) {
+            if (A[i] & mask) {
+                xor (Z, V, AES_BLOCK_SIZE);
+            }
+            lsb = V[AES_BLOCK_SIZE - 1] & 0x01;
+            for (int j = AES_BLOCK_SIZE - 1; j > 0; j--) {
+                V[j] = (V[j] >> 1) | (V[j - 1] & 0x01 ? 0x80 : 0x00);
+            }
+            V[0] >>= 1;
+            if (lsb) {
+                xor (V, R, AES_BLOCK_SIZE);
+            }
+        }
+    }
 }
 
 void rotWord(unsigned char* w) {
@@ -358,10 +388,10 @@ void aesBlockDecrypt(unsigned char* inputBlock, unsigned char* outBlock, unsigne
     }
 }
 
-void aesEncrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int iv_len, unsigned char* key, int keyLen) {
+void aesEncrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* key, int keyLen) {
     unsigned char inputBlock[AES_BLOCK_SIZE] = { 0 };
     unsigned char ivBlock[AES_BLOCK_SIZE] = { 0 };
-    memcpy(ivBlock, iv, iv_len > AES_BLOCK_SIZE ? AES_BLOCK_SIZE : iv_len);
+    memcpy(ivBlock, iv, ivLen > AES_BLOCK_SIZE ? AES_BLOCK_SIZE : ivLen);
     while (inputLen > 0) {
         memcpy(inputBlock, input, AES_BLOCK_SIZE);
         xor (inputBlock, ivBlock, AES_BLOCK_SIZE);
@@ -373,10 +403,10 @@ void aesEncrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned
     }
 }
 
-void aesDecrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int iv_len, unsigned char* key, int keyLen) {
+void aesDecrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* key, int keyLen) {
     unsigned char inputBlock[AES_BLOCK_SIZE] = { 0 };
     unsigned char ivBlock[AES_BLOCK_SIZE] = { 0 };
-    memcpy(ivBlock, iv, iv_len > AES_BLOCK_SIZE ? AES_BLOCK_SIZE : iv_len);
+    memcpy(ivBlock, iv, ivLen > AES_BLOCK_SIZE ? AES_BLOCK_SIZE : ivLen);
     while (inputLen > 0) {
         memcpy(inputBlock, input, AES_BLOCK_SIZE);
         aesBlockDecrypt(inputBlock, out, key, keyLen);
@@ -388,36 +418,132 @@ void aesDecrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned
     }
 }
 
-void aes128Encrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int iv_len, unsigned char* key) {
-    aesEncrypt(input, inputLen, out, iv, iv_len, key, 16);
+void gHash(unsigned char* input, int inputLen, unsigned char* H, unsigned char* macBlock) {
+    unsigned char inputBlock[AES_BLOCK_SIZE] = { 0 };
+    memset(macBlock, 0, AES_BLOCK_SIZE);
+    while (inputLen > 0) {
+        memset(inputBlock, 0, AES_BLOCK_SIZE);
+        memcpy(inputBlock, input, inputLen >= AES_BLOCK_SIZE ? AES_BLOCK_SIZE : inputLen);
+        xor (inputBlock, macBlock, AES_BLOCK_SIZE);
+        gf128Mul(inputBlock, H, macBlock);
+        input += AES_BLOCK_SIZE;
+        inputLen -= AES_BLOCK_SIZE;
+    }
 }
 
-void aes256Encrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int iv_len, unsigned char* key) {
-    aesEncrypt(input, inputLen, out, iv, iv_len, key, 32);
+int aesGcmProcess(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* add, int addLen, unsigned char* key, int decrypt) {
+    unsigned char nonce[AES_BLOCK_SIZE] = { 0 };
+    unsigned char H[AES_BLOCK_SIZE] = { 0 };
+    unsigned char zeros[AES_BLOCK_SIZE] = { 0 };
+    unsigned char inputBlock[AES_BLOCK_SIZE] = { 0 };
+    unsigned char macBlock[AES_BLOCK_SIZE] = { 0 };
+    int processLen = inputLen - (decrypt ? AES_BLOCK_SIZE : 0);
+    int originLen = htonl(processLen << 3);
+    int originAddLen = htonl(addLen << 3);
+    int counter = 1;
+    int blockSize = 0;
+
+    aesBlockEncrypt(zeros, H, key, 16);
+    gHash(add, addLen, H, macBlock);
+    memcpy(nonce, iv, ivLen > 12 ? 12 : ivLen);
+
+    while (processLen) {
+        int c = htonl(++counter);
+        blockSize = processLen >= AES_BLOCK_SIZE ? AES_BLOCK_SIZE : processLen;
+        memcpy(nonce + 12, (void*)&c, sizeof(unsigned int));
+        aesBlockEncrypt(nonce, inputBlock, key, 16);
+        xor (inputBlock, input, blockSize); //CTR
+        memcpy(out, inputBlock, blockSize);
+
+        // 计算MAC--begin
+        if (decrypt) { //GMAC是根据密来计算的
+            memcpy(inputBlock, input, blockSize);
+        }
+        if (blockSize < AES_BLOCK_SIZE) {
+            memset(inputBlock + blockSize, 0, AES_BLOCK_SIZE - blockSize);
+        }
+        xor (inputBlock, macBlock, AES_BLOCK_SIZE);
+        gf128Mul(inputBlock, H, macBlock);
+        // 计算MAC--end
+        input += blockSize;
+        out += blockSize;
+        processLen -= blockSize;
+    }
+
+    memset(inputBlock, 0, AES_BLOCK_SIZE);
+    memcpy(inputBlock + 4, (void*)&originAddLen, sizeof(unsigned int));
+    memcpy(inputBlock + 12, (void*)&originLen, sizeof(unsigned int));
+    xor (inputBlock, macBlock, AES_BLOCK_SIZE);
+    memset(nonce + 12, 0, sizeof(unsigned int));
+    nonce[15] = 0x01;
+
+    if (!decrypt) {
+        gf128Mul(inputBlock, H, out);
+        aesBlockEncrypt(nonce, inputBlock, key, 16);
+        xor (out, inputBlock, AES_BLOCK_SIZE);
+    } else {
+        gf128Mul(inputBlock, H, macBlock);
+        show_hex(macBlock, 16);
+        aesBlockEncrypt(nonce, inputBlock, key, 16);
+        xor (inputBlock, input, AES_BLOCK_SIZE);
+        show_hex(inputBlock, 16);
+        
+        if (memcmp(inputBlock, macBlock, AES_BLOCK_SIZE)) {
+            printf("GMAC is wrong\n");
+            return -1;
+        }
+    }
+
+    return 0;
 }
 
-void aes128Decrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int iv_len, unsigned char* key) {
-    aesDecrypt(input, inputLen, out, iv, iv_len, key, 16);
+void aesGcmEncrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* add, int addLen, unsigned char* key) {
+    aesGcmProcess(input, inputLen, out, iv, ivLen, add, addLen, key, 0);
 }
 
-void aes256Decrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int iv_len, unsigned char* key) {
-    aesDecrypt(input, inputLen, out, iv, iv_len, key, 32);
+void aesGcmDecrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* add, int addLen, unsigned char* key) {
+    aesGcmProcess(input, inputLen, out, iv, ivLen, add, addLen, key, 1);
 }
 
-#ifdef TEST_AES
+void aes128Encrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* key) {
+    aesEncrypt(input, inputLen, out, iv, ivLen, key, 16);
+}
+
+void aes256Encrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* key) {
+    aesEncrypt(input, inputLen, out, iv, ivLen, key, 32);
+}
+
+void aes128Decrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* key) {
+    aesDecrypt(input, inputLen, out, iv, ivLen, key, 16);
+}
+
+void aes256Decrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* key) {
+    aesDecrypt(input, inputLen, out, iv, ivLen, key, 32);
+}
+
+// #ifdef TEST_AES
 int main() {
-    unsigned char key[] = "12345678123456781234567812345678";
+    unsigned char key[] = "1234567812345678";
     unsigned char input[] = "this is a text,this is a text,this is a text";
-    unsigned char iv[] = "123";
-    int key_len = 32;
-    int input_len = 45;
-    int iv_len = 3;
+    unsigned char iv[] = "123456781234";
+    int key_len = 16;
+    int input_len = 44;
+    int ivLen = 12;
     unsigned char* ciphertext = (unsigned char*)malloc(input_len);
-    aes256Encrypt(input, input_len, ciphertext, iv, iv_len, key);
-    show_hex(ciphertext, input_len);
+    unsigned char* out = (unsigned char*)malloc(input_len);
 
-    memcpy(iv, "123", 3);
-    aes256Decrypt(ciphertext, input_len, input, iv, iv_len, key);
-    printf("%s\n", input);
+    // aes256Encrypt(input, input_len, ciphertext, iv, ivLen, key);
+    // show_hex(ciphertext, input_len);
+    // memcpy(iv, "123", 3);
+    // aes256Decrypt(ciphertext, input_len, input, iv, ivLen, key);
+    // printf("%s\n", input);
+
+    unsigned char add[] = "test";
+    int addLen = 4;
+
+    aesGcmEncrypt(input, input_len, ciphertext, iv, ivLen, add, addLen, key);
+    show_hex(ciphertext, input_len + AES_BLOCK_SIZE);
+    aesGcmDecrypt(ciphertext, input_len + AES_BLOCK_SIZE, out, iv, ivLen, add, addLen, key);
+    printf("%s\n", out);
 }
-#endif
+// #endif
