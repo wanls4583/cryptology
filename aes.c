@@ -392,7 +392,7 @@ void aesEncrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned
     unsigned char inputBlock[AES_BLOCK_SIZE] = { 0 };
     unsigned char ivBlock[AES_BLOCK_SIZE] = { 0 };
     memcpy(ivBlock, iv, ivLen > AES_BLOCK_SIZE ? AES_BLOCK_SIZE : ivLen);
-    while (inputLen >= AES_BLOCK_SIZE) {
+    while (inputLen >= AES_BLOCK_SIZE) { //CBC模式下最后一块数据不满一个分组的情况下需要填充
         memcpy(inputBlock, input, AES_BLOCK_SIZE);
         xor (inputBlock, ivBlock, AES_BLOCK_SIZE);
         aesBlockEncrypt(inputBlock, out, key, keyLen);
@@ -407,7 +407,7 @@ void aesDecrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned
     unsigned char inputBlock[AES_BLOCK_SIZE] = { 0 };
     unsigned char ivBlock[AES_BLOCK_SIZE] = { 0 };
     memcpy(ivBlock, iv, ivLen > AES_BLOCK_SIZE ? AES_BLOCK_SIZE : ivLen);
-    while (inputLen >= AES_BLOCK_SIZE) {
+    while (inputLen >= AES_BLOCK_SIZE) { //CBC模式下最后一块数据不满一个分组的情况下需要填充
         memcpy(inputBlock, input, AES_BLOCK_SIZE);
         aesBlockDecrypt(inputBlock, out, key, keyLen);
         xor (out, ivBlock, AES_BLOCK_SIZE);
@@ -431,7 +431,7 @@ void gHash(unsigned char* input, int inputLen, unsigned char* H, unsigned char* 
     }
 }
 
-int aesGcmProcess(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* add, int addLen, unsigned char* key, int decrypt) {
+int aesGcmProcess(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* add, int addLen, unsigned char* key, int keyLen, int decrypt) {
     unsigned char nonce[AES_BLOCK_SIZE] = { 0 };
     unsigned char H[AES_BLOCK_SIZE] = { 0 };
     unsigned char zeros[AES_BLOCK_SIZE] = { 0 };
@@ -443,7 +443,7 @@ int aesGcmProcess(unsigned char* input, int inputLen, unsigned char* out, unsign
     int counter = 1;
     int blockSize = 0;
 
-    aesBlockEncrypt(zeros, H, key, 16);
+    aesBlockEncrypt(zeros, H, key, keyLen);
     gHash(add, addLen, H, macBlock);
     memcpy(nonce, iv, ivLen > 12 ? 12 : ivLen);
 
@@ -451,7 +451,7 @@ int aesGcmProcess(unsigned char* input, int inputLen, unsigned char* out, unsign
         int c = htonl(++counter);
         blockSize = processLen >= AES_BLOCK_SIZE ? AES_BLOCK_SIZE : processLen;
         memcpy(nonce + 12, (void*)&c, sizeof(unsigned int));
-        aesBlockEncrypt(nonce, inputBlock, key, 16);
+        aesBlockEncrypt(nonce, inputBlock, key, keyLen);
         xor (inputBlock, input, blockSize); //CTR
         memcpy(out, inputBlock, blockSize);
 
@@ -495,31 +495,55 @@ int aesGcmProcess(unsigned char* input, int inputLen, unsigned char* out, unsign
     return 0;
 }
 
-void aesGcmEncrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* add, int addLen, unsigned char* key) {
-    aesGcmProcess(input, inputLen, out, iv, ivLen, add, addLen, key, 0);
+void aes128GcmEncrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* add, int addLen, unsigned char* key) {
+    aesGcmProcess(input, inputLen, out, iv, ivLen, add, addLen, key, 16, 0);
 }
 
-void aesGcmDecrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* add, int addLen, unsigned char* key) {
-    aesGcmProcess(input, inputLen, out, iv, ivLen, add, addLen, key, 1);
+void aes128GcmDecrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* add, int addLen, unsigned char* key) {
+    aesGcmProcess(input, inputLen, out, iv, ivLen, add, addLen, key, 16, 1);
+}
+
+void aes256GcmEncrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* add, int addLen, unsigned char* key) {
+    aesGcmProcess(input, inputLen, out, iv, ivLen, add, addLen, key, 32, 0);
+}
+
+void aes256GcmDecrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* add, int addLen, unsigned char* key) {
+    aesGcmProcess(input, inputLen, out, iv, ivLen, add, addLen, key, 32, 1);
 }
 
 void aes128Encrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* key) {
     aesEncrypt(input, inputLen, out, iv, ivLen, key, 16);
 }
 
-void aes256Encrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* key) {
-    aesEncrypt(input, inputLen, out, iv, ivLen, key, 32);
-}
-
 void aes128Decrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* key) {
     aesDecrypt(input, inputLen, out, iv, ivLen, key, 16);
+}
+
+void aes256Encrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* key) {
+    aesEncrypt(input, inputLen, out, iv, ivLen, key, 32);
 }
 
 void aes256Decrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* key) {
     aesDecrypt(input, inputLen, out, iv, ivLen, key, 32);
 }
 
-#ifdef TEST_AES
+// #ifdef TEST_AES
+void test_aes_128() {
+    unsigned char key[] = "1234567812345678";
+    unsigned char input[] = "this is a text,this is a text,this is a text!";
+    unsigned char iv[] = "9999999999999999";
+    int ivLen = 16;
+    int input_len = 45;
+    unsigned char* ciphertext = (unsigned char*)malloc(input_len);
+    unsigned char* out = (unsigned char*)malloc(input_len);
+
+    printf("---------------test_aes_128---------------\n");
+    aes128Encrypt(input, input_len, ciphertext, iv, ivLen, key);
+    show_hex(ciphertext, input_len);
+    aes128Decrypt(ciphertext, input_len, out, iv, ivLen, key);
+    printf("%s\n", out);
+}
+
 void test_aes_256() {
     unsigned char key[] = "12345678123456781234567812345678";
     unsigned char input[] = "this is a text,this is a text,this is a text!";
@@ -530,32 +554,53 @@ void test_aes_256() {
     unsigned char* ciphertext = (unsigned char*)malloc(input_len);
     unsigned char* out = (unsigned char*)malloc(input_len);
 
+    printf("---------------test_aes_256---------------\n");
     aes256Encrypt(input, input_len, ciphertext, iv, ivLen, key);
     show_hex(ciphertext, input_len);
     aes256Decrypt(ciphertext, input_len, out, iv, ivLen, key);
     printf("%s\n", out);
 }
 
-void test_aes_gcm() {
+void test_aes_128_gcm() {
     unsigned char key[] = "1234567812345678";
     unsigned char input[] = "this is a text,this is a text,this is a text!";
     unsigned char iv[] = "999999999999";
     unsigned char add[] = "test";
-    int key_len = 16;
     int ivLen = 12;
     int input_len = 45;
     int addLen = 4;
     unsigned char* ciphertext = (unsigned char*)malloc(input_len + AES_BLOCK_SIZE);
     unsigned char* out = (unsigned char*)malloc(input_len);
 
-    aesGcmEncrypt(input, input_len, ciphertext, iv, ivLen, add, addLen, key);
+    printf("---------------test_aes_128_gcm---------------\n");
+    aes128GcmEncrypt(input, input_len, ciphertext, iv, ivLen, add, addLen, key);
     show_hex(ciphertext, input_len + AES_BLOCK_SIZE);
-    aesGcmDecrypt(ciphertext, input_len + AES_BLOCK_SIZE, out, iv, ivLen, add, addLen, key);
+    aes128GcmDecrypt(ciphertext, input_len + AES_BLOCK_SIZE, out, iv, ivLen, add, addLen, key);
+    printf("%s\n", out);
+}
+
+void test_aes_256_gcm() {
+    unsigned char key[] = "12345678123456781234567812345678";
+    unsigned char input[] = "this is a text,this is a text,this is a text!";
+    unsigned char iv[] = "999999999999";
+    unsigned char add[] = "test";
+    int ivLen = 12;
+    int input_len = 45;
+    int addLen = 4;
+    unsigned char* ciphertext = (unsigned char*)malloc(input_len + AES_BLOCK_SIZE);
+    unsigned char* out = (unsigned char*)malloc(input_len);
+
+    printf("---------------test_aes_256_gcm---------------\n");
+    aes256GcmEncrypt(input, input_len, ciphertext, iv, ivLen, add, addLen, key);
+    show_hex(ciphertext, input_len + AES_BLOCK_SIZE);
+    aes256GcmDecrypt(ciphertext, input_len + AES_BLOCK_SIZE, out, iv, ivLen, add, addLen, key);
     printf("%s\n", out);
 }
 
 int main() {
+    test_aes_128();
     test_aes_256();
-    test_aes_gcm();
+    test_aes_128_gcm();
+    test_aes_256_gcm();
 }
-#endif
+// #endif
