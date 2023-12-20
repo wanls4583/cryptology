@@ -104,7 +104,7 @@ void subtract(huge* a, huge* b) {
     copy(x, a);
     copy(y, b);
     if (x->sign == y->sign) {
-        int sign = 0, i = 0, j = 0;
+        int i = 0, j = 0;
         if (x->sign) { //-x-(-y)
             swap_huge_rep(x, y);
             x->sign = 0;
@@ -112,7 +112,7 @@ void subtract(huge* a, huge* b) {
         }
         if (y->size > x->size) {
             swap_huge_rep(x, y);
-            sign = 1;
+            x->sign = 1;
         }
         i = x->size - 1;
         j = y->size - 1;
@@ -135,10 +135,9 @@ void subtract(huge* a, huge* b) {
         }
         contract(x);
     } else if (x->sign) { //-x-y
-        x->sign = 0;
-        y->sign = 0;
-        add(x, y);
         x->sign = 1;
+        y->sign = 1;
+        add(x, y);
     } else { //x-(-y)
         y->sign = 0;
         add(x, y);
