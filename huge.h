@@ -13,3 +13,5 @@ void swap_huge_rep(huge* a, huge* b);
 void contract(huge* h);
 void add(huge* a, huge* b);
 void subtract(huge* a, huge* b);
+void multiply( huge *a, huge *b );
+void divide( huge *dividend, huge *divisor, huge *quotient );
