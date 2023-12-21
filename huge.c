@@ -21,9 +21,12 @@ void expand(huge* h) {
     free(tmp);
 }
 
-void copy(huge* a, huge* b) {
+void copy_huge(huge* a, huge* b) {
     a->sign = b->sign;
     a->size = b->size;
+    if (a->rep) {
+        free(a->rep);
+    }
     a->rep = (unsigned char*)malloc(b->size);
     memcpy(a->rep, b->rep, b->size);
 }
@@ -63,11 +66,28 @@ void contract(huge* h) {
     }
 }
 
+int compare(huge* a, huge* b) {
+    if (a->size == b->size) {
+        for (int i = 0; i < a->size; i++) {
+            if (a->rep[i] > b->rep[i]) {
+                return 1;
+            } else if (a->rep[i] < b->rep[i]) {
+                return -1;
+            }
+        }
+        return 0;
+    } else if (a->size > b->size) {
+        return 1;
+    } else {
+        return -1;
+    }
+}
+
 void add(huge* a, huge* b) {
     huge* x = (huge*)malloc(sizeof(huge));
     huge* y = (huge*)malloc(sizeof(huge));
-    copy(x, a);
-    copy(y, b);
+    copy_huge(x, a);
+    copy_huge(y, b);
     if (x->sign == y->sign) {
         int i = 0, j = 0, carry = 0;
         if (y->size > x->size) {
@@ -93,7 +113,7 @@ void add(huge* a, huge* b) {
         y->sign = 0;
         subtract(x, y);
     }
-    copy(a, x);
+    copy_huge(a, x);
     free_huge(x);
     free_huge(y);
 }
@@ -101,8 +121,8 @@ void add(huge* a, huge* b) {
 void subtract(huge* a, huge* b) {
     huge* x = (huge*)malloc(sizeof(huge));
     huge* y = (huge*)malloc(sizeof(huge));
-    copy(x, a);
-    copy(y, b);
+    copy_huge(x, a);
+    copy_huge(y, b);
     if (x->sign == y->sign) {
         int i = 0, j = 0;
         if (x->sign) { //-x-(-y)
@@ -110,7 +130,7 @@ void subtract(huge* a, huge* b) {
             x->sign = 0;
             y->sign = 0;
         }
-        if (y->size > x->size) {
+        if (compare(a, b) < 0) {
             swap_huge_rep(x, y);
             x->sign = 1;
         }
@@ -142,7 +162,7 @@ void subtract(huge* a, huge* b) {
         y->sign = 0;
         add(x, y);
     }
-    copy(a, x);
+    copy_huge(a, x);
     free_huge(x);
     free_huge(y);
 }
@@ -158,6 +178,7 @@ int main() {
     s2[1] = 1;
     load_huge(&a, s1, 2);
     load_huge(&b, s2, 2);
+    a.sign = 1;
     add(&a, &b);
     show_hex(a.rep, a.size);
 
