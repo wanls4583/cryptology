@@ -272,20 +272,20 @@ void divide(huge* dividend, huge* divisor, huge* quotient) {
     int c = compare(dividend, divisor);
     if (c < 0) {
         if (quotient) {
-            copy_huge(quotient, dividend);
+            free(quotient->rep);
+            quotient->size = 0;
+            quotient->rep = (unsigned char*)malloc(0);
+            quotient->sign = (quotient->sign || divisor->sign) ? 1 : 0;
         }
-        free(dividend->rep);
-        dividend->size = 0;
-        dividend->rep = (unsigned char*)malloc(0);
-        dividend->sign = (dividend->sign || divisor->sign) ? 1 : 0;
         return;
     }
 
-    huge result, sum, one, tmp;
+    huge result, sum, one, tmp, _quotient;
     set_huge(&result, 0);
     set_huge(&sum, 0);
     set_huge(&one, 1);
     set_huge(&tmp, 0);
+    set_huge(&_quotient, 0);
 
     while (compare(&result, dividend) < 0) {
         if (compare(&sum, &one) < 0) {
@@ -299,15 +299,16 @@ void divide(huge* dividend, huge* divisor, huge* quotient) {
             copy_huge(&tmp, &result);
             add(&result, &tmp);
         } else {
-            copy_huge(&tmp, dividend);
-            subtract(&tmp, &sum);
-            divide(&tmp, divisor, quotient);
-            add(&result, &tmp);
+            subtract(dividend, &sum);
+            divide(dividend, divisor, &_quotient);
+            add(&result, &_quotient);
             break;
         }
     }
 
-    copy_huge(dividend, &result);
+    if (quotient) {
+        copy_huge(quotient, &result);
+    }
     free(result.rep);
     free(sum.rep);
     free(one.rep);
@@ -321,17 +322,16 @@ void _inv(huge* a, huge* b, huge* x, huge* y) {
         return;
     }
 
-    huge a1, b1, x1, y1, tmp;
+    huge a1, b1, x1, y1;
 
     set_huge(&a1, 0);
     set_huge(&b1, 0);
     set_huge(&x1, 0);
     set_huge(&y1, 0);
-    set_huge(&tmp, 0);
 
     copy_huge(&a1, b);
-    copy_huge(&tmp, a);
-    divide(&tmp, b, &b1);
+    copy_huge(&b1, a);
+    divide(&b1, b, NULL);
     _inv(&a1, &b1, &x1, &y1);
 
     // x = y0
@@ -339,16 +339,15 @@ void _inv(huge* a, huge* b, huge* x, huge* y) {
 
     // y = x0 - [a/b]*y0
     copy_huge(&a1, a);
-    divide(&a1, b, NULL);
-    multiply(&a1, &y1);
-    subtract(&x1, &a1);
+    divide(&a1, b, &b1);
+    multiply(&b1, &y1);
+    subtract(&x1, &b1);
     copy_huge(y, &x1);
 
     free(a1.rep);
     free(b1.rep);
     free(x1.rep);
     free(y1.rep);
-    free(tmp.rep);
 }
 
 // 负数的逆元
@@ -357,8 +356,7 @@ void _negative(huge* h, huge* p) {
     set_huge(&tmp, 0);
 
     if (h->sign) {
-        divide(h, p, &tmp);
-        copy_huge(h, &tmp);
+        divide(h, p, NULL);
         h->sign = 0;
         copy_huge(&tmp, p);
         subtract(&tmp, h);
@@ -414,10 +412,17 @@ int main() {
     // show_hex(a.rep, a.size);
     // show_hex(c.rep, c.size);
 
-    set_huge(&a, 12);
-    set_huge(&b, 23);
-    inv(&a, &b);
+    // set_huge(&a, 2);
+    // set_huge(&b, 23);
+    // inv(&a, &b);
+    // show_hex(a.rep, a.size);
+
+    set_huge(&a, 2);
+    set_huge(&b, 1);
+    set_huge(&c, 0);
+    divide(&a, &b, &c);
     show_hex(a.rep, a.size);
+    show_hex(c.rep, c.size);
 
     return 0;
 }
