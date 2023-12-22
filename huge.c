@@ -1,5 +1,6 @@
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include "huge.h"
 #include "hex.h"
 
@@ -236,6 +237,8 @@ void multiply(huge* a, huge* b) {
     set_huge(&y, 0);
     copy_huge(&x, a);
     copy_huge(&y, b);
+    x.sign = 0;
+    y.sign = 0;
 
     if (a->size == 0 || b->size == 0) {
         a->size = 0;
@@ -270,37 +273,48 @@ void multiply(huge* a, huge* b) {
 
 void divide(huge* dividend, huge* divisor, huge* quotient) {
     int c = compare(dividend, divisor);
+    int sign = dividend->sign = (dividend->sign || divisor->sign) ? 1 : 0;
     if (c < 0) {
         if (quotient) {
             free(quotient->rep);
             quotient->size = 0;
             quotient->rep = (unsigned char*)malloc(0);
-            quotient->sign = (quotient->sign || divisor->sign) ? 1 : 0;
+            quotient->sign = 0;
         }
+        dividend->sign = sign;
         return;
     }
 
-    huge result, sum, one, tmp, _quotient;
+    huge result, sum, one, tmp;
     set_huge(&result, 0);
     set_huge(&sum, 0);
     set_huge(&one, 1);
     set_huge(&tmp, 0);
-    set_huge(&_quotient, 0);
 
-    while (compare(&result, dividend) < 0) {
+    huge _dividend, _divisor, _quotient;
+    set_huge(&_dividend, 0);
+    set_huge(&_divisor, 0);
+    set_huge(&_quotient, 0);
+    copy_huge(&_dividend, dividend);
+    copy_huge(&_divisor, divisor);
+    _dividend.sign = 0;
+    _divisor.sign = 0;
+
+    while (1) {
         if (compare(&sum, &one) < 0) {
-            add(&sum, divisor);
+            subtract(&_dividend, &_divisor);
+            add(&sum, &_divisor);
             add(&result, &one);
         }
         copy_huge(&tmp, &sum);
         add(&tmp, &sum);
-        if (compare(&tmp, dividend) <= 0) {
+        if (compare(&tmp, &_dividend) <= 0) {
+            subtract(&_dividend, &sum);
             copy_huge(&sum, &tmp);
             copy_huge(&tmp, &result);
             add(&result, &tmp);
         } else {
-            subtract(dividend, &sum);
-            divide(dividend, divisor, &_quotient);
+            divide(&_dividend, &_divisor, &_quotient);
             add(&result, &_quotient);
             break;
         }
@@ -308,7 +322,10 @@ void divide(huge* dividend, huge* divisor, huge* quotient) {
 
     if (quotient) {
         copy_huge(quotient, &result);
+        quotient->sign = sign;
     }
+    copy_huge(dividend, &_dividend);
+    dividend->sign = sign;
     free(result.rep);
     free(sum.rep);
     free(one.rep);
@@ -405,24 +422,19 @@ int main() {
     // multiply(&a, &b);
     // show_hex(a.rep, a.size);
 
-    // set_huge(&a, 1234567891);
-    // set_huge(&b, 321123);
-    // set_huge(&c, 0);
-    // divide(&a, &b, &c);
-    // show_hex(a.rep, a.size);
-    // show_hex(c.rep, c.size);
-
-    // set_huge(&a, 2);
-    // set_huge(&b, 23);
-    // inv(&a, &b);
-    // show_hex(a.rep, a.size);
-
-    set_huge(&a, 2);
-    set_huge(&b, 1);
+    set_huge(&a, 1123456789);
+    set_huge(&b, 321123);
     set_huge(&c, 0);
     divide(&a, &b, &c);
     show_hex(a.rep, a.size);
     show_hex(c.rep, c.size);
+
+    set_huge(&a, 21 + 23 * 123456);
+    a.sign = 1;
+    set_huge(&b, 23);
+    inv(&a, &b);
+    printf("sign:%d\n", a.sign);
+    show_hex(a.rep, a.size);
 
     return 0;
 }
