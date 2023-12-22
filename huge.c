@@ -31,7 +31,7 @@ void expand_right(huge* h, int size) {
 }
 
 void copy_huge(huge* a, huge* b) {
-    if (a->rep) {
+    if (a->rep && a->size) {
         free(a->rep);
     }
     a->sign = b->sign;
@@ -271,7 +271,9 @@ void multiply(huge* a, huge* b) {
 void divide(huge* dividend, huge* divisor, huge* quotient) {
     int c = compare(dividend, divisor);
     if (c < 0) {
-        copy_huge(quotient, dividend);
+        if (quotient) {
+            copy_huge(quotient, dividend);
+        }
         free(dividend->rep);
         dividend->size = 0;
         dividend->rep = (unsigned char*)malloc(0);
@@ -284,7 +286,6 @@ void divide(huge* dividend, huge* divisor, huge* quotient) {
     set_huge(&sum, 0);
     set_huge(&one, 1);
     set_huge(&tmp, 0);
-    set_huge(quotient, 0);
 
     while (compare(&result, dividend) < 0) {
         if (compare(&sum, &one) < 0) {
@@ -311,6 +312,70 @@ void divide(huge* dividend, huge* divisor, huge* quotient) {
     free(sum.rep);
     free(one.rep);
     free(tmp.rep);
+}
+
+void _inv(huge* a, huge* b, huge* x, huge* y) {
+    if (b->size <= 0) {
+        set_huge(x, 1);
+        set_huge(y, 0);
+        return;
+    }
+
+    huge a1, b1, x1, y1, tmp;
+
+    set_huge(&a1, 0);
+    set_huge(&b1, 0);
+    set_huge(&x1, 0);
+    set_huge(&y1, 0);
+    set_huge(&tmp, 0);
+
+    copy_huge(&a1, b);
+    copy_huge(&tmp, a);
+    divide(&tmp, b, &b1);
+    _inv(&a1, &b1, &x1, &y1);
+
+    // x = y0
+    copy_huge(x, &y1);
+
+    // y = x0 - [a/b]*y0
+    copy_huge(&a1, a);
+    divide(&a1, b, NULL);
+    multiply(&a1, &y1);
+    subtract(&x1, &a1);
+    copy_huge(y, &x1);
+
+    free(a1.rep);
+    free(b1.rep);
+    free(x1.rep);
+    free(y1.rep);
+    free(tmp.rep);
+}
+
+// 负数的逆元
+void _negative(huge* h, huge* p) {
+    huge tmp;
+    set_huge(&tmp, 0);
+
+    if (h->sign) {
+        divide(h, p, &tmp);
+        copy_huge(h, &tmp);
+        h->sign = 0;
+        copy_huge(&tmp, p);
+        subtract(&tmp, h);
+        copy_huge(h, &tmp);
+    }
+}
+
+// 求h在模p上的乘法逆元
+void inv(huge* h, huge* p) {
+    huge x, y;
+    set_huge(&x, 0);
+    set_huge(&y, 0);
+
+    _negative(h, p);
+    _inv(h, p, &x, &y);
+    copy_huge(h, &x);
+    _negative(h, p);
 }
 
 #define TEST_HUGE
@@ -348,6 +413,11 @@ int main() {
     // divide(&a, &b, &c);
     // show_hex(a.rep, a.size);
     // show_hex(c.rep, c.size);
+
+    set_huge(&a, 12);
+    set_huge(&b, 23);
+    inv(&a, &b);
+    show_hex(a.rep, a.size);
 
     return 0;
 }
