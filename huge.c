@@ -22,7 +22,7 @@ void expand(huge* h) {
 }
 
 void expand_right(huge* h, int size) {
-    if (size <= 0) {
+    if (size <= 0 || h->size <= 0) {
         return;
     }
     h->rep = (unsigned char*)realloc(h->rep, h->size + size);
@@ -111,7 +111,7 @@ void set_huge(huge* h, unsigned int val) {
     h->rep = (unsigned char*)malloc(h->size);
 
     for (int i = h->size - 1; i >= 0; i--) {
-        h->rep[h->size - i] = (mask & val) >> shift;
+        h->rep[i] = (mask & val) >> shift;
         mask <<= 8;
         shift += 8;
     }
@@ -203,18 +203,24 @@ void subtract(huge* a, huge* b) {
     free(y.rep);
 }
 
-void _multiply(huge* a, huge* b) {
-    huge x, y;
+void _multiply(huge* a, unsigned char b) {
+    huge x;
     set_huge(&x, 0);
-    set_huge(&y, 0);
     copy_huge(&x, a);
-    copy_huge(&y, b);
+
+    if (a->size == 0 || b == 0) {
+        a->size = 0;
+        a->sign = 0;
+        a->rep = (unsigned char*)malloc(0);
+        return;
+    }
 
     int carry = 0, i = x.size - 1;
     while (i >= 0) {
-        int sum = x.rep[i] * y.rep[0] + carry;
-        x.rep[i] = sum / 256;
-        carry = sum % 256;
+        int sum = x.rep[i] * b + carry;
+        x.rep[i] = sum % 256;
+        carry = sum / 256;
+        i--;
     }
     if (carry) {
         expand(&x);
@@ -222,7 +228,6 @@ void _multiply(huge* a, huge* b) {
     }
     copy_huge(a, &x);
     free(x.rep);
-    free(y.rep);
 }
 
 void multiply(huge* a, huge* b) {
@@ -252,6 +257,7 @@ void multiply(huge* a, huge* b) {
         _multiply(&tmp, y.rep[i]);
         expand_right(&tmp, zeros);
         add(&sum, &tmp);
+        copy_huge(&tmp, &x);
         zeros++;
     }
     copy_huge(a, &sum);
@@ -259,7 +265,7 @@ void multiply(huge* a, huge* b) {
     free(y.rep);
     free(sum.rep);
     free(tmp.rep);
-    a->sign = (a->sign || b->size) ? 1 : 0;
+    a->sign = (a->sign || b->sign) ? 1 : 0;
 }
 
 void divide(huge* dividend, huge* divisor, huge* quotient) {
@@ -275,17 +281,19 @@ void divide(huge* dividend, huge* divisor, huge* quotient) {
 
     huge result, sum, one, tmp;
     set_huge(&result, 0);
-    copy_huge(&sum, 0);
+    set_huge(&sum, 0);
     set_huge(&one, 1);
     set_huge(&tmp, 0);
     set_huge(quotient, 0);
 
-    while (compare(&result, &divisor) < 0) {
-        add(&sum, divisor);
-        add(&result, &one);
+    while (compare(&result, dividend) < 0) {
+        if (compare(&sum, &one) < 0) {
+            add(&sum, divisor);
+            add(&result, &one);
+        }
         copy_huge(&tmp, &sum);
         add(&tmp, &sum);
-        if (compare(&tmp, &dividend) <= 0) {
+        if (compare(&tmp, dividend) <= 0) {
             copy_huge(&sum, &tmp);
             copy_huge(&tmp, &result);
             add(&result, &tmp);
@@ -309,25 +317,37 @@ void divide(huge* dividend, huge* divisor, huge* quotient) {
 #ifdef TEST_HUGE
 int main() {
     unsigned char s1[2], s2[2];
-    huge a, b;
-    s1[0] = 254;
-    s1[1] = 255;
-    s2[0] = 1;
-    s2[1] = 1;
-    load_huge(&a, s1, 2);
-    load_huge(&b, s2, 2);
-    a.sign = 1;
-    add(&a, &b);
-    show_hex(a.rep, a.size);
+    huge a, b, c;
+    // s1[0] = 254;
+    // s1[1] = 255;
+    // s2[0] = 1;
+    // s2[1] = 1;
+    // load_huge(&a, s1, 2);
+    // load_huge(&b, s2, 2);
+    // a.sign = 1;
+    // add(&a, &b);
+    // show_hex(a.rep, a.size);
 
-    s1[0] = 2;
-    s1[1] = 1;
-    s2[0] = 1;
-    s2[1] = 4;
-    load_huge(&a, s1, 2);
-    load_huge(&b, s2, 2);
-    subtract(&a, &b);
-    show_hex(a.rep, a.size);
+    // s1[0] = 2;
+    // s1[1] = 1;
+    // s2[0] = 1;
+    // s2[1] = 4;
+    // load_huge(&a, s1, 2);
+    // load_huge(&b, s2, 2);
+    // subtract(&a, &b);
+    // show_hex(a.rep, a.size);
+
+    // set_huge(&a, 7654321);
+    // set_huge(&b, 123456790);
+    // multiply(&a, &b);
+    // show_hex(a.rep, a.size);
+
+    // set_huge(&a, 1234567891);
+    // set_huge(&b, 321123);
+    // set_huge(&c, 0);
+    // divide(&a, &b, &c);
+    // show_hex(a.rep, a.size);
+    // show_hex(c.rep, c.size);
 
     return 0;
 }
