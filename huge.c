@@ -232,6 +232,7 @@ void _multiply(huge* a, unsigned char b) {
 }
 
 void multiply(huge* a, huge* b) {
+    int sign = (a->sign || b->sign) ? 1 : 0;
     huge x, y;
     set_huge(&x, 0);
     set_huge(&y, 0);
@@ -268,7 +269,7 @@ void multiply(huge* a, huge* b) {
     free(y.rep);
     free(sum.rep);
     free(tmp.rep);
-    a->sign = (a->sign || b->sign) ? 1 : 0;
+    a->sign = sign;
 }
 
 void divide(huge* dividend, huge* divisor, huge* quotient) {
@@ -368,7 +369,7 @@ void _inv(huge* a, huge* b, huge* x, huge* y) {
 }
 
 // 负数的逆元
-void _negative(huge* h, huge* p) {
+void negativeInv(huge* h, huge* p) {
     huge tmp;
     set_huge(&tmp, 0);
 
@@ -387,13 +388,13 @@ void inv(huge* h, huge* p) {
     set_huge(&x, 0);
     set_huge(&y, 0);
 
-    _negative(h, p);
+    negativeInv(h, p);
     _inv(h, p, &x, &y);
     copy_huge(h, &x);
-    _negative(h, p);
+    negativeInv(h, p);
 }
 
-#define TEST_HUGE
+// #define TEST_HUGE
 #ifdef TEST_HUGE
 int main() {
     unsigned char s1[2], s2[2];

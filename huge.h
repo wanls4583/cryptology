@@ -5,6 +5,7 @@ typedef struct huge {
 } huge;
 
 int compare(huge* a, huge* b);
+void set_huge(huge* h, unsigned int val);
 void copy_huge(huge* a, huge* b);
 void load_huge(huge* h, unsigned char* c, int length);
 void unload_huge(huge* h, unsigned char* bytes, int length);
@@ -15,3 +16,5 @@ void add(huge* a, huge* b);
 void subtract(huge* a, huge* b);
 void multiply( huge *a, huge *b );
 void divide( huge *dividend, huge *divisor, huge *quotient );
+void inv(huge* h, huge* p);
+void negativeInv(huge* h, huge* p);
