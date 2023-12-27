@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stdio.h>
 #include "ecc.h"
 #include "hex.h"
 
@@ -30,7 +31,7 @@ void double_point(point* p1, huge* a, huge* p) {
     subtract(&y3, &x3);
     multiply(&y3, &k);
     subtract(&y3, &p1->y);
-    divide(&x3, p, NULL);
+    divide(&y3, p, NULL);
 
     negativeInv(&x3, p);
     negativeInv(&y3, p);
@@ -64,7 +65,7 @@ void add_points(point* p1, point* p2, huge* p) {
     multiply(&x3, &k);
     subtract(&x3, &p1->x);
     subtract(&x3, &p2->x);
-    divide(&x3, p, NULL);
+    divide(&y3, p, NULL);
 
     set_huge(&y3, 0);
     copy_huge(&y3, &p1->x);
@@ -112,20 +113,25 @@ void multiply_point(point* p1, huge* k, huge* a, huge* p) {
     free(sum.y.rep);
 }
 
-#define TEST_ECC
+// #define TEST_ECC
 #ifdef TEST_ECC
 int main() {
-  point p1, p2;
-  huge a, p;
-  set_huge(&a, 1);
-  set_huge(&p, 23);
+    int _a = 1, b = 1, _p = 23;
+    point p1, p2;
+    huge a, p;
+    set_huge(&a, _a);
+    set_huge(&p, _p);
 
-  set_huge(&p1.x, 0);
-  set_huge(&p1.y, 1);
-  double_point(&p1, &a, &p);
-  show_hex(p1.x.rep, p1.x.size);
-  show_hex(p1.y.rep, p1.y.size);
+    for (int x = 0; x < 100; x+=2) {
+        int y = x * x * x + _a * x * x + b;
+        printf("x=%d,y=%d\n", x, y);
+        set_huge(&p1.x, x);
+        set_huge(&p1.y, y);
+        double_point(&p1, &a, &p);
+        show_hex(p1.x.rep, p1.x.size);
+        show_hex(p1.y.rep, p1.y.size);
+    }
 
-  return 0;
+    return 0;
 }
 #endif
