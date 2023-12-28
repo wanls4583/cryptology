@@ -122,9 +122,9 @@ int main() {
     set_huge(&a, _a);
     set_huge(&p, _p);
 
-    for (int x = 0; x < 100; x+=2) {
-        int y = x * x * x + _a * x * x + b;
-        printf("x=%d,y=%d\n", x, y);
+    for (int x = 0; x < 100; x += 1) {
+        int y = x * x * x + _a * x * x + b, r = y * 2 % _p;
+        printf("x=%d,y=%d,r=%d\n", x, y, r);
         set_huge(&p1.x, x);
         set_huge(&p1.y, y);
         double_point(&p1, &a, &p);

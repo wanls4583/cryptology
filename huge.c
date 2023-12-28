@@ -374,58 +374,78 @@ void inv(huge* h, huge* p) {
     set_huge(&x, 0);
     set_huge(&y, 0);
 
+    if (compare(h, p) == 0) {
+        set_huge(h, 1);
+        return;
+    }
+
     negativeInv(h, p);
     _inv(h, p, &x, &y);
     copy_huge(h, &x);
     negativeInv(h, p);
+
+    if(h->size == 1 && !h->rep[0]) {
+        copy_huge(h, p);
+    }
 }
 
 // #define TEST_HUGE
 #ifdef TEST_HUGE
 int main() {
-    unsigned char s1[2], s2[2];
     huge a, b, c;
-    s1[0] = 254;
-    s1[1] = 255;
-    s2[0] = 1;
-    s2[1] = 1;
-    load_huge(&a, s1, 2);
-    load_huge(&b, s2, 2);
-    a.sign = 1;
-    add(&a, &b);
-    show_hex(a.rep, a.size);
+    // unsigned char s1[2], s2[2];
+    // s1[0] = 254;
+    // s1[1] = 255;
+    // s2[0] = 1;
+    // s2[1] = 1;
+    // load_huge(&a, s1, 2);
+    // load_huge(&b, s2, 2);
+    // a.sign = 1;
+    // add(&a, &b);
+    // show_hex(a.rep, a.size);
 
-    s1[0] = 2;
-    s1[1] = 1;
-    s2[0] = 1;
-    s2[1] = 4;
-    load_huge(&a, s1, 2);
-    load_huge(&b, s2, 2);
-    subtract(&a, &b);
-    show_hex(a.rep, a.size);
+    // s1[0] = 2;
+    // s1[1] = 1;
+    // s2[0] = 1;
+    // s2[1] = 4;
+    // load_huge(&a, s1, 2);
+    // load_huge(&b, s2, 2);
+    // subtract(&a, &b);
+    // show_hex(a.rep, a.size);
 
-    set_huge(&a, 7654321);
-    set_huge(&b, 123456790);
-    multiply(&a, &b);
-    show_hex(a.rep, a.size);
-    set_huge(&a, 28406);
-    set_huge(&b, 28406);
-    multiply(&a, &b);
-    show_hex(a.rep, a.size);
+    // set_huge(&a, 7654321);
+    // set_huge(&b, 123456790);
+    // multiply(&a, &b);
+    // show_hex(a.rep, a.size);
+    // set_huge(&a, 28406);
+    // set_huge(&b, 28406);
+    // multiply(&a, &b);
+    // show_hex(a.rep, a.size);
 
-    set_huge(&a, 1123456789);
-    set_huge(&b, 321123);
+    // set_huge(&a, 1123456789);
+    // set_huge(&b, 321123);
+    // set_huge(&c, 0);
+    // divide(&a, &b, &c);
+    // show_hex(a.rep, a.size);
+    // show_hex(c.rep, c.size);
+    set_huge(&a, 56704016);
+    set_huge(&b, 23);
     set_huge(&c, 0);
     divide(&a, &b, &c);
     show_hex(a.rep, a.size);
     show_hex(c.rep, c.size);
 
-    set_huge(&a, 21 + 23 * 123456);
-    a.sign = 1;
-    set_huge(&b, 23);
-    inv(&a, &b);
-    printf("sign:%d\n", a.sign);
-    show_hex(a.rep, a.size);
+    // set_huge(&a, 21 + 23 * 123456);
+    // a.sign = 1;
+    // set_huge(&b, 23);
+    // inv(&a, &b);
+    // printf("sign:%d\n", a.sign);
+    // show_hex(a.rep, a.size);
+    // set_huge(&a, 12);
+    // set_huge(&b, 3);
+    // inv(&a, &b);
+    // printf("sign:%d\n", a.sign);
+    // show_hex(a.rep, a.size);
 
     return 0;
 }
