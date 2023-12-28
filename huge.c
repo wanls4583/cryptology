@@ -67,8 +67,9 @@ void contract(huge* h) {
     while (!h->rep[i] && i < h->size) {
         i++;
     }
-    if (i > 0 && i < h->size) {
+    if (i > 0) {
         unsigned char* tmp = h->rep;
+        i = i == h->size ? h->size - 1 : i; // 保留一个0
         h->size -= i;
         h->rep = (unsigned char*)malloc(h->size);
         memcpy(h->rep, tmp + i, h->size);
@@ -170,7 +171,7 @@ void subtract(huge* a, huge* b) {
             x.sign = 0;
             y.sign = 0;
         }
-        if (compare(&x, &y) < 0) {
+        if (compare(&x, &y) <= 0) { // 为0时也为负
             swap_huge_rep(&x, &y);
             x.sign = 1;
         }
@@ -223,12 +224,13 @@ void _multiply(huge* a, unsigned char b) {
         expand(&x);
         x.rep[0] = carry;
     }
+    contract(&x);
     copy_huge(a, &x);
     free(x.rep);
 }
 
 void multiply(huge* a, huge* b) {
-    int sign = (a->sign || b->sign) ? 1 : 0;
+    int sign = (a->sign != b->sign) ? 1 : 0;
     huge x, y;
     set_huge(&x, 0);
     set_huge(&y, 0);
@@ -263,7 +265,7 @@ void multiply(huge* a, huge* b) {
 
 void divide(huge* dividend, huge* divisor, huge* quotient) {
     int c = compare(dividend, divisor);
-    int sign = dividend->sign = (dividend->sign || divisor->sign) ? 1 : 0;
+    int sign = dividend->sign = (dividend->sign != divisor->sign) ? 1 : 0;
     if (c < 0) {
         if (quotient) {
             set_huge(quotient, 0);
@@ -370,23 +372,30 @@ void negativeInv(huge* h, huge* p) {
 
 // 求h在模p上的乘法逆元
 void inv(huge* h, huge* p) {
-    huge x, y;
+    huge x, y, tmp;
     set_huge(&x, 0);
     set_huge(&y, 0);
+    set_huge(&tmp, 0);
+    negativeInv(h, p);
 
-    if (compare(h, p) == 0) {
+    if (compare(h, p) == 0) { //h==p
         set_huge(h, 1);
         return;
     }
+    if (h->size == 1 && !h->rep[0]) { //0
+        return;
+    }
 
-    negativeInv(h, p);
+    copy_huge(&tmp, h);
+    divide(&tmp, p, NULL);
+    if (tmp.size == 1 && !tmp.rep[0]) { //h%p==0,则返回p
+        copy_huge(h, p);
+        return;
+    }
+
     _inv(h, p, &x, &y);
     copy_huge(h, &x);
     negativeInv(h, p);
-
-    if(h->size == 1 && !h->rep[0]) {
-        copy_huge(h, p);
-    }
 }
 
 // #define TEST_HUGE
