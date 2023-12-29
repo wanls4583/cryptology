@@ -8,19 +8,11 @@
 #define MD5_INPUT_BLOCK_SIZE 56
 #define BASE_T 4294967296.0
 
-void show_hash(unsigned int a, unsigned int b, unsigned int c, unsigned int d) {
-    printf("%.02x", (unsigned char *)(&a));
-    printf("%.02x", (unsigned char *)(&b));
-    printf("%.02x", (unsigned char *)(&c));
-    printf("%.02x", (unsigned char *)(&d));
-    printf("\n");
-}
-
 unsigned int md5_initial_hash[] = {
-  0x67452301,
-  0xefcdab89,
-  0x98badcfe,
-  0x10325476
+    0x67452301,
+    0xefcdab89,
+    0x98badcfe,
+    0x10325476
 };
 
 unsigned int md5_initial_ti[MD5_BLOCK_SIZE] = { 0 };
@@ -42,19 +34,31 @@ unsigned int I(unsigned int X, unsigned int Y, unsigned int Z) {
 }
 
 void FF(unsigned int* a, unsigned int b, unsigned int c, unsigned int d, int mi, int s, int ti) {
-    *a = b + ((*a + F(b, c, d) + mi + ti) << s);
+    unsigned int tmp = *a + F(b, c, d) + mi + ti;
+    tmp = (tmp << s) | (tmp >> (32 - s));
+    tmp += b;
+    *a = tmp;
 }
 
 void GG(unsigned int* a, unsigned int b, unsigned int c, unsigned int d, int mi, int s, int ti) {
-    *a = b + ((*a + G(b, c, d) + mi + ti) << s);
+    unsigned int tmp = *a + G(b, c, d) + mi + ti;
+    tmp = (tmp << s) | (tmp >> (32 - s));
+    tmp += b;
+    *a = tmp;
 }
 
 void HH(unsigned int* a, unsigned int b, unsigned int c, unsigned int d, int mi, int s, int ti) {
-    *a = b + ((*a + H(b, c, d) + mi + ti) << s);
+    unsigned int tmp = *a + H(b, c, d) + mi + ti;
+    tmp = (tmp << s) | (tmp >> (32 - s));
+    tmp += b;
+    *a = tmp;
 }
 
 void II(unsigned int* a, unsigned int b, unsigned int c, unsigned int d, int mi, int s, int ti) {
-    *a = b + ((*a + I(b, c, d) + mi + ti) << s);
+    unsigned int tmp = *a + I(b, c, d) + mi + ti;
+    tmp = (tmp << s) | (tmp >> (32 - s));
+    tmp += b;
+    *a = tmp;
 }
 
 int md5_hash(const unsigned char* input, int len, unsigned int hash[MD5_RESULT_SIZE]) {
@@ -106,7 +110,7 @@ void md5_block_operate(const unsigned char* input, unsigned int hash[MD5_RESULT_
     }
 
     for (int i = 0; i < 16; i++) { //将明文以小端排序存入 unsigned int
-        m[i] = (input[i * 4 + 3] << 24) | (input[i * 4 + 2] << 16) || (input[i * 4 + 1] << 8) | input[i * 4];
+        m[i] = (input[i * 4 + 3] << 24) | (input[i * 4 + 2] << 16) | (input[i * 4 + 1] << 8) | input[i * 4];
     }
 
     // Round 1
@@ -126,7 +130,6 @@ void md5_block_operate(const unsigned char* input, unsigned int hash[MD5_RESULT_
     FF(&d, a, b, c, m[13], 12, md5_initial_ti[13]);
     FF(&c, d, a, b, m[14], 17, md5_initial_ti[14]);
     FF(&b, c, d, a, m[15], 22, md5_initial_ti[15]);
-    show_hash(a, b, c, d);
 
     // Round 2
     GG(&a, b, c, d, m[1], 5, md5_initial_ti[16]);
@@ -145,7 +148,6 @@ void md5_block_operate(const unsigned char* input, unsigned int hash[MD5_RESULT_
     GG(&d, a, b, c, m[2], 9, md5_initial_ti[29]);
     GG(&c, d, a, b, m[7], 14, md5_initial_ti[30]);
     GG(&b, c, d, a, m[12], 20, md5_initial_ti[31]);
-    show_hash(a, b, c, d);
 
     // Round 3
     HH(&a, b, c, d, m[5], 4, md5_initial_ti[32]);
@@ -164,7 +166,6 @@ void md5_block_operate(const unsigned char* input, unsigned int hash[MD5_RESULT_
     HH(&d, a, b, c, m[12], 11, md5_initial_ti[45]);
     HH(&c, d, a, b, m[15], 16, md5_initial_ti[46]);
     HH(&b, c, d, a, m[2], 23, md5_initial_ti[47]);
-    show_hash(a, b, c, d);
 
     // Round 4
     II(&a, b, c, d, m[0], 6, md5_initial_ti[48]);
@@ -183,7 +184,6 @@ void md5_block_operate(const unsigned char* input, unsigned int hash[MD5_RESULT_
     II(&d, a, b, c, m[11], 10, md5_initial_ti[61]);
     II(&c, d, a, b, m[2], 15, md5_initial_ti[62]);
     II(&b, c, d, a, m[9], 21, md5_initial_ti[63]);
-    show_hash(a, b, c, d);
 
     hash[0] += a;
     hash[1] += b;

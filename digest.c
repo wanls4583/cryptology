@@ -5,6 +5,14 @@
 #include "md5.h"
 #include "hex.h"
 
+void show_hash(unsigned int* hash, int hash_len) {
+    unsigned char* display_hash = (unsigned char*)hash;
+    for (int i = 0; i < (hash_len * 4); i++) {
+        printf("%.02x", display_hash[i]);
+    }
+    printf("\n");
+}
+
 int digest_hash(
     unsigned char* input,
     int len,
@@ -39,24 +47,48 @@ int digest_hash(
     return 0;
 }
 
-#define DIGEST_HASH
+// #define DIGEST_HASH
 #ifdef DIGEST_HASH
 int main() {
     unsigned char* decoded_input;
-    int decoded_len;
+    int str_len;
     unsigned int* hash;
     int hash_len;
 
-    decoded_len = hex_decode((unsigned char*)"abc", &decoded_input);
-    hash = malloc(sizeof(int) * MD5_RESULT_SIZE);
+    unsigned char s1[] = "abc";
+    unsigned char s2[] = "abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca";
+    unsigned char s3[] = "abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca123";
+    unsigned char s4[] = "abcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcddddddddddddddddddddddddddddddqqqqqqqqeeee123";
     hash_len = MD5_RESULT_SIZE;
-    memcpy(hash, md5_initial_hash, sizeof(int) * MD5_RESULT_SIZE);
-    digest_hash(decoded_input, decoded_len, hash, md5_block_operate, md5_finalize);
 
-    unsigned char* display_hash = (unsigned char*)hash;
-    for (int i = 0; i < (hash_len * 4); i++) {
-        printf("%.02x", display_hash[i]);
-    }
+    hash = malloc(sizeof(int) * MD5_RESULT_SIZE);
+    str_len = (int)strlen((const char*)s1);
+    memcpy(hash, md5_initial_hash, sizeof(int) * MD5_RESULT_SIZE);
+    digest_hash(s1, str_len, hash, md5_block_operate, md5_finalize);
+    printf("str_len=%d\n", str_len);
+    show_hash(hash, hash_len);
+
+    hash = malloc(sizeof(int) * MD5_RESULT_SIZE);
+    str_len = (int)strlen((const char*)s2);
+    memcpy(hash, md5_initial_hash, sizeof(int) * MD5_RESULT_SIZE);
+    digest_hash(s2, str_len, hash, md5_block_operate, md5_finalize);
+    printf("str_len=%d\n", str_len);
+    show_hash(hash, hash_len);
+
+    hash = malloc(sizeof(int) * MD5_RESULT_SIZE);
+    str_len = (int)strlen((const char*)s3);
+    memcpy(hash, md5_initial_hash, sizeof(int) * MD5_RESULT_SIZE);
+    digest_hash(s3, str_len, hash, md5_block_operate, md5_finalize);
+    printf("str_len=%d\n", str_len);
+    show_hash(hash, hash_len);
+
+    hash = malloc(sizeof(int) * MD5_RESULT_SIZE);
+    str_len = (int)strlen((const char*)s4);
+    memcpy(hash, md5_initial_hash, sizeof(int) * MD5_RESULT_SIZE);
+    digest_hash(s4, str_len, hash, md5_block_operate, md5_finalize);
+    printf("str_len=%d\n", str_len);
+    show_hash(hash, hash_len);
+
     return 0;
 }
 #endif
