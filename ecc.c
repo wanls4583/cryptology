@@ -127,7 +127,7 @@ void multiply_point(point* p1, huge* k, huge* a, huge* p) {
     free(sum.y.rep);
 }
 
-#define TEST_ECC
+// #define TEST_ECC
 #ifdef TEST_ECC
 int main() {
     int _a = 1, b = 1, _p = 23;

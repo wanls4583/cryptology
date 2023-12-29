@@ -5,7 +5,14 @@
 #include "hex.h"
 
 int hex_decode(const unsigned char* input, unsigned char** decoded) {
-    long size = strlen((const char*)input) / 2;
+    long size;
+    if (strncmp("0x", (const char*)input, 2)) {
+        size = strlen((const char*)input);
+        *decoded = malloc(size + 1);
+        memcpy(*decoded, input, size);
+        return size;
+    }
+    size = strlen((const char*)input) / 2;
     *decoded = (unsigned char*)malloc(size + 1);
     for (long i = 0; i < size; i++) {
         unsigned char c = input[i * 2];
