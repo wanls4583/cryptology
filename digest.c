@@ -47,9 +47,46 @@ int digest_hash(
     return 0;
 }
 
+// 在尾部添加消息
+void update_digest(digest_ctx* context, const unsigned char* input, int input_len) {
+    context->input_len += input_len;
+
+    if (context->block_len && context->block_len + input_len >= DIGEST_BLOCK_SIZE) {
+        int size = DIGEST_BLOCK_SIZE - context->block_len;
+        memcpy(context->block + context->block_len, input, size);
+        context->block_operate(context->block, context->hash);
+        memset(context->block, 0, DIGEST_BLOCK_SIZE);
+        context->block_len = 0;
+        input_len -= size;
+        input += size;
+    }
+
+    while (input_len >= DIGEST_BLOCK_SIZE) {
+        context->block_operate(input, context->hash);
+        input_len -= DIGEST_BLOCK_SIZE;
+        input += DIGEST_BLOCK_SIZE;
+    }
+
+    if (input_len) {
+        memcpy(context->block + context->block_len, input, input_len);
+        context->block_len += input_len;
+    }
+}
+
+// 消息添加结束，生成最终的摘要
+void finalize_digest(digest_ctx* context) {
+    context->block[context->block_len] = 0x80;
+    if (context->block_len >= INPUT_BLOCK_SIZE) {
+        context->block_operate(context->block, context->hash);
+        memset(context->block, 0, DIGEST_BLOCK_SIZE);
+    }
+    context->block_finalize(context->block, context->input_len * 8);
+    context->block_operate(context->block, context->hash);
+}
+
 // #define DIGEST_HASH
 #ifdef DIGEST_HASH
-int main() {
+void test_md5() {
     unsigned char* decoded_input;
     int str_len;
     unsigned int* hash;
@@ -88,7 +125,39 @@ int main() {
     digest_hash(s4, str_len, hash, md5_block_operate, md5_finalize);
     printf("str_len=%d\n", str_len);
     show_hash(hash, hash_len);
+}
 
+void test_update() {
+    digest_ctx ctx;
+
+    new_md5_digest(&ctx);
+    update_digest(&ctx, (unsigned char*)"abc", 3);
+    finalize_digest(&ctx);
+    show_hash(ctx.hash, ctx.hash_len);
+
+    new_md5_digest(&ctx);
+    update_digest(&ctx, (unsigned char*)"abcabcabcabcabcaabcabcabcabcabca", 32);
+    update_digest(&ctx, (unsigned char*)"abcabcabcabcabcaabcabcabcabcabca", 32);
+    finalize_digest(&ctx);
+    show_hash(ctx.hash, ctx.hash_len);
+
+    new_md5_digest(&ctx);
+    update_digest(&ctx, (unsigned char*)"abcabcabcabcabcaabcabcabcabcabca", 32);
+    update_digest(&ctx, (unsigned char*)"abcabcabcabcabcaabcabcabcabcabca", 32);
+    update_digest(&ctx, (unsigned char*)"123", 3);
+    finalize_digest(&ctx);
+    show_hash(ctx.hash, ctx.hash_len);
+
+    new_md5_digest(&ctx);
+    update_digest(&ctx, (unsigned char*)"abcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabca", 64);
+    update_digest(&ctx, (unsigned char*)"bcabcabcabcabcddddddddddddddddddddddddddddddqqqqqqqqeeee123", 59);
+    finalize_digest(&ctx);
+    show_hash(ctx.hash, ctx.hash_len);
+}
+
+int main() {
+    test_md5();
+    test_update();
     return 0;
 }
 #endif
