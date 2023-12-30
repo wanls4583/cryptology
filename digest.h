@@ -10,7 +10,7 @@ int digest_hash(
 );
 
 #define DIGEST_BLOCK_SIZE 64
-#define INPUT_BLOCK_SIZE 56
+#define DIGEST_INPUT_BLOCK_SIZE 56
 
 typedef struct {
   unsigned int* hash;

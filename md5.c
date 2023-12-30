@@ -109,7 +109,7 @@ void md5_block_operate(const unsigned char* input, unsigned int hash[MD5_RESULT_
         }
     }
 
-    for (int i = 0; i < 16; i++) { //将明文以小端排序存入 unsigned int
+    for (int i = 0; i < 16; i++) { //将以小端排序的明文分组存入unsigned int
         m[i] = (input[i * 4 + 3] << 24) | (input[i * 4 + 2] << 16) | (input[i * 4 + 1] << 8) | input[i * 4];
     }
 
