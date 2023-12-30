@@ -6,7 +6,7 @@
 #include "sha.h"
 #include "hex.h"
 
-void show_hash(unsigned int* hash, int hash_len, int word_size) {
+void show_hash(void* hash, int hash_len, int word_size) {
     unsigned char* display_hash = (unsigned char*)hash;
     for (int i = 0; i < (hash_len * word_size); i++) {
         printf("%.02x", display_hash[i]);
@@ -14,20 +14,12 @@ void show_hash(unsigned int* hash, int hash_len, int word_size) {
     printf("\n");
 }
 
-void block_operate(digest_ctx* context, unsigned char* input) {
-    if (context->word_size == 64) {
-        context->block_operate_512(input, context->hash_64);
-    } else {
-        context->block_operate(input, context->hash);
-    }
-}
-
 int digest_hash(digest_ctx* context, unsigned char* input, int len) {
     unsigned char* padded_block = (unsigned char*)malloc(context->digest_block_size);
     int length_in_bits = len * 8;
 
     while (len >= context->digest_block_size) {
-        block_operate(context, input);
+        context->block_operate(input, context->hash);
         len -= context->digest_block_size;
         input += context->digest_block_size;
     }
@@ -39,13 +31,13 @@ int digest_hash(digest_ctx* context, unsigned char* input, int len) {
         memcpy(padded_block, input, len);
         padded_block[len] = 0x80;
         if (len >= context->digest_input_block_size) {
-            block_operate(context, padded_block);
+            context->block_operate(padded_block, context->hash);
             memset(padded_block, 0, context->digest_block_size);
         }
     }
 
     context->block_finalize(padded_block, length_in_bits);
-    block_operate(context, padded_block);
+    context->block_operate(padded_block, context->hash);
 
     return 0;
 }
@@ -57,7 +49,7 @@ void update_digest(digest_ctx* context, unsigned char* input, int input_len) {
     if (context->block_len && context->block_len + input_len >= context->digest_block_size) {
         int size = context->digest_block_size - context->block_len;
         memcpy(context->block + context->block_len, input, size);
-        block_operate(context, context->block);
+        context->block_operate(context->block, context->hash);
         memset(context->block, 0, context->digest_block_size);
         context->block_len = 0;
         input_len -= size;
@@ -65,7 +57,7 @@ void update_digest(digest_ctx* context, unsigned char* input, int input_len) {
     }
 
     while (input_len >= context->digest_block_size) {
-        block_operate(context, input);
+        context->block_operate(input, context->hash);
         input_len -= context->digest_block_size;
         input += context->digest_block_size;
     }
@@ -80,11 +72,11 @@ void update_digest(digest_ctx* context, unsigned char* input, int input_len) {
 void finalize_digest(digest_ctx* context) {
     context->block[context->block_len] = 0x80;
     if (context->block_len >= context->digest_input_block_size) {
-        block_operate(context, context->block);
+        context->block_operate(context->block, context->hash);
         memset(context->block, 0, context->digest_block_size);
     }
     context->block_finalize(context->block, context->input_len * 8);
-    block_operate(context, context->block);
+    context->block_operate(context->block, context->hash);
 }
 
 #define DIGEST_HASH
@@ -157,6 +149,23 @@ void test_sha256() {
     }
 }
 
+void test_sha512() {
+    digest_ctx ctx;
+
+    unsigned char* s[] = {
+        (unsigned char*)"abc",
+        (unsigned char*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca",
+        (unsigned char*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca123",
+        (unsigned char*)"abcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcddddddddddddddddddddddddddddddqqqqqqqqeeee123"
+    };
+    for (int i = 0; i < 4; i++) {
+        int str_len = (int)strlen((const char*)(s[i]));
+        new_sha512_digest(&ctx);
+        digest_hash(&ctx, s[i], str_len);
+        show_hash(ctx.hash, ctx.hash_result_len, ctx.word_size);
+    }
+}
+
 void test_update() {
     digest_ctx ctx;
 
@@ -194,16 +203,18 @@ void test_update() {
 }
 
 int main() {
-    printf("\ntest_md5:\n");
-    test_md5();
-    printf("\ntest_sha1:\n");
-    test_sha1();
-    printf("\ntest_sha224:\n");
-    test_sha224();
-    printf("\ntest_sha256:\n");
-    test_sha256();
-    printf("\ntest_update:\n");
-    test_update();
+    // printf("\ntest_md5:\n");
+    // test_md5();
+    // printf("\ntest_sha1:\n");
+    // test_sha1();
+    // printf("\ntest_sha224:\n");
+    // test_sha224();
+    // printf("\ntest_sha256:\n");
+    // test_sha256();
+    // printf("\ntest_sha512:\n");
+    test_sha512();
+    // printf("\ntest_update:\n");
+    // test_update();
     return 0;
 }
 #endif
