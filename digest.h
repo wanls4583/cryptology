@@ -1,16 +1,6 @@
 #ifndef DIGEST_H
 #define DIGEST_H
 
-int digest_hash(
-  unsigned char* input,
-  int len,
-  unsigned int* hash,
-  void (*block_operate)(const unsigned char* input, unsigned int hash[]),
-  void (*block_finalize)(unsigned char* block, int length),
-  int digest_block_size,
-  int digest_input_block_size
-);
-
 typedef struct {
   int digest_block_size;
   int digest_input_block_size;
@@ -23,6 +13,7 @@ typedef struct {
   unsigned int input_len;
 
   void (*block_operate)(const unsigned char* input, unsigned int hash[]);
+  void (*block_operate_512)(const unsigned char* input, unsigned long long hash[]);
   void (*block_finalize)(unsigned char* block, int length);
 
   // Temporary storage
@@ -31,7 +22,8 @@ typedef struct {
 }
 digest_ctx;
 
-void update_digest(digest_ctx* context, const unsigned char* input, int input_len);
+int digest_hash(digest_ctx* context, unsigned char* input, int len);
+void update_digest(digest_ctx* context, unsigned char* input, int input_len);
 void finalize_digest(digest_ctx* context);
 
 #endif

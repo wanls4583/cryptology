@@ -14,50 +14,50 @@ void show_hash(unsigned int* hash, int hash_len, int word_size) {
     printf("\n");
 }
 
-int digest_hash(
-    unsigned char* input,
-    int len,
-    unsigned int* hash,
-    void (*block_operate)(const unsigned char* input, unsigned int hash[]),
-    void (*block_finalize)(unsigned char* block, int length),
-    int digest_block_size,
-    int digest_input_block_size
-) {
-    unsigned char padded_block[digest_block_size];
+void block_operate(digest_ctx* context, unsigned char* input) {
+    if (context->word_size == 64) {
+        context->block_operate_512(input, context->hash_64);
+    } else {
+        context->block_operate(input, context->hash);
+    }
+}
+
+int digest_hash(digest_ctx* context, unsigned char* input, int len) {
+    unsigned char* padded_block = (unsigned char*)malloc(context->digest_block_size);
     int length_in_bits = len * 8;
 
-    while (len >= digest_block_size) {
-        block_operate(input, hash);
-        len -= digest_block_size;
-        input += digest_block_size;
+    while (len >= context->digest_block_size) {
+        block_operate(context, input);
+        len -= context->digest_block_size;
+        input += context->digest_block_size;
     }
 
-    memset(padded_block, 0, digest_block_size);
+    memset(padded_block, 0, context->digest_block_size);
     padded_block[0] = 0x80;
 
     if (len) {
         memcpy(padded_block, input, len);
         padded_block[len] = 0x80;
-        if (len >= digest_input_block_size) {
-            block_operate(padded_block, hash);
-            memset(padded_block, 0, digest_block_size);
+        if (len >= context->digest_input_block_size) {
+            block_operate(context, padded_block);
+            memset(padded_block, 0, context->digest_block_size);
         }
     }
 
-    block_finalize(padded_block, length_in_bits);
-    block_operate(padded_block, hash);
+    context->block_finalize(padded_block, length_in_bits);
+    block_operate(context, padded_block);
 
     return 0;
 }
 
 // 在尾部添加消息
-void update_digest(digest_ctx* context, const unsigned char* input, int input_len) {
+void update_digest(digest_ctx* context, unsigned char* input, int input_len) {
     context->input_len += input_len;
 
     if (context->block_len && context->block_len + input_len >= context->digest_block_size) {
         int size = context->digest_block_size - context->block_len;
         memcpy(context->block + context->block_len, input, size);
-        context->block_operate(context->block, context->hash);
+        block_operate(context, context->block);
         memset(context->block, 0, context->digest_block_size);
         context->block_len = 0;
         input_len -= size;
@@ -65,7 +65,7 @@ void update_digest(digest_ctx* context, const unsigned char* input, int input_le
     }
 
     while (input_len >= context->digest_block_size) {
-        context->block_operate(input, context->hash);
+        block_operate(context, input);
         input_len -= context->digest_block_size;
         input += context->digest_block_size;
     }
@@ -80,19 +80,17 @@ void update_digest(digest_ctx* context, const unsigned char* input, int input_le
 void finalize_digest(digest_ctx* context) {
     context->block[context->block_len] = 0x80;
     if (context->block_len >= context->digest_input_block_size) {
-        context->block_operate(context->block, context->hash);
+        block_operate(context, context->block);
         memset(context->block, 0, context->digest_block_size);
     }
     context->block_finalize(context->block, context->input_len * 8);
-    context->block_operate(context->block, context->hash);
+    block_operate(context, context->block);
 }
 
-// #define DIGEST_HASH
+#define DIGEST_HASH
 #ifdef DIGEST_HASH
 void test_md5() {
-    int str_len;
-    unsigned int* hash;
-    int hash_result_len;
+    digest_ctx ctx;
 
     unsigned char* s[] = {
         (unsigned char*)"abc", //3
@@ -100,21 +98,16 @@ void test_md5() {
         (unsigned char*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca123", //67
         (unsigned char*)"abcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcddddddddddddddddddddddddddddddqqqqqqqqeeee123" //123
     };
-    hash_result_len = MD5_RESULT_SIZE;
     for (int i = 0; i < 4; i++) {
-        hash = malloc(sizeof(int) * MD5_RESULT_SIZE);
-        str_len = (int)strlen((const char*)(s[i]));
-        memcpy(hash, md5_initial_hash, sizeof(int) * MD5_RESULT_SIZE);
-        digest_hash(s[i], str_len, hash, md5_block_operate, md5_finalize, MD5_BLOCK_SIZE, MD5_INPUT_BLOCK_SIZE);
-        printf("str_len=%d\n", str_len);
-        show_hash(hash, hash_result_len, 4);
+        int str_len = (int)strlen((const char*)(s[i]));
+        new_md5_digest(&ctx);
+        digest_hash(&ctx, s[i], str_len);
+        show_hash(ctx.hash, ctx.hash_result_len, ctx.word_size);
     }
 }
 
 void test_sha1() {
-    int str_len;
-    unsigned int* hash;
-    int hash_result_len;
+    digest_ctx ctx;
 
     unsigned char* s[] = {
         (unsigned char*)"abc",
@@ -122,21 +115,16 @@ void test_sha1() {
         (unsigned char*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca123",
         (unsigned char*)"abcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcddddddddddddddddddddddddddddddqqqqqqqqeeee123"
     };
-    hash_result_len = SHA1_RESULT_SIZE;
     for (int i = 0; i < 4; i++) {
-        hash = malloc(sizeof(int) * SHA1_RESULT_SIZE);
-        str_len = (int)strlen((const char*)(s[i]));
-        memcpy(hash, sha1_initial_hash, sizeof(int) * SHA1_RESULT_SIZE);
-        digest_hash(s[i], str_len, hash, sha1_block_operate, sha1_finalize, SHA1_BLOCK_SIZE, SHA1_INPUT_BLOCK_SIZE);
-        printf("str_len=%d\n", str_len);
-        show_hash(hash, hash_result_len, 4);
+        int str_len = (int)strlen((const char*)(s[i]));
+        new_sha1_digest(&ctx);
+        digest_hash(&ctx, s[i], str_len);
+        show_hash(ctx.hash, ctx.hash_result_len, ctx.word_size);
     }
 }
 
 void test_sha224() {
-    int str_len;
-    unsigned int* hash;
-    int hash_result_len;
+    digest_ctx ctx;
 
     unsigned char* s[] = {
         (unsigned char*)"abc",
@@ -144,21 +132,16 @@ void test_sha224() {
         (unsigned char*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca123",
         (unsigned char*)"abcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcddddddddddddddddddddddddddddddqqqqqqqqeeee123"
     };
-    hash_result_len = SHA224_RESULT_SIZE;
     for (int i = 0; i < 4; i++) {
-        hash = malloc(sizeof(int) * SHA256_RESULT_SIZE);
-        str_len = (int)strlen((const char*)(s[i]));
-        memcpy(hash, sha224_initial_hash, sizeof(int) * SHA256_RESULT_SIZE);
-        digest_hash(s[i], str_len, hash, sha256_block_operate, sha1_finalize, SHA256_BLOCK_SIZE, SHA256_INPUT_BLOCK_SIZE);
-        printf("str_len=%d\n", str_len);
-        show_hash(hash, hash_result_len, 4);
+        int str_len = (int)strlen((const char*)(s[i]));
+        new_sha224_digest(&ctx);
+        digest_hash(&ctx, s[i], str_len);
+        show_hash(ctx.hash, ctx.hash_result_len, ctx.word_size);
     }
 }
 
 void test_sha256() {
-    int str_len;
-    unsigned int* hash;
-    int hash_result_len;
+    digest_ctx ctx;
 
     unsigned char* s[] = {
         (unsigned char*)"abc",
@@ -166,14 +149,11 @@ void test_sha256() {
         (unsigned char*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca123",
         (unsigned char*)"abcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcddddddddddddddddddddddddddddddqqqqqqqqeeee123"
     };
-    hash_result_len = SHA256_RESULT_SIZE;
     for (int i = 0; i < 4; i++) {
-        hash = malloc(sizeof(int) * SHA256_RESULT_SIZE);
-        str_len = (int)strlen((const char*)(s[i]));
-        memcpy(hash, sha256_initial_hash, sizeof(int) * SHA256_RESULT_SIZE);
-        digest_hash(s[i], str_len, hash, sha256_block_operate, sha1_finalize, SHA256_BLOCK_SIZE, SHA256_INPUT_BLOCK_SIZE);
-        printf("str_len=%d\n", str_len);
-        show_hash(hash, hash_result_len, 4);
+        int str_len = (int)strlen((const char*)(s[i]));
+        new_sha256_digest(&ctx);
+        digest_hash(&ctx, s[i], str_len);
+        show_hash(ctx.hash, ctx.hash_result_len, ctx.word_size);
     }
 }
 
