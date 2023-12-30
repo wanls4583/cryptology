@@ -131,24 +131,49 @@ void test_sha1() {
     }
 }
 
+void test_sha256() {
+    int str_len;
+    unsigned int* hash;
+    int hash_len;
+
+    unsigned char* s[] = {
+        (unsigned char*)"abc",
+        (unsigned char*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca",
+        (unsigned char*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca123",
+        (unsigned char*)"abcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcddddddddddddddddddddddddddddddqqqqqqqqeeee123"
+    };
+    hash_len = SHA256_RESULT_SIZE;
+    for (int i = 0; i < 4; i++) {
+        hash = malloc(sizeof(int) * SHA256_RESULT_SIZE);
+        str_len = (int)strlen((const char*)(s[i]));
+        memcpy(hash, sha256_initial_hash, sizeof(int) * SHA256_RESULT_SIZE);
+        digest_hash(s[i], str_len, hash, sha256_block_operate, sha1_finalize);
+        printf("str_len=%d\n", str_len);
+        show_hash(hash, hash_len);
+    }
+}
+
 void test_update() {
     digest_ctx ctx;
 
     // new_md5_digest(&ctx);
-    new_sha1_digest(&ctx);
+    // new_sha1_digest(&ctx);
+    new_sha256_digest(&ctx);
     update_digest(&ctx, (unsigned char*)"abc", 3);
     finalize_digest(&ctx);
     show_hash(ctx.hash, ctx.hash_len);
 
     // new_md5_digest(&ctx);
-    new_sha1_digest(&ctx);
+    // new_sha1_digest(&ctx);
+    new_sha256_digest(&ctx);
     update_digest(&ctx, (unsigned char*)"abcabcabcabcabcaabcabcabcabcabca", 32);
     update_digest(&ctx, (unsigned char*)"abcabcabcabcabcaabcabcabcabcabca", 32);
     finalize_digest(&ctx);
     show_hash(ctx.hash, ctx.hash_len);
 
     // new_md5_digest(&ctx);
-    new_sha1_digest(&ctx);
+    // new_sha1_digest(&ctx);
+    new_sha256_digest(&ctx);
     update_digest(&ctx, (unsigned char*)"abcabcabcabcabcaabcabcabcabcabca", 32);
     update_digest(&ctx, (unsigned char*)"abcabcabcabcabcaabcabcabcabcabca", 32);
     update_digest(&ctx, (unsigned char*)"123", 3);
@@ -156,7 +181,8 @@ void test_update() {
     show_hash(ctx.hash, ctx.hash_len);
 
     // new_md5_digest(&ctx);
-    new_sha1_digest(&ctx);
+    // new_sha1_digest(&ctx);
+    new_sha256_digest(&ctx);
     update_digest(&ctx, (unsigned char*)"abcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabca", 64);
     update_digest(&ctx, (unsigned char*)"bcabcabcabcabcddddddddddddddddddddddddddddddqqqqqqqqeeee123", 59);
     finalize_digest(&ctx);
@@ -168,6 +194,8 @@ int main() {
     test_md5();
     printf("\ntest_sha1:\n");
     test_sha1();
+    printf("\ntest_sha256:\n");
+    test_sha256();
     printf("\ntest_update:\n");
     test_update();
     return 0;
