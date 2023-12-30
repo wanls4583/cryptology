@@ -14,9 +14,12 @@ int digest_hash(
 typedef struct {
   int digest_block_size;
   int digest_input_block_size;
+  int word_size;
 
   unsigned int* hash;
+  unsigned long long* hash_64;
   int hash_len;
+  int hash_result_len;
   unsigned int input_len;
 
   void (*block_operate)(const unsigned char* input, unsigned int hash[]);

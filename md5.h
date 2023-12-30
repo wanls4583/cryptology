@@ -6,7 +6,8 @@
 
 // Size of MD5 hash in ints (128 bits)
 #define MD5_RESULT_SIZE 4
-#define MD5_BYTE_SIZE MD5_RESULT_SIZE * sizeof( int )
+#define MD5_WORD_SIZE 4
+#define MD5_BYTE_SIZE MD5_RESULT_SIZE * MD5_WORD_SIZE
 
 #include "digest.h"
 

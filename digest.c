@@ -6,9 +6,9 @@
 #include "sha.h"
 #include "hex.h"
 
-void show_hash(unsigned int* hash, int hash_len) {
+void show_hash(unsigned int* hash, int hash_len, int word_size) {
     unsigned char* display_hash = (unsigned char*)hash;
-    for (int i = 0; i < (hash_len * 4); i++) {
+    for (int i = 0; i < (hash_len * word_size); i++) {
         printf("%.02x", display_hash[i]);
     }
     printf("\n");
@@ -87,12 +87,12 @@ void finalize_digest(digest_ctx* context) {
     context->block_operate(context->block, context->hash);
 }
 
-#define DIGEST_HASH
+// #define DIGEST_HASH
 #ifdef DIGEST_HASH
 void test_md5() {
     int str_len;
     unsigned int* hash;
-    int hash_len;
+    int hash_result_len;
 
     unsigned char* s[] = {
         (unsigned char*)"abc", //3
@@ -100,21 +100,21 @@ void test_md5() {
         (unsigned char*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca123", //67
         (unsigned char*)"abcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcddddddddddddddddddddddddddddddqqqqqqqqeeee123" //123
     };
-    hash_len = MD5_RESULT_SIZE;
+    hash_result_len = MD5_RESULT_SIZE;
     for (int i = 0; i < 4; i++) {
         hash = malloc(sizeof(int) * MD5_RESULT_SIZE);
         str_len = (int)strlen((const char*)(s[i]));
         memcpy(hash, md5_initial_hash, sizeof(int) * MD5_RESULT_SIZE);
         digest_hash(s[i], str_len, hash, md5_block_operate, md5_finalize, MD5_BLOCK_SIZE, MD5_INPUT_BLOCK_SIZE);
         printf("str_len=%d\n", str_len);
-        show_hash(hash, hash_len);
+        show_hash(hash, hash_result_len, 4);
     }
 }
 
 void test_sha1() {
     int str_len;
     unsigned int* hash;
-    int hash_len;
+    int hash_result_len;
 
     unsigned char* s[] = {
         (unsigned char*)"abc",
@@ -122,21 +122,21 @@ void test_sha1() {
         (unsigned char*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca123",
         (unsigned char*)"abcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcddddddddddddddddddddddddddddddqqqqqqqqeeee123"
     };
-    hash_len = SHA1_RESULT_SIZE;
+    hash_result_len = SHA1_RESULT_SIZE;
     for (int i = 0; i < 4; i++) {
         hash = malloc(sizeof(int) * SHA1_RESULT_SIZE);
         str_len = (int)strlen((const char*)(s[i]));
         memcpy(hash, sha1_initial_hash, sizeof(int) * SHA1_RESULT_SIZE);
         digest_hash(s[i], str_len, hash, sha1_block_operate, sha1_finalize, SHA1_BLOCK_SIZE, SHA1_INPUT_BLOCK_SIZE);
         printf("str_len=%d\n", str_len);
-        show_hash(hash, hash_len);
+        show_hash(hash, hash_result_len, 4);
     }
 }
 
-void test_sha256() {
+void test_sha224() {
     int str_len;
     unsigned int* hash;
-    int hash_len;
+    int hash_result_len;
 
     unsigned char* s[] = {
         (unsigned char*)"abc",
@@ -144,14 +144,36 @@ void test_sha256() {
         (unsigned char*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca123",
         (unsigned char*)"abcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcddddddddddddddddddddddddddddddqqqqqqqqeeee123"
     };
-    hash_len = SHA256_RESULT_SIZE;
+    hash_result_len = SHA224_RESULT_SIZE;
+    for (int i = 0; i < 4; i++) {
+        hash = malloc(sizeof(int) * SHA256_RESULT_SIZE);
+        str_len = (int)strlen((const char*)(s[i]));
+        memcpy(hash, sha224_initial_hash, sizeof(int) * SHA256_RESULT_SIZE);
+        digest_hash(s[i], str_len, hash, sha256_block_operate, sha1_finalize, SHA256_BLOCK_SIZE, SHA256_INPUT_BLOCK_SIZE);
+        printf("str_len=%d\n", str_len);
+        show_hash(hash, hash_result_len, 4);
+    }
+}
+
+void test_sha256() {
+    int str_len;
+    unsigned int* hash;
+    int hash_result_len;
+
+    unsigned char* s[] = {
+        (unsigned char*)"abc",
+        (unsigned char*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca",
+        (unsigned char*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca123",
+        (unsigned char*)"abcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcddddddddddddddddddddddddddddddqqqqqqqqeeee123"
+    };
+    hash_result_len = SHA256_RESULT_SIZE;
     for (int i = 0; i < 4; i++) {
         hash = malloc(sizeof(int) * SHA256_RESULT_SIZE);
         str_len = (int)strlen((const char*)(s[i]));
         memcpy(hash, sha256_initial_hash, sizeof(int) * SHA256_RESULT_SIZE);
         digest_hash(s[i], str_len, hash, sha256_block_operate, sha1_finalize, SHA256_BLOCK_SIZE, SHA256_INPUT_BLOCK_SIZE);
         printf("str_len=%d\n", str_len);
-        show_hash(hash, hash_len);
+        show_hash(hash, hash_result_len, 4);
     }
 }
 
@@ -163,7 +185,7 @@ void test_update() {
     new_sha256_digest(&ctx);
     update_digest(&ctx, (unsigned char*)"abc", 3);
     finalize_digest(&ctx);
-    show_hash(ctx.hash, ctx.hash_len);
+    show_hash(ctx.hash, ctx.hash_result_len, ctx.word_size);
 
     // new_md5_digest(&ctx);
     // new_sha1_digest(&ctx);
@@ -171,7 +193,7 @@ void test_update() {
     update_digest(&ctx, (unsigned char*)"abcabcabcabcabcaabcabcabcabcabca", 32);
     update_digest(&ctx, (unsigned char*)"abcabcabcabcabcaabcabcabcabcabca", 32);
     finalize_digest(&ctx);
-    show_hash(ctx.hash, ctx.hash_len);
+    show_hash(ctx.hash, ctx.hash_result_len, ctx.word_size);
 
     // new_md5_digest(&ctx);
     // new_sha1_digest(&ctx);
@@ -180,7 +202,7 @@ void test_update() {
     update_digest(&ctx, (unsigned char*)"abcabcabcabcabcaabcabcabcabcabca", 32);
     update_digest(&ctx, (unsigned char*)"123", 3);
     finalize_digest(&ctx);
-    show_hash(ctx.hash, ctx.hash_len);
+    show_hash(ctx.hash, ctx.hash_result_len, ctx.word_size);
 
     // new_md5_digest(&ctx);
     // new_sha1_digest(&ctx);
@@ -188,7 +210,7 @@ void test_update() {
     update_digest(&ctx, (unsigned char*)"abcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabca", 64);
     update_digest(&ctx, (unsigned char*)"bcabcabcabcabcddddddddddddddddddddddddddddddqqqqqqqqeeee123", 59);
     finalize_digest(&ctx);
-    show_hash(ctx.hash, ctx.hash_len);
+    show_hash(ctx.hash, ctx.hash_result_len, ctx.word_size);
 }
 
 int main() {
@@ -196,6 +218,8 @@ int main() {
     test_md5();
     printf("\ntest_sha1:\n");
     test_sha1();
+    printf("\ntest_sha224:\n");
+    test_sha224();
     printf("\ntest_sha256:\n");
     test_sha256();
     printf("\ntest_update:\n");

@@ -11,6 +11,17 @@ unsigned int sha1_initial_hash[] = {
     0xf0e1d2c3
 };
 
+unsigned int sha224_initial_hash[] = {
+    0xd89e05c1,
+    0x07d57c36,
+    0x17dd7030,
+    0x39590ef7,
+    0x310bc0ff,
+    0x11155868,
+    0xa78ff964,
+    0xa44ffabe
+};
+
 unsigned int sha256_initial_hash[] = {
     0x67e6096a,
     0x85ae67bb,
@@ -268,7 +279,9 @@ int sha256_hash(unsigned char* input, int len, unsigned int hash[SHA256_RESULT_S
 }
 
 void new_sha1_digest(digest_ctx* context) {
+    context->word_size = SHA1_WORD_SIZE;
     context->hash_len = SHA1_RESULT_SIZE;
+    context->hash_result_len = SHA1_RESULT_SIZE;
     context->digest_block_size = SHA1_BLOCK_SIZE;
     context->digest_input_block_size = SHA1_INPUT_BLOCK_SIZE;
     context->input_len = 0;
@@ -282,7 +295,9 @@ void new_sha1_digest(digest_ctx* context) {
 }
 
 void new_sha256_digest(digest_ctx* context) {
+    context->word_size = SHA256_WORD_SIZE;
     context->hash_len = SHA256_RESULT_SIZE;
+    context->hash_result_len = SHA256_RESULT_SIZE;
     context->digest_block_size = SHA256_BLOCK_SIZE;
     context->digest_input_block_size = SHA256_INPUT_BLOCK_SIZE;
     context->input_len = 0;
@@ -290,6 +305,22 @@ void new_sha256_digest(digest_ctx* context) {
     context->hash = (unsigned int*)malloc(context->hash_len * sizeof(unsigned int));
     context->block = (unsigned char*)malloc(context->digest_block_size);
     memcpy(context->hash, sha256_initial_hash, context->hash_len * sizeof(unsigned int));
+    memset(context->block, '\0', context->digest_block_size);
+    context->block_operate = sha256_block_operate;
+    context->block_finalize = sha1_finalize;
+}
+
+void new_sha224_digest(digest_ctx* context) {
+    context->word_size = SHA256_WORD_SIZE;
+    context->hash_len = SHA256_RESULT_SIZE;
+    context->hash_result_len = SHA224_RESULT_SIZE;
+    context->digest_block_size = SHA256_BLOCK_SIZE;
+    context->digest_input_block_size = SHA256_INPUT_BLOCK_SIZE;
+    context->input_len = 0;
+    context->block_len = 0;
+    context->hash = (unsigned int*)malloc(context->hash_len * sizeof(unsigned int));
+    context->block = (unsigned char*)malloc(context->digest_block_size);
+    memcpy(context->hash, sha224_initial_hash, context->hash_len * sizeof(unsigned int));
     memset(context->block, '\0', context->digest_block_size);
     context->block_operate = sha256_block_operate;
     context->block_finalize = sha1_finalize;
