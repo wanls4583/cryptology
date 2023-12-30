@@ -1,6 +1,9 @@
 #ifndef MD5_H
 #define MD5_H
 
+#define MD5_BLOCK_SIZE 64
+#define MD5_INPUT_BLOCK_SIZE 56
+
 // Size of MD5 hash in ints (128 bits)
 #define MD5_RESULT_SIZE 4
 #define MD5_BYTE_SIZE MD5_RESULT_SIZE * sizeof( int )

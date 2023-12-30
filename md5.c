@@ -4,8 +4,6 @@
 #include <math.h>
 #include "md5.h"
 
-#define MD5_BLOCK_SIZE 64
-#define MD5_INPUT_BLOCK_SIZE 56
 #define BASE_T 4294967296.0
 
 unsigned int md5_initial_hash[] = {
@@ -201,11 +199,14 @@ void md5_finalize(unsigned char* padded_block, int length_in_bits) {
 
 void new_md5_digest(digest_ctx* context) {
     context->hash_len = 4;
+    context->digest_block_size = MD5_BLOCK_SIZE;
+    context->digest_input_block_size = MD5_INPUT_BLOCK_SIZE;
     context->input_len = 0;
     context->block_len = 0;
     context->hash = (unsigned int*)malloc(context->hash_len * sizeof(unsigned int));
+    context->block = (unsigned char*)malloc(context->digest_block_size);
     memcpy(context->hash, md5_initial_hash, context->hash_len * sizeof(unsigned int));
-    memset(context->block, '\0', MD5_BLOCK_SIZE);
+    memset(context->block, '\0', context->digest_block_size);
     context->block_operate = md5_block_operate;
     context->block_finalize = md5_finalize;
 }

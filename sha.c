@@ -3,9 +3,6 @@
 #include <string.h>
 #include "sha.h"
 
-#define SHA1_INPUT_BLOCK_SIZE 56
-#define SHA1_BLOCK_SIZE 64
-
 unsigned int sha1_initial_hash[] = {
     0x01234567,
     0x89abcdef,
@@ -236,24 +233,64 @@ int sha1_hash(unsigned char* input, int len, unsigned int hash[SHA1_RESULT_SIZE]
     return 0;
 }
 
+int sha256_hash(unsigned char* input, int len, unsigned int hash[SHA256_RESULT_SIZE]) {
+    unsigned char padded_block[SHA256_BLOCK_SIZE];
+    int length_in_bits = len * 8;
+
+    hash[0] = sha1_initial_hash[0];
+    hash[1] = sha1_initial_hash[1];
+    hash[2] = sha1_initial_hash[2];
+    hash[3] = sha1_initial_hash[3];
+    hash[4] = sha1_initial_hash[4];
+
+    while (len >= SHA256_BLOCK_SIZE) {
+        sha1_block_operate(input, hash);
+        len -= SHA256_BLOCK_SIZE;
+        input += SHA256_BLOCK_SIZE;
+    }
+
+    memset(padded_block, 0, SHA256_BLOCK_SIZE);
+    padded_block[0] = 0x80;
+
+    if (len) {
+        memcpy(padded_block, input, len);
+        padded_block[len] = 0x80;
+        if (len >= SHA256_INPUT_BLOCK_SIZE) {
+            sha1_block_operate(padded_block, hash);
+            memset(padded_block, 0, SHA256_BLOCK_SIZE);
+        }
+    }
+
+    sha1_finalize(padded_block, length_in_bits);
+    sha256_block_operate(padded_block, hash);
+
+    return 0;
+}
+
 void new_sha1_digest(digest_ctx* context) {
     context->hash_len = SHA1_RESULT_SIZE;
+    context->digest_block_size = SHA1_BLOCK_SIZE;
+    context->digest_input_block_size = SHA1_INPUT_BLOCK_SIZE;
     context->input_len = 0;
     context->block_len = 0;
     context->hash = (unsigned int*)malloc(context->hash_len * sizeof(unsigned int));
+    context->block = (unsigned char*)malloc(context->digest_block_size);
     memcpy(context->hash, sha1_initial_hash, context->hash_len * sizeof(unsigned int));
-    memset(context->block, '\0', SHA1_BLOCK_SIZE);
+    memset(context->block, '\0', context->digest_block_size);
     context->block_operate = sha1_block_operate;
     context->block_finalize = sha1_finalize;
 }
 
 void new_sha256_digest(digest_ctx* context) {
     context->hash_len = SHA256_RESULT_SIZE;
+    context->digest_block_size = SHA256_BLOCK_SIZE;
+    context->digest_input_block_size = SHA256_INPUT_BLOCK_SIZE;
     context->input_len = 0;
     context->block_len = 0;
     context->hash = (unsigned int*)malloc(context->hash_len * sizeof(unsigned int));
+    context->block = (unsigned char*)malloc(context->digest_block_size);
     memcpy(context->hash, sha256_initial_hash, context->hash_len * sizeof(unsigned int));
-    memset(context->block, '\0', SHA1_BLOCK_SIZE);
+    memset(context->block, '\0', context->digest_block_size);
     context->block_operate = sha256_block_operate;
     context->block_finalize = sha1_finalize;
 }
