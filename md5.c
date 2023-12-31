@@ -198,15 +198,16 @@ void md5_finalize(u8* padded_block, int length_in_bits) {
 }
 
 void new_md5_digest(digest_ctx* context) {
-    context->hash_len = MD5_RESULT_SIZE;
+    context->hash_size = MD5_RESULT_SIZE;
+    context->word_size = MD5_WORD_SIZE;
     context->result_size = MD5_BYTE_SIZE;
     context->digest_block_size = MD5_BLOCK_SIZE;
     context->digest_input_block_size = MD5_INPUT_BLOCK_SIZE;
     context->input_len = 0;
     context->block_len = 0;
-    context->hash = (void*)malloc(context->hash_len * sizeof(u32));
+    context->hash = (void*)malloc(context->hash_size * sizeof(u32));
     context->block = (u8*)malloc(context->digest_block_size);
-    memcpy(context->hash, md5_initial_hash, context->hash_len * sizeof(u32));
+    memcpy(context->hash, md5_initial_hash, context->hash_size * sizeof(u32));
     memset(context->block, '\0', context->digest_block_size);
     context->block_operate = (block_operate)md5_block_operate;
     context->block_finalize = md5_finalize;

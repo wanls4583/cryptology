@@ -10,7 +10,8 @@ typedef struct {
   int digest_input_block_size;
 
   void* hash;
-  int hash_len;
+  int hash_size;
+  int word_size;
   int result_size;
   u32 input_len;
 
@@ -25,6 +26,7 @@ digest_ctx;
 
 typedef void (*block_operate)(const u8* input, void* hash);
 
+void show_hash(void* hash, int result_size);
 int digest_hash(digest_ctx* context, u8* input, int len);
 void update_digest(digest_ctx* context, u8* input, int input_len);
 void finalize_digest(digest_ctx* context);

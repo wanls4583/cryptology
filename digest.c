@@ -79,13 +79,13 @@ void finalize_digest(digest_ctx* context) {
     context->block_operate(context->block, context->hash);
 }
 
-// #define DIGEST_HASH
-#ifdef DIGEST_HASH
+// #define TEST_DIGEST
+#ifdef TEST_DIGEST
 void test_md5() {
     digest_ctx ctx;
 
     u8* s[] = {
-        (u8*)"abc",
+        (u8*)"|SPS666666666666666666666666666666666666666666666666666666666666what do ya want for nothing?",
         (u8*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca",
         (u8*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca123",
         (u8*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca"
