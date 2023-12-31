@@ -198,9 +198,8 @@ void md5_finalize(u8* padded_block, int length_in_bits) {
 }
 
 void new_md5_digest(digest_ctx* context) {
-    context->word_size = MD5_WORD_SIZE;
     context->hash_len = MD5_RESULT_SIZE;
-    context->hash_result_len = MD5_RESULT_SIZE;
+    context->result_size = MD5_BYTE_SIZE;
     context->digest_block_size = MD5_BLOCK_SIZE;
     context->digest_input_block_size = MD5_INPUT_BLOCK_SIZE;
     context->input_len = 0;

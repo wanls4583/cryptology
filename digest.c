@@ -6,9 +6,9 @@
 #include "sha.h"
 #include "hex.h"
 
-void show_hash(void* hash, int hash_len, int word_size) {
+void show_hash(void* hash, int result_size) {
     u8* display_hash = (u8*)hash;
-    for (int i = 0; i < (hash_len * word_size); i++) {
+    for (int i = 0; i < result_size; i++) {
         printf("%.02x", display_hash[i]);
     }
     printf("\n");
@@ -94,7 +94,7 @@ void test_md5() {
         int str_len = (int)strlen((const char*)(s[i]));
         new_md5_digest(&ctx);
         digest_hash(&ctx, s[i], str_len);
-        show_hash(ctx.hash, ctx.hash_result_len, ctx.word_size);
+        show_hash(ctx.hash, ctx.result_size);
     }
 }
 
@@ -111,7 +111,7 @@ void test_sha1() {
         int str_len = (int)strlen((const char*)(s[i]));
         new_sha1_digest(&ctx);
         digest_hash(&ctx, s[i], str_len);
-        show_hash(ctx.hash, ctx.hash_result_len, ctx.word_size);
+        show_hash(ctx.hash, ctx.result_size);
     }
 }
 
@@ -128,7 +128,7 @@ void test_sha224() {
         int str_len = (int)strlen((const char*)(s[i]));
         new_sha224_digest(&ctx);
         digest_hash(&ctx, s[i], str_len);
-        show_hash(ctx.hash, ctx.hash_result_len, ctx.word_size);
+        show_hash(ctx.hash, ctx.result_size);
     }
 }
 
@@ -145,7 +145,7 @@ void test_sha256() {
         int str_len = (int)strlen((const char*)(s[i]));
         new_sha256_digest(&ctx);
         digest_hash(&ctx, s[i], str_len);
-        show_hash(ctx.hash, ctx.hash_result_len, ctx.word_size);
+        show_hash(ctx.hash, ctx.result_size);
     }
 }
 
@@ -161,7 +161,42 @@ void test_sha384() {
         int str_len = (int)strlen((const char*)(s[i]));
         new_sha384_digest(&ctx);
         digest_hash(&ctx, s[i], str_len);
-        show_hash(ctx.hash, ctx.hash_result_len, ctx.word_size);
+        show_hash(ctx.hash, ctx.result_size);
+    }
+}
+
+
+void test_sha512_224() {
+    digest_ctx ctx;
+
+    u8* s[] = {
+        (u8*)"abc",
+        (u8*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca",
+        (u8*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca123",
+        (u8*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca"
+    };
+    for (int i = 0; i < 4; i++) {
+        int str_len = (int)strlen((const char*)(s[i]));
+        new_sha512_224_digest(&ctx);
+        digest_hash(&ctx, s[i], str_len);
+        show_hash(ctx.hash, ctx.result_size);
+    }
+}
+
+void test_sha512_256() {
+    digest_ctx ctx;
+
+    u8* s[] = {
+        (u8*)"abc",
+        (u8*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca",
+        (u8*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca123",
+        (u8*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca"
+    };
+    for (int i = 0; i < 4; i++) {
+        int str_len = (int)strlen((const char*)(s[i]));
+        new_sha512_256_digest(&ctx);
+        digest_hash(&ctx, s[i], str_len);
+        show_hash(ctx.hash, ctx.result_size);
     }
 }
 
@@ -178,7 +213,7 @@ void test_sha512() {
         int str_len = (int)strlen((const char*)(s[i]));
         new_sha512_digest(&ctx);
         digest_hash(&ctx, s[i], str_len);
-        show_hash(ctx.hash, ctx.hash_result_len, ctx.word_size);
+        show_hash(ctx.hash, ctx.result_size);
     }
 }
 
@@ -190,46 +225,54 @@ void test_update() {
     // new_sha224_digest(&ctx);
     // new_sha256_digest(&ctx);
     // new_sha384_digest(&ctx);
+    // new_sha512_224_digest(&ctx);
+    // new_sha512_256_digest(&ctx);
     new_sha512_digest(&ctx);
     update_digest(&ctx, (u8*)"abc", 3);
     finalize_digest(&ctx);
-    show_hash(ctx.hash, ctx.hash_result_len, ctx.word_size);
+    show_hash(ctx.hash, ctx.result_size);
 
     // new_md5_digest(&ctx);
     // new_sha1_digest(&ctx);
     // new_sha224_digest(&ctx);
     // new_sha256_digest(&ctx);
     // new_sha384_digest(&ctx);
+    // new_sha512_224_digest(&ctx);
+    // new_sha512_256_digest(&ctx);
     new_sha512_digest(&ctx);
     update_digest(&ctx, (u8*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca", 64);
     update_digest(&ctx, (u8*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca", 64);
     finalize_digest(&ctx);
-    show_hash(ctx.hash, ctx.hash_result_len, ctx.word_size);
+    show_hash(ctx.hash, ctx.result_size);
 
     // new_md5_digest(&ctx);
     // new_sha1_digest(&ctx);
     // new_sha224_digest(&ctx);
     // new_sha256_digest(&ctx);
     // new_sha384_digest(&ctx);
+    // new_sha512_224_digest(&ctx);
+    // new_sha512_256_digest(&ctx);
     new_sha512_digest(&ctx);
     update_digest(&ctx, (u8*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca", 64);
     update_digest(&ctx, (u8*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca", 64);
     update_digest(&ctx, (u8*)"123", 3);
     finalize_digest(&ctx);
-    show_hash(ctx.hash, ctx.hash_result_len, ctx.word_size);
+    show_hash(ctx.hash, ctx.result_size);
 
     // new_md5_digest(&ctx);
     // new_sha1_digest(&ctx);
     // new_sha224_digest(&ctx);
     // new_sha256_digest(&ctx);
     // new_sha384_digest(&ctx);
+    // new_sha512_224_digest(&ctx);
+    // new_sha512_256_digest(&ctx);
     new_sha512_digest(&ctx);
     update_digest(&ctx, (u8*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca", 64);
     update_digest(&ctx, (u8*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca", 64);
     update_digest(&ctx, (u8*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca", 64);
     update_digest(&ctx, (u8*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca", 48);
     finalize_digest(&ctx);
-    show_hash(ctx.hash, ctx.hash_result_len, ctx.word_size);
+    show_hash(ctx.hash, ctx.result_size);
 }
 
 int main() {
@@ -243,6 +286,10 @@ int main() {
     test_sha256();
     printf("\ntest_sha384:\n");
     test_sha384();
+    printf("\ntest_sha512_224:\n");
+    test_sha512_224();
+    printf("\ntest_sha512_256:\n");
+    test_sha512_256();
     printf("\ntest_sha512:\n");
     test_sha512();
     printf("\ntest_update:\n");

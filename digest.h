@@ -8,11 +8,10 @@ typedef u_int8_t u8;
 typedef struct {
   int digest_block_size;
   int digest_input_block_size;
-  int word_size;
 
   void* hash;
   int hash_len;
-  int hash_result_len;
+  int result_size;
   u32 input_len;
 
   void (*block_operate)(const u8* input, void* hash);

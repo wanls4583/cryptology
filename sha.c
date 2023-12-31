@@ -11,17 +11,6 @@ u32 sha1_initial_hash[] = {
     0xf0e1d2c3
 };
 
-u32 sha224_initial_hash[] = {
-    0xd89e05c1,
-    0x07d57c36,
-    0x17dd7030,
-    0x39590ef7,
-    0x310bc0ff,
-    0x11155868,
-    0xa78ff964,
-    0xa44ffabe
-};
-
 u32 sha256_initial_hash[] = {
     0x67e6096a,
     0x85ae67bb,
@@ -33,15 +22,15 @@ u32 sha256_initial_hash[] = {
     0x19cde05b
 };
 
-u64 sha384_initial_hash[] = {
-    0xd89e05c15d9dbbcb,
-    0x07d57c362a299a62,
-    0x17dd70305a015991,
-    0x39590ef7d8ec2f15,
-    0x310bc0ff67263367,
-    0x11155868874ab48e,
-    0xa78ff9640d2e0cdb,
-    0xa44ffabe1d48b547
+u32 sha224_initial_hash[] = {
+    0xd89e05c1,
+    0x07d57c36,
+    0x17dd7030,
+    0x39590ef7,
+    0x310bc0ff,
+    0x11155868,
+    0xa78ff964,
+    0xa44ffabe
 };
 
 u64 sha512_initial_hash[] = {
@@ -53,6 +42,39 @@ u64 sha512_initial_hash[] = {
     0x1f6c3e2b8c68059b,
     0x6bbd41fbabd9831f,
     0x79217e1319cde05b
+};
+
+u64 sha512_224_initial_hash[] = {
+    0xA24D5419C8373D8C,
+    0xD6D4DC896699E173,
+    0x829CFF32AEB7FA1D,
+    0xCF9F2F5814D59D67,
+    0xA84DD47B692B6D0F,
+    0x4289C404736FE377,
+    0xC8361D6AA8859D3F,
+    0xA192D691ADE61211
+};
+
+u64 sha512_256_initial_hash[] = {
+    0x2CF72BFC94213122,
+    0xC2644CC8A35F559F,
+    0x51B1536F6BB89323,
+    0xBDEA405919773896,
+    0xE3FF8EA8E23E2896,
+    0x92398653251E5EBE,
+    0xAAB8852CFC99012B,
+    0xA22CC581DC2DB70E
+};
+
+u64 sha384_initial_hash[] = {
+    0xd89e05c15d9dbbcb,
+    0x07d57c362a299a62,
+    0x17dd70305a015991,
+    0x39590ef7d8ec2f15,
+    0x310bc0ff67263367,
+    0x11155868874ab48e,
+    0xa78ff9640d2e0cdb,
+    0xa44ffabe1d48b547
 };
 
 static const int sha1_k[] = {
@@ -422,9 +444,8 @@ int sha256_hash(u8* input, int len, u32 hash[SHA256_RESULT_SIZE]) {
 }
 
 void new_sha1_digest(digest_ctx* context) {
-    context->word_size = SHA1_WORD_SIZE;
     context->hash_len = SHA1_RESULT_SIZE;
-    context->hash_result_len = SHA1_RESULT_SIZE;
+    context->result_size = SHA1_BYTE_SIZE;
     context->digest_block_size = SHA1_BLOCK_SIZE;
     context->digest_input_block_size = SHA1_INPUT_BLOCK_SIZE;
     context->input_len = 0;
@@ -438,9 +459,8 @@ void new_sha1_digest(digest_ctx* context) {
 }
 
 void new_sha256_digest(digest_ctx* context) {
-    context->word_size = SHA256_WORD_SIZE;
     context->hash_len = SHA256_RESULT_SIZE;
-    context->hash_result_len = SHA256_RESULT_SIZE;
+    context->result_size = SHA256_BYTE_SIZE;
     context->digest_block_size = SHA256_BLOCK_SIZE;
     context->digest_input_block_size = SHA256_INPUT_BLOCK_SIZE;
     context->input_len = 0;
@@ -454,9 +474,8 @@ void new_sha256_digest(digest_ctx* context) {
 }
 
 void new_sha224_digest(digest_ctx* context) {
-    context->word_size = SHA256_WORD_SIZE;
     context->hash_len = SHA256_RESULT_SIZE;
-    context->hash_result_len = SHA224_RESULT_SIZE;
+    context->result_size = SHA224_BYTE_SIZE;
     context->digest_block_size = SHA256_BLOCK_SIZE;
     context->digest_input_block_size = SHA256_INPUT_BLOCK_SIZE;
     context->input_len = 0;
@@ -470,9 +489,8 @@ void new_sha224_digest(digest_ctx* context) {
 }
 
 void new_sha512_digest(digest_ctx* context) {
-    context->word_size = SHA512_WORD_SIZE;
     context->hash_len = SHA512_RESULT_SIZE;
-    context->hash_result_len = SHA512_RESULT_SIZE;
+    context->result_size = SHA512_BYTE_SIZE;
     context->digest_block_size = SHA512_BLOCK_SIZE;
     context->digest_input_block_size = SHA512_INPUT_BLOCK_SIZE;
     context->input_len = 0;
@@ -485,10 +503,39 @@ void new_sha512_digest(digest_ctx* context) {
     context->block_finalize = sha512_finalize;
 }
 
-void new_sha384_digest(digest_ctx* context) {
-    context->word_size = SHA512_WORD_SIZE;
+void new_sha512_224_digest(digest_ctx* context) {
     context->hash_len = SHA512_RESULT_SIZE;
-    context->hash_result_len = SHA384_RESULT_SIZE;
+    context->result_size = SHA224_BYTE_SIZE;
+    context->digest_block_size = SHA512_BLOCK_SIZE;
+    context->digest_input_block_size = SHA512_INPUT_BLOCK_SIZE;
+    context->input_len = 0;
+    context->block_len = 0;
+    context->hash = (void*)malloc(context->hash_len * sizeof(u64));
+    context->block = (u8*)malloc(context->digest_block_size);
+    memcpy(context->hash, sha512_224_initial_hash, context->hash_len * sizeof(u64));
+    memset(context->block, '\0', context->digest_block_size);
+    context->block_operate = (block_operate)sha512_block_operate;
+    context->block_finalize = sha512_finalize;
+}
+
+void new_sha512_256_digest(digest_ctx* context) {
+    context->hash_len = SHA512_RESULT_SIZE;
+    context->result_size = SHA256_BYTE_SIZE;
+    context->digest_block_size = SHA512_BLOCK_SIZE;
+    context->digest_input_block_size = SHA512_INPUT_BLOCK_SIZE;
+    context->input_len = 0;
+    context->block_len = 0;
+    context->hash = (void*)malloc(context->hash_len * sizeof(u64));
+    context->block = (u8*)malloc(context->digest_block_size);
+    memcpy(context->hash, sha512_256_initial_hash, context->hash_len * sizeof(u64));
+    memset(context->block, '\0', context->digest_block_size);
+    context->block_operate = (block_operate)sha512_block_operate;
+    context->block_finalize = sha512_finalize;
+}
+
+void new_sha384_digest(digest_ctx* context) {
+    context->hash_len = SHA512_RESULT_SIZE;
+    context->result_size = SHA384_BYTE_SIZE;
     context->digest_block_size = SHA512_BLOCK_SIZE;
     context->digest_input_block_size = SHA512_INPUT_BLOCK_SIZE;
     context->input_len = 0;
