@@ -36,6 +36,7 @@ void sha1_block_operate(const unsigned char* block, unsigned int hash[SHA1_RESUL
 void sha256_block_operate(const unsigned char* block, unsigned int hash[SHA256_RESULT_SIZE]);
 void sha512_block_operate(const unsigned char* block, u_int64_t hash[SHA512_RESULT_SIZE]);
 void sha1_finalize(unsigned char* padded_block, int length_in_bits);
+void sha512_finalize(unsigned char* padded_block, int length_in_bits);
 void new_sha1_digest(digest_ctx* context);
 void new_sha256_digest(digest_ctx* context);
 void new_sha224_digest(digest_ctx* context);

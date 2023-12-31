@@ -109,7 +109,7 @@ void sha1_block_operate(const unsigned char* block, unsigned int hash[SHA1_RESUL
     unsigned int a, b, c, d, e, tmp;
 
     for (int t = 0; t < 80; t++) { // 16个字扩展成80个字
-        if (t < 16) { // 将以小端排序的明文分组存入w[0..15]
+        if (t < 16) { // 将以大端排序的明文分组存入w[0..15]
             w[t] = (block[t * 4] << 24) | (block[t * 4 + 1] << 16) | (block[t * 4 + 2] << 8) | block[t * 4 + 3];
         } else {
             w[t] = w[t - 3] ^ w[t - 8] ^ w[t - 14] ^ w[t - 16];
@@ -193,7 +193,7 @@ void sha256_block_operate(const unsigned char* block, unsigned int hash[SHA256_R
     unsigned int t1, t2;
 
     for (int t = 0; t < 64; t++) { // 16个字扩展成64个字
-        if (t < 16) { // 将以小端排序的明文分组存入w[0..15]
+        if (t < 16) { // 将以大端排序的明文分组存入w[0..15]
             w[t] = (block[t * 4] << 24) | (block[t * 4 + 1] << 16) | (block[t * 4 + 2] << 8) | block[t * 4 + 3];
         } else {
             w[t] = sigma_shr(w[t - 2], 1) + w[t - 7] + sigma_shr(w[t - 15], 0) + w[t - 16];
@@ -279,8 +279,16 @@ void sha512_block_operate(const unsigned char* block, u_int64_t hash[SHA512_RESU
     u_int64_t t1, t2;
 
     for (int t = 0; t < 80; t++) { // 16个字扩展成80个字
-        if (t < 16) { // 将以小端排序的明文分组存入w[0..15]
-            w[t] = (block[t * 4] << 24) | (block[t * 4 + 1] << 16) | (block[t * 4 + 2] << 8) | block[t * 4 + 3];
+        if (t < 16) { // 将以大端排序的明文分组存入w[0..15]
+            w[t] =
+                (((u_int64_t)block[t * 8]) << 56) |
+                (((u_int64_t)block[t * 8 + 1]) << 48) |
+                (((u_int64_t)block[t * 8 + 2]) << 40) |
+                (((u_int64_t)block[t * 8 + 3]) << 32) |
+                (((u_int64_t)block[t * 8 + 4]) << 24) |
+                (((u_int64_t)block[t * 8 + 5]) << 16) |
+                (((u_int64_t)block[t * 8 + 6]) << 8) |
+                (u_int64_t)block[t * 8 + 7];
         } else {
             w[t] = sigma_shr_64(w[t - 2], 1) + w[t - 7] + sigma_shr_64(w[t - 15], 0) + w[t - 16];
         }
@@ -300,7 +308,7 @@ void sha512_block_operate(const unsigned char* block, u_int64_t hash[SHA512_RESU
     h = hash[7];
 
     for (int i = 0; i < 80; i++) {
-        t1 = h + sigma_rot_64(e, 1) + ch_64(e, f, g) + sha256_k[i] + w[i];
+        t1 = h + sigma_rot_64(e, 1) + ch_64(e, f, g) + sha512_k[i] + w[i];
         t2 = sigma_rot_64(a, 0) + maj_64(a, b, c);
         h = g;
         g = f;
@@ -332,6 +340,14 @@ void sha1_finalize(unsigned char* padded_block, int length_in_bits) {
     padded_block[SHA1_BLOCK_SIZE - 3] = (length_in_bits & 0x00FF0000) >> 16;
     padded_block[SHA1_BLOCK_SIZE - 2] = (length_in_bits & 0x0000FF00) >> 8;
     padded_block[SHA1_BLOCK_SIZE - 1] = (length_in_bits & 0x000000FF);
+}
+
+// 大端排序存储真实数据长度
+void sha512_finalize(unsigned char* padded_block, int length_in_bits) {
+    padded_block[SHA512_BLOCK_SIZE - 4] = (length_in_bits & 0xFF000000) >> 24;
+    padded_block[SHA512_BLOCK_SIZE - 3] = (length_in_bits & 0x00FF0000) >> 16;
+    padded_block[SHA512_BLOCK_SIZE - 2] = (length_in_bits & 0x0000FF00) >> 8;
+    padded_block[SHA512_BLOCK_SIZE - 1] = (length_in_bits & 0x000000FF);
 }
 
 int sha1_hash(unsigned char* input, int len, unsigned int hash[SHA1_RESULT_SIZE]) {
@@ -463,5 +479,5 @@ void new_sha512_digest(digest_ctx* context) {
     memcpy(context->hash, sha512_initial_hash, context->hash_len * sizeof(u_int64_t));
     memset(context->block, '\0', context->digest_block_size);
     context->block_operate = (block_operate)sha512_block_operate;
-    context->block_finalize = sha1_finalize;
+    context->block_finalize = sha512_finalize;
 }

@@ -11,6 +11,10 @@ void show_hash(void* hash, int hash_len, int word_size) {
     for (int i = 0; i < (hash_len * word_size); i++) {
         printf("%.02x", display_hash[i]);
     }
+    // u_int64_t *h = (u_int16_t *)hash;
+    // for (int i = 0; i < 8; i++) {
+    //     printf("%lx ", h[i]);
+    // }    
     printf("\n");
 }
 
@@ -171,14 +175,16 @@ void test_update() {
 
     // new_md5_digest(&ctx);
     // new_sha1_digest(&ctx);
-    new_sha256_digest(&ctx);
+    // new_sha256_digest(&ctx);
+    new_sha512_digest(&ctx);
     update_digest(&ctx, (unsigned char*)"abc", 3);
     finalize_digest(&ctx);
     show_hash(ctx.hash, ctx.hash_result_len, ctx.word_size);
 
     // new_md5_digest(&ctx);
     // new_sha1_digest(&ctx);
-    new_sha256_digest(&ctx);
+    // new_sha256_digest(&ctx);
+    new_sha512_digest(&ctx);
     update_digest(&ctx, (unsigned char*)"abcabcabcabcabcaabcabcabcabcabca", 32);
     update_digest(&ctx, (unsigned char*)"abcabcabcabcabcaabcabcabcabcabca", 32);
     finalize_digest(&ctx);
@@ -186,7 +192,8 @@ void test_update() {
 
     // new_md5_digest(&ctx);
     // new_sha1_digest(&ctx);
-    new_sha256_digest(&ctx);
+    // new_sha256_digest(&ctx);
+    new_sha512_digest(&ctx);
     update_digest(&ctx, (unsigned char*)"abcabcabcabcabcaabcabcabcabcabca", 32);
     update_digest(&ctx, (unsigned char*)"abcabcabcabcabcaabcabcabcabcabca", 32);
     update_digest(&ctx, (unsigned char*)"123", 3);
@@ -195,7 +202,8 @@ void test_update() {
 
     // new_md5_digest(&ctx);
     // new_sha1_digest(&ctx);
-    new_sha256_digest(&ctx);
+    // new_sha256_digest(&ctx);
+    new_sha512_digest(&ctx);
     update_digest(&ctx, (unsigned char*)"abcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabca", 64);
     update_digest(&ctx, (unsigned char*)"bcabcabcabcabcddddddddddddddddddddddddddddddqqqqqqqqeeee123", 59);
     finalize_digest(&ctx);
@@ -203,18 +211,18 @@ void test_update() {
 }
 
 int main() {
-    // printf("\ntest_md5:\n");
-    // test_md5();
-    // printf("\ntest_sha1:\n");
-    // test_sha1();
-    // printf("\ntest_sha224:\n");
-    // test_sha224();
-    // printf("\ntest_sha256:\n");
-    // test_sha256();
-    // printf("\ntest_sha512:\n");
+    printf("\ntest_md5:\n");
+    test_md5();
+    printf("\ntest_sha1:\n");
+    test_sha1();
+    printf("\ntest_sha224:\n");
+    test_sha224();
+    printf("\ntest_sha256:\n");
+    test_sha256();
+    printf("\ntest_sha512:\n");
     test_sha512();
-    // printf("\ntest_update:\n");
-    // test_update();
+    printf("\ntest_update:\n");
+    test_update();
     return 0;
 }
 #endif
