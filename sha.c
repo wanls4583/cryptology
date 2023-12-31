@@ -3,7 +3,7 @@
 #include <string.h>
 #include "sha.h"
 
-unsigned int sha1_initial_hash[] = {
+u32 sha1_initial_hash[] = {
     0x01234567,
     0x89abcdef,
     0xfedcba98,
@@ -11,7 +11,7 @@ unsigned int sha1_initial_hash[] = {
     0xf0e1d2c3
 };
 
-unsigned int sha224_initial_hash[] = {
+u32 sha224_initial_hash[] = {
     0xd89e05c1,
     0x07d57c36,
     0x17dd7030,
@@ -22,7 +22,7 @@ unsigned int sha224_initial_hash[] = {
     0xa44ffabe
 };
 
-unsigned int sha256_initial_hash[] = {
+u32 sha256_initial_hash[] = {
     0x67e6096a,
     0x85ae67bb,
     0x72f36e3c,
@@ -33,15 +33,18 @@ unsigned int sha256_initial_hash[] = {
     0x19cde05b
 };
 
-u_int64_t sha512_initial_hash[] = {
-    // 0x6a09e667f3bcc908,
-    // 0xbb67ae8584caa73b,
-    // 0x3c6ef372fe94f82b,
-    // 0xa54ff53a5f1d36f1,
-    // 0x510e527fade682d1,
-    // 0x9b05688c2b3e6c1f,
-    // 0x1f83d9abfb41bd6b,
-    // 0x5be0cd19137e2179
+u64 sha384_initial_hash[] = {
+    0xd89e05c15d9dbbcb,
+    0x07d57c362a299a62,
+    0x17dd70305a015991,
+    0x39590ef7d8ec2f15,
+    0x310bc0ff67263367,
+    0x11155868874ab48e,
+    0xa78ff9640d2e0cdb,
+    0xa44ffabe1d48b547
+};
+
+u64 sha512_initial_hash[] = {
     0x08c9bcf367e6096a,
     0x3ba7ca8485ae67bb,
     0x2bf894fe72f36e3c,
@@ -59,7 +62,7 @@ static const int sha1_k[] = {
     0xca62c1d6 // 60 <= t <= 79
 };
 
-static const unsigned int sha256_k[] = {
+static const u32 sha256_k[] = {
     0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1,
     0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
     0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786,
@@ -73,7 +76,7 @@ static const unsigned int sha256_k[] = {
     0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
 };
 
-static const u_int64_t sha512_k[] = {
+static const u64 sha512_k[] = {
     0x428a2f98d728ae22, 0x7137449123ef65cd, 0xb5c0fbcfec4d3b2f, 0xe9b5dba58189dbbc, 0x3956c25bf348b538,
     0x59f111f1b605d019, 0x923f82a4af194f9b, 0xab1c5ed5da6d8118, 0xd807aa98a3030242, 0x12835b0145706fbe,
     0x243185be4ee4b28c, 0x550c7dc3d5ffb4e2, 0x72be5d74f27b896f, 0x80deb1fe3b1696b1, 0x9bdc06a725c71235,
@@ -92,21 +95,21 @@ static const u_int64_t sha512_k[] = {
     0x431d67c49c100d4c, 0x4cc5d4becb3e42b6, 0x597f299cfc657e2a, 0x5fcb6fab3ad6faec, 0x6c44198c4a475817
 };
 
-unsigned int ch(unsigned int x, unsigned int y, unsigned int z) {
+u32 ch(u32 x, u32 y, u32 z) {
     return (x & y) ^ (~x & z);
 }
 
-unsigned int maj(unsigned int x, unsigned int y, unsigned int z) {
+u32 maj(u32 x, u32 y, u32 z) {
     return (x & y) ^ (x & z) ^ (y & z);
 }
 
-unsigned int parity(unsigned int x, unsigned int y, unsigned int z) {
+u32 parity(u32 x, u32 y, u32 z) {
     return x ^ y ^ z;
 }
 
-void sha1_block_operate(const unsigned char* block, unsigned int hash[SHA1_RESULT_SIZE]) {
-    unsigned int w[80];
-    unsigned int a, b, c, d, e, tmp;
+void sha1_block_operate(const u8* block, u32 hash[SHA1_RESULT_SIZE]) {
+    u32 w[80];
+    u32 a, b, c, d, e, tmp;
 
     for (int t = 0; t < 80; t++) { // 16个字扩展成80个字
         if (t < 16) { // 将以大端排序的明文分组存入w[0..15]
@@ -163,15 +166,15 @@ void sha1_block_operate(const unsigned char* block, unsigned int hash[SHA1_RESUL
     hash[4] = htonl(hash[4]);
 }
 
-unsigned int rotr(unsigned int x, unsigned int n) {
+u32 rotr(u32 x, u32 n) {
     return (x >> n) | (x << (32 - n));
 }
 
-unsigned int shr(unsigned int x, unsigned int n) {
+u32 shr(u32 x, u32 n) {
     return x >> n;
 }
 
-unsigned int sigma_rot(unsigned int x, int i) {
+u32 sigma_rot(u32 x, int i) {
     if (i) {
         return rotr(x, 6) ^ rotr(x, 11) ^ rotr(x, 25);
     } else {
@@ -179,7 +182,7 @@ unsigned int sigma_rot(unsigned int x, int i) {
     }
 }
 
-unsigned int sigma_shr(unsigned int x, int i) {
+u32 sigma_shr(u32 x, int i) {
     if (i) {
         return rotr(x, 17) ^ rotr(x, 19) ^ shr(x, 10);
     } else {
@@ -187,10 +190,10 @@ unsigned int sigma_shr(unsigned int x, int i) {
     }
 }
 
-void sha256_block_operate(const unsigned char* block, unsigned int hash[SHA256_RESULT_SIZE]) {
-    unsigned int w[64];
-    unsigned int a, b, c, d, e, f, g, h;
-    unsigned int t1, t2;
+void sha256_block_operate(const u8* block, u32 hash[SHA256_RESULT_SIZE]) {
+    u32 w[64];
+    u32 a, b, c, d, e, f, g, h;
+    u32 t1, t2;
 
     for (int t = 0; t < 64; t++) { // 16个字扩展成64个字
         if (t < 16) { // 将以大端排序的明文分组存入w[0..15]
@@ -241,23 +244,23 @@ void sha256_block_operate(const unsigned char* block, unsigned int hash[SHA256_R
 }
 
 
-u_int64_t ch_64(u_int64_t x, u_int64_t y, u_int64_t z) {
+u64 ch_64(u64 x, u64 y, u64 z) {
     return (x & y) ^ (~x & z);
 }
 
-u_int64_t maj_64(u_int64_t x, u_int64_t y, u_int64_t z) {
+u64 maj_64(u64 x, u64 y, u64 z) {
     return (x & y) ^ (x & z) ^ (y & z);
 }
 
-u_int64_t rotr_64(u_int64_t x, unsigned int n) {
+u64 rotr_64(u64 x, u32 n) {
     return (x >> n) | (x << (64 - n));
 }
 
-u_int64_t shr_64(u_int64_t x, unsigned int n) {
+u64 shr_64(u64 x, u32 n) {
     return x >> n;
 }
 
-u_int64_t sigma_rot_64(u_int64_t x, int i) {
+u64 sigma_rot_64(u64 x, int i) {
     if (i) {
         return rotr_64(x, 14) ^ rotr_64(x, 18) ^ rotr_64(x, 41);
     } else {
@@ -265,7 +268,7 @@ u_int64_t sigma_rot_64(u_int64_t x, int i) {
     }
 }
 
-u_int64_t sigma_shr_64(u_int64_t x, int i) {
+u64 sigma_shr_64(u64 x, int i) {
     if (i) {
         return rotr_64(x, 19) ^ rotr_64(x, 61) ^ shr_64(x, 6);
     } else {
@@ -273,22 +276,22 @@ u_int64_t sigma_shr_64(u_int64_t x, int i) {
     }
 }
 
-void sha512_block_operate(const unsigned char* block, u_int64_t hash[SHA512_RESULT_SIZE]) {
-    u_int64_t w[80];
-    u_int64_t a, b, c, d, e, f, g, h;
-    u_int64_t t1, t2;
+void sha512_block_operate(const u8* block, u64 hash[SHA512_RESULT_SIZE]) {
+    u64 w[80];
+    u64 a, b, c, d, e, f, g, h;
+    u64 t1, t2;
 
     for (int t = 0; t < 80; t++) { // 16个字扩展成80个字
         if (t < 16) { // 将以大端排序的明文分组存入w[0..15]
             w[t] =
-                (((u_int64_t)block[t * 8]) << 56) |
-                (((u_int64_t)block[t * 8 + 1]) << 48) |
-                (((u_int64_t)block[t * 8 + 2]) << 40) |
-                (((u_int64_t)block[t * 8 + 3]) << 32) |
-                (((u_int64_t)block[t * 8 + 4]) << 24) |
-                (((u_int64_t)block[t * 8 + 5]) << 16) |
-                (((u_int64_t)block[t * 8 + 6]) << 8) |
-                (u_int64_t)block[t * 8 + 7];
+                (((u64)block[t * 8]) << 56) |
+                (((u64)block[t * 8 + 1]) << 48) |
+                (((u64)block[t * 8 + 2]) << 40) |
+                (((u64)block[t * 8 + 3]) << 32) |
+                (block[t * 8 + 4] << 24) |
+                (block[t * 8 + 5] << 16) |
+                (block[t * 8 + 6] << 8) |
+                block[t * 8 + 7];
         } else {
             w[t] = sigma_shr_64(w[t - 2], 1) + w[t - 7] + sigma_shr_64(w[t - 15], 0) + w[t - 16];
         }
@@ -335,7 +338,7 @@ void sha512_block_operate(const unsigned char* block, u_int64_t hash[SHA512_RESU
 }
 
 // 大端排序存储真实数据长度
-void sha1_finalize(unsigned char* padded_block, int length_in_bits) {
+void sha1_finalize(u8* padded_block, int length_in_bits) {
     padded_block[SHA1_BLOCK_SIZE - 4] = (length_in_bits & 0xFF000000) >> 24;
     padded_block[SHA1_BLOCK_SIZE - 3] = (length_in_bits & 0x00FF0000) >> 16;
     padded_block[SHA1_BLOCK_SIZE - 2] = (length_in_bits & 0x0000FF00) >> 8;
@@ -343,15 +346,15 @@ void sha1_finalize(unsigned char* padded_block, int length_in_bits) {
 }
 
 // 大端排序存储真实数据长度
-void sha512_finalize(unsigned char* padded_block, int length_in_bits) {
+void sha512_finalize(u8* padded_block, int length_in_bits) {
     padded_block[SHA512_BLOCK_SIZE - 4] = (length_in_bits & 0xFF000000) >> 24;
     padded_block[SHA512_BLOCK_SIZE - 3] = (length_in_bits & 0x00FF0000) >> 16;
     padded_block[SHA512_BLOCK_SIZE - 2] = (length_in_bits & 0x0000FF00) >> 8;
     padded_block[SHA512_BLOCK_SIZE - 1] = (length_in_bits & 0x000000FF);
 }
 
-int sha1_hash(unsigned char* input, int len, unsigned int hash[SHA1_RESULT_SIZE]) {
-    unsigned char padded_block[SHA1_BLOCK_SIZE];
+int sha1_hash(u8* input, int len, u32 hash[SHA1_RESULT_SIZE]) {
+    u8 padded_block[SHA1_BLOCK_SIZE];
     int length_in_bits = len * 8;
 
     hash[0] = sha1_initial_hash[0];
@@ -384,8 +387,8 @@ int sha1_hash(unsigned char* input, int len, unsigned int hash[SHA1_RESULT_SIZE]
     return 0;
 }
 
-int sha256_hash(unsigned char* input, int len, unsigned int hash[SHA256_RESULT_SIZE]) {
-    unsigned char padded_block[SHA256_BLOCK_SIZE];
+int sha256_hash(u8* input, int len, u32 hash[SHA256_RESULT_SIZE]) {
+    u8 padded_block[SHA256_BLOCK_SIZE];
     int length_in_bits = len * 8;
 
     hash[0] = sha1_initial_hash[0];
@@ -426,9 +429,9 @@ void new_sha1_digest(digest_ctx* context) {
     context->digest_input_block_size = SHA1_INPUT_BLOCK_SIZE;
     context->input_len = 0;
     context->block_len = 0;
-    context->hash = (void*)malloc(context->hash_len * sizeof(unsigned int));
-    context->block = (unsigned char*)malloc(context->digest_block_size);
-    memcpy(context->hash, sha1_initial_hash, context->hash_len * sizeof(unsigned int));
+    context->hash = (void*)malloc(context->hash_len * sizeof(u32));
+    context->block = (u8*)malloc(context->digest_block_size);
+    memcpy(context->hash, sha1_initial_hash, context->hash_len * sizeof(u32));
     memset(context->block, '\0', context->digest_block_size);
     context->block_operate = (block_operate)sha1_block_operate;
     context->block_finalize = sha1_finalize;
@@ -442,9 +445,9 @@ void new_sha256_digest(digest_ctx* context) {
     context->digest_input_block_size = SHA256_INPUT_BLOCK_SIZE;
     context->input_len = 0;
     context->block_len = 0;
-    context->hash = (void*)malloc(context->hash_len * sizeof(unsigned int));
-    context->block = (unsigned char*)malloc(context->digest_block_size);
-    memcpy(context->hash, sha256_initial_hash, context->hash_len * sizeof(unsigned int));
+    context->hash = (void*)malloc(context->hash_len * sizeof(u32));
+    context->block = (u8*)malloc(context->digest_block_size);
+    memcpy(context->hash, sha256_initial_hash, context->hash_len * sizeof(u32));
     memset(context->block, '\0', context->digest_block_size);
     context->block_operate = (block_operate)sha256_block_operate;
     context->block_finalize = sha1_finalize;
@@ -458,9 +461,9 @@ void new_sha224_digest(digest_ctx* context) {
     context->digest_input_block_size = SHA256_INPUT_BLOCK_SIZE;
     context->input_len = 0;
     context->block_len = 0;
-    context->hash = (void*)malloc(context->hash_len * sizeof(unsigned int));
-    context->block = (unsigned char*)malloc(context->digest_block_size);
-    memcpy(context->hash, sha224_initial_hash, context->hash_len * sizeof(unsigned int));
+    context->hash = (void*)malloc(context->hash_len * sizeof(u32));
+    context->block = (u8*)malloc(context->digest_block_size);
+    memcpy(context->hash, sha224_initial_hash, context->hash_len * sizeof(u32));
     memset(context->block, '\0', context->digest_block_size);
     context->block_operate = (block_operate)sha256_block_operate;
     context->block_finalize = sha1_finalize;
@@ -474,9 +477,25 @@ void new_sha512_digest(digest_ctx* context) {
     context->digest_input_block_size = SHA512_INPUT_BLOCK_SIZE;
     context->input_len = 0;
     context->block_len = 0;
-    context->hash = (void*)malloc(context->hash_len * sizeof(u_int64_t));
-    context->block = (unsigned char*)malloc(context->digest_block_size);
-    memcpy(context->hash, sha512_initial_hash, context->hash_len * sizeof(u_int64_t));
+    context->hash = (void*)malloc(context->hash_len * sizeof(u64));
+    context->block = (u8*)malloc(context->digest_block_size);
+    memcpy(context->hash, sha512_initial_hash, context->hash_len * sizeof(u64));
+    memset(context->block, '\0', context->digest_block_size);
+    context->block_operate = (block_operate)sha512_block_operate;
+    context->block_finalize = sha512_finalize;
+}
+
+void new_sha384_digest(digest_ctx* context) {
+    context->word_size = SHA512_WORD_SIZE;
+    context->hash_len = SHA512_RESULT_SIZE;
+    context->hash_result_len = SHA384_RESULT_SIZE;
+    context->digest_block_size = SHA512_BLOCK_SIZE;
+    context->digest_input_block_size = SHA512_INPUT_BLOCK_SIZE;
+    context->input_len = 0;
+    context->block_len = 0;
+    context->hash = (void*)malloc(context->hash_len * sizeof(u64));
+    context->block = (u8*)malloc(context->digest_block_size);
+    memcpy(context->hash, sha384_initial_hash, context->hash_len * sizeof(u64));
     memset(context->block, '\0', context->digest_block_size);
     context->block_operate = (block_operate)sha512_block_operate;
     context->block_finalize = sha512_finalize;

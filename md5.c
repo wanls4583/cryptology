@@ -6,61 +6,61 @@
 
 #define BASE_T 4294967296.0
 
-unsigned int md5_initial_hash[] = {
+u32 md5_initial_hash[] = {
     0x67452301,
     0xefcdab89,
     0x98badcfe,
     0x10325476
 };
 
-unsigned int md5_initial_ti[MD5_BLOCK_SIZE] = { 0 };
+u32 md5_initial_ti[MD5_BLOCK_SIZE] = { 0 };
 
-unsigned int F(unsigned int X, unsigned int Y, unsigned int Z) {
+u32 F(u32 X, u32 Y, u32 Z) {
     return (X & Y) | ((~X) & Z);
 }
 
-unsigned int G(unsigned int X, unsigned int Y, unsigned int Z) {
+u32 G(u32 X, u32 Y, u32 Z) {
     return  (X & Z) | (Y & (~Z));
 }
 
-unsigned int H(unsigned int X, unsigned int Y, unsigned int Z) {
+u32 H(u32 X, u32 Y, u32 Z) {
     return X ^ Y ^ Z;
 }
 
-unsigned int I(unsigned int X, unsigned int Y, unsigned int Z) {
+u32 I(u32 X, u32 Y, u32 Z) {
     return Y ^ (X | (~Z));
 }
 
-void FF(unsigned int* a, unsigned int b, unsigned int c, unsigned int d, int mi, int s, int ti) {
-    unsigned int tmp = *a + F(b, c, d) + mi + ti;
+void FF(u32* a, u32 b, u32 c, u32 d, int mi, int s, int ti) {
+    u32 tmp = *a + F(b, c, d) + mi + ti;
     tmp = (tmp << s) | (tmp >> (32 - s));
     tmp += b;
     *a = tmp;
 }
 
-void GG(unsigned int* a, unsigned int b, unsigned int c, unsigned int d, int mi, int s, int ti) {
-    unsigned int tmp = *a + G(b, c, d) + mi + ti;
+void GG(u32* a, u32 b, u32 c, u32 d, int mi, int s, int ti) {
+    u32 tmp = *a + G(b, c, d) + mi + ti;
     tmp = (tmp << s) | (tmp >> (32 - s));
     tmp += b;
     *a = tmp;
 }
 
-void HH(unsigned int* a, unsigned int b, unsigned int c, unsigned int d, int mi, int s, int ti) {
-    unsigned int tmp = *a + H(b, c, d) + mi + ti;
+void HH(u32* a, u32 b, u32 c, u32 d, int mi, int s, int ti) {
+    u32 tmp = *a + H(b, c, d) + mi + ti;
     tmp = (tmp << s) | (tmp >> (32 - s));
     tmp += b;
     *a = tmp;
 }
 
-void II(unsigned int* a, unsigned int b, unsigned int c, unsigned int d, int mi, int s, int ti) {
-    unsigned int tmp = *a + I(b, c, d) + mi + ti;
+void II(u32* a, u32 b, u32 c, u32 d, int mi, int s, int ti) {
+    u32 tmp = *a + I(b, c, d) + mi + ti;
     tmp = (tmp << s) | (tmp >> (32 - s));
     tmp += b;
     *a = tmp;
 }
 
-int md5_hash(const unsigned char* input, int len, unsigned int hash[MD5_RESULT_SIZE]) {
-    unsigned char padded_block[MD5_BLOCK_SIZE];
+int md5_hash(const u8* input, int len, u32 hash[MD5_RESULT_SIZE]) {
+    u8 padded_block[MD5_BLOCK_SIZE];
     int length_in_bits = len * 8;
 
     hash[0] = md5_initial_hash[0];
@@ -92,9 +92,9 @@ int md5_hash(const unsigned char* input, int len, unsigned int hash[MD5_RESULT_S
     return 0;
 }
 
-void md5_block_operate(const unsigned char* input, unsigned int hash[MD5_RESULT_SIZE]) {
-    unsigned int a, b, c, d;
-    unsigned int m[16];
+void md5_block_operate(const u8* input, u32 hash[MD5_RESULT_SIZE]) {
+    u32 a, b, c, d;
+    u32 m[16];
 
     a = hash[0];
     b = hash[1];
@@ -103,11 +103,11 @@ void md5_block_operate(const unsigned char* input, unsigned int hash[MD5_RESULT_
 
     if (!md5_initial_ti[0]) { //初始化ti数组
         for (int i = 1; i <= MD5_BLOCK_SIZE; i++) {
-            md5_initial_ti[i - 1] = (unsigned int)(BASE_T * fabs(sin((double)i)));
+            md5_initial_ti[i - 1] = (u32)(BASE_T * fabs(sin((double)i)));
         }
     }
 
-    for (int i = 0; i < 16; i++) { //将以小端排序的明文分组存入unsigned int
+    for (int i = 0; i < 16; i++) { //将以小端排序的明文分组存入u32
         m[i] = (input[i * 4 + 3] << 24) | (input[i * 4 + 2] << 16) | (input[i * 4 + 1] << 8) | input[i * 4];
     }
 
@@ -190,7 +190,7 @@ void md5_block_operate(const unsigned char* input, unsigned int hash[MD5_RESULT_
 }
 
 // 小端排序存储真实数据长度
-void md5_finalize(unsigned char* padded_block, int length_in_bits) {
+void md5_finalize(u8* padded_block, int length_in_bits) {
     padded_block[MD5_BLOCK_SIZE - 5] = (length_in_bits & 0xFF000000) >> 24;
     padded_block[MD5_BLOCK_SIZE - 6] = (length_in_bits & 0x00FF0000) >> 16;
     padded_block[MD5_BLOCK_SIZE - 7] = (length_in_bits & 0x0000FF00) >> 8;
@@ -205,9 +205,9 @@ void new_md5_digest(digest_ctx* context) {
     context->digest_input_block_size = MD5_INPUT_BLOCK_SIZE;
     context->input_len = 0;
     context->block_len = 0;
-    context->hash = (void*)malloc(context->hash_len * sizeof(unsigned int));
-    context->block = (unsigned char*)malloc(context->digest_block_size);
-    memcpy(context->hash, md5_initial_hash, context->hash_len * sizeof(unsigned int));
+    context->hash = (void*)malloc(context->hash_len * sizeof(u32));
+    context->block = (u8*)malloc(context->digest_block_size);
+    memcpy(context->hash, md5_initial_hash, context->hash_len * sizeof(u32));
     memset(context->block, '\0', context->digest_block_size);
     context->block_operate = (block_operate)md5_block_operate;
     context->block_finalize = md5_finalize;

@@ -11,11 +11,11 @@
 
 #include "digest.h"
 
-unsigned int md5_initial_hash[MD5_RESULT_SIZE];
+u32 md5_initial_hash[MD5_RESULT_SIZE];
 
-int md5_hash(const unsigned char* input, int len, unsigned int hash[MD5_RESULT_SIZE]);
-void md5_block_operate(const unsigned char* input, unsigned int hash[MD5_RESULT_SIZE]);
-void md5_finalize(unsigned char* padded_block, int length_in_bits);
+int md5_hash(const u8* input, int len, u32 hash[MD5_RESULT_SIZE]);
+void md5_block_operate(const u8* input, u32 hash[MD5_RESULT_SIZE]);
+void md5_finalize(u8* padded_block, int length_in_bits);
 void new_md5_digest(digest_ctx* context);
 
 #endif
