@@ -71,29 +71,29 @@ void hmac(
     free(tmp);
 }
 
-#define TEST_HMAC
+// #define TEST_HMAC
 #ifdef TEST_HMAC
 int main() {
     digest_ctx digest;
 
-    // new_md5_digest(&digest);
-    // hmac(&digest, (u8*)"abc", 3, (u8*)"what do ya want for nothing?", 28);
-    // show_hash(digest.hash, digest.result_size);
+    new_md5_digest(&digest);
+    hmac(&digest, (u8*)"abc", 3, (u8*)"what do ya want for nothing?", 28);
+    show_hash(digest.hash, digest.result_size);
 
-    // new_md5_digest(&digest);
-    // hmac(&digest, (u8*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca123", 131, (u8*)"what do ya want for nothing?", 28);
-    // show_hash(digest.hash, digest.result_size);
+    new_md5_digest(&digest);
+    hmac(&digest, (u8*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca123", 131, (u8*)"what do ya want for nothing?", 28);
+    show_hash(digest.hash, digest.result_size);
 
-    // new_sha1_digest(&digest);
-    // hmac(&digest, (u8*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca123", 131, (u8*)"what do ya want for nothing?", 28);
-    // show_hash(digest.hash, digest.result_size);
+    new_sha1_digest(&digest);
+    hmac(&digest, (u8*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca123", 131, (u8*)"what do ya want for nothing?", 28);
+    show_hash(digest.hash, digest.result_size);
 
-    // new_sha256_digest(&digest);
-    // hmac(&digest, (u8*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca123", 131, (u8*)"what do ya want for nothing?", 28);
-    // show_hash(digest.hash, digest.result_size);
+    new_sha256_digest(&digest);
+    hmac(&digest, (u8*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca123", 131, (u8*)"what do ya want for nothing?", 28);
+    show_hash(digest.hash, digest.result_size);
 
     new_sha512_digest(&digest);
-    hmac(&digest, (u8*)"abc", 3, (u8*)"what do ya want for nothing?", 28);
+    hmac(&digest, (u8*)"abcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabcaabcabcabcabcabca123", 131, (u8*)"what do ya want for nothing?", 28);
     show_hash(digest.hash, digest.result_size);
 
     return 0;

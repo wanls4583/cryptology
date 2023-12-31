@@ -135,7 +135,7 @@ void sha1_block_operate(const u8* block, u32 hash[SHA1_RESULT_SIZE]) {
 
     for (int t = 0; t < 80; t++) { // 16个字扩展成80个字
         if (t < 16) { // 将以大端排序的明文分组存入w[0..15]
-            w[t] = (block[t * 4] << 24) | (block[t * 4 + 1] << 16) | (block[t * 4 + 2] << 8) | block[t * 4 + 3];
+            w[t] = (((u32)block[t * 4]) << 24) | (((u32)block[t * 4 + 1]) << 16) | (((u32)block[t * 4 + 2]) << 8) | ((u32)block[t * 4 + 3]);
         } else {
             w[t] = w[t - 3] ^ w[t - 8] ^ w[t - 14] ^ w[t - 16];
             w[t] = (w[t] << 1) | ((w[t] & 0x80000000) >> 31); // 循环左移一位
@@ -219,7 +219,7 @@ void sha256_block_operate(const u8* block, u32 hash[SHA256_RESULT_SIZE]) {
 
     for (int t = 0; t < 64; t++) { // 16个字扩展成64个字
         if (t < 16) { // 将以大端排序的明文分组存入w[0..15]
-            w[t] = (block[t * 4] << 24) | (block[t * 4 + 1] << 16) | (block[t * 4 + 2] << 8) | block[t * 4 + 3];
+            w[t] = (((u32)block[t * 4]) << 24) | (((u32)block[t * 4 + 1]) << 16) | (((u32)block[t * 4 + 2]) << 8) | ((u32)block[t * 4 + 3]);
         } else {
             w[t] = sigma_shr(w[t - 2], 1) + w[t - 7] + sigma_shr(w[t - 15], 0) + w[t - 16];
         }
@@ -310,10 +310,10 @@ void sha512_block_operate(const u8* block, u64 hash[SHA512_RESULT_SIZE]) {
                 (((u64)block[t * 8 + 1]) << 48) |
                 (((u64)block[t * 8 + 2]) << 40) |
                 (((u64)block[t * 8 + 3]) << 32) |
-                (block[t * 8 + 4] << 24) |
-                (block[t * 8 + 5] << 16) |
-                (block[t * 8 + 6] << 8) |
-                block[t * 8 + 7];
+                (((u64)block[t * 8 + 4]) << 24) |
+                (((u64)block[t * 8 + 5]) << 16) |
+                (((u64)block[t * 8 + 6]) << 8) |
+                ((u64)block[t * 8 + 7]);
         } else {
             w[t] = sigma_shr_64(w[t - 2], 1) + w[t - 7] + sigma_shr_64(w[t - 15], 0) + w[t - 16];
         }
