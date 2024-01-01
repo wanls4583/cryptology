@@ -286,6 +286,44 @@ void multiply(huge* a, huge* b) {
     a->sign = sign;
 }
 
+// a = a^e%p
+void mod_pow(huge* a, huge* e, huge* p) {
+    huge result, sum, ec, etmp, n2;
+    set_huge(&result, 1);
+    set_huge(&sum, 0);
+    set_huge(&ec, 0);
+    set_huge(&etmp, 0);
+
+    while (compare(&ec, e) < 0) {
+        set_huge(&n2, 1);
+        copy_huge(&sum, a);
+        multiply(&result, &sum);
+        add(&ec, &n2);
+        copy_huge(&etmp, &ec);
+
+        left_shift(&n2);
+        add(&etmp, &n2);
+
+        while (compare(&etmp, e) <= 0) {
+            multiply(&sum, &sum);
+            multiply(&result, &sum);
+            add(&ec, &n2);
+
+            left_shift(&n2);
+            add(&etmp, &n2);
+        }
+    }
+
+    copy_huge(a, &result);
+    divide(a, p, NULL);
+
+    free(result.rep);
+    free(sum.rep);
+    free(ec.rep);
+    free(etmp.rep);
+    free(n2.rep);
+}
+
 void divide(huge* dividend, huge* divisor, huge* quotient) {
     int c = compare(dividend, divisor);
     int sign = dividend->sign = (dividend->sign != divisor->sign) ? 1 : 0;
@@ -440,18 +478,18 @@ int main() {
     // multiply(&a, &b);
     // show_hex(a.rep, a.size);
 
-    set_huge(&a, 1123456789);
-    set_huge(&b, 321123);
-    set_huge(&c, 0);
-    divide(&a, &b, &c);
-    show_hex(a.rep, a.size);
-    show_hex(c.rep, c.size);
-    set_huge(&a, 56704016);
-    set_huge(&b, 23);
-    set_huge(&c, 0);
-    divide(&a, &b, &c);
-    show_hex(a.rep, a.size);
-    show_hex(c.rep, c.size);
+    // set_huge(&a, 1123456789);
+    // set_huge(&b, 321123);
+    // set_huge(&c, 0);
+    // divide(&a, &b, &c);
+    // show_hex(a.rep, a.size);
+    // show_hex(c.rep, c.size);
+    // set_huge(&a, 56704016);
+    // set_huge(&b, 23);
+    // set_huge(&c, 0);
+    // divide(&a, &b, &c);
+    // show_hex(a.rep, a.size);
+    // show_hex(c.rep, c.size);
 
     // set_huge(&a, 21 + 23 * 123456);
     // a.sign = 1;
@@ -479,6 +517,14 @@ int main() {
     // }
     // show_hex(a.rep, a.size);
     // show_hex(b.rep, b.size);
+
+    for (int i = 1; i <= 100; i++) {
+        set_huge(&a, 2);
+        set_huge(&b, i);
+        set_huge(&c, 23);
+        mod_pow(&a, &b, &c);
+        show_hex(a.rep, a.size);
+    }
 
     return 0;
 }

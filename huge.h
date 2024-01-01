@@ -17,6 +17,7 @@ void right_shift(huge* h);
 void add(huge* a, huge* b);
 void subtract(huge* a, huge* b);
 void multiply( huge *a, huge *b );
+void mod_pow( huge *a, huge *e, huge *n);
 void divide( huge *dividend, huge *divisor, huge *quotient );
 void inv(huge* h, huge* p);
 void negativeInv(huge* h, huge* p);
