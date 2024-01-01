@@ -286,13 +286,16 @@ void multiply(huge* a, huge* b) {
     a->sign = sign;
 }
 
-// a = a^e%p
+// a = a^e%p (if p)
 void mod_pow(huge* a, huge* e, huge* p) {
     huge result, sum, ec, etmp, n2;
     set_huge(&result, 1);
     set_huge(&sum, 0);
     set_huge(&ec, 0);
     set_huge(&etmp, 0);
+    if (p) { //利用公式【(a*b)%p = ((a%p)*(b%p))%p】提升求模运算性能
+        divide(a, p, NULL);
+    }
 
     while (compare(&ec, e) < 0) {
         set_huge(&n2, 1);
@@ -307,8 +310,12 @@ void mod_pow(huge* a, huge* e, huge* p) {
         while (compare(&etmp, e) <= 0) {
             multiply(&sum, &sum);
             multiply(&result, &sum);
-            add(&ec, &n2);
+            if (p) {
+                divide(&sum, p, NULL);
+                divide(&result, p, NULL);
+            }
 
+            add(&ec, &n2);
             left_shift(&n2);
             add(&etmp, &n2);
         }
@@ -447,7 +454,9 @@ void inv(huge* h, huge* p) {
 
 // #define TEST_HUGE
 #ifdef TEST_HUGE
+#include <time.h>
 int main() {
+    time_t start, end;
     huge a, b, c;
     // unsigned char s1[2], s2[2];
     // s1[0] = 254;
@@ -518,13 +527,16 @@ int main() {
     // show_hex(a.rep, a.size);
     // show_hex(b.rep, b.size);
 
-    for (int i = 1; i <= 100; i++) {
+    start = clock();
+    for (int i = 1; i <= 10000; i++) {
         set_huge(&a, 2);
         set_huge(&b, i);
         set_huge(&c, 23);
         mod_pow(&a, &b, &c);
         show_hex(a.rep, a.size);
     }
+    end = clock();
+    printf("duration: %fs", (double)(end - start) / CLOCKS_PER_SEC);
 
     return 0;
 }
