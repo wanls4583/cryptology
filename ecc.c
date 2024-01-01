@@ -1,7 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "ecc.h"
-#include "hex.h"
 
 void double_point(point* p1, huge* a, huge* p) {
     //if p1==p2
@@ -129,7 +128,11 @@ void multiply_point(point* p1, huge* k, huge* a, huge* p) {
 
 // #define TEST_ECC
 #ifdef TEST_ECC
+#include "hex.h"
+#include <time.h>
+
 int main() {
+    clock_t start, end;
     int _a = 1, b = 1, _p = 23;
     point p1, p2;
     huge a, p, k;
@@ -173,7 +176,7 @@ int main() {
     // add_points(&p1, &p2, &p);
     // show_hex(p1.x.rep, p1.x.size);
     // show_hex(p1.y.rep, p1.y.size);
-
+    start = clock();
     for (int x = 0; x < 1000; x += 1) {
         // if (x != 126) {
         //     continue;
@@ -194,6 +197,9 @@ int main() {
         show_hex(p1.x.rep, p1.x.size);
         show_hex(p1.y.rep, p1.y.size);
     }
+    end = clock();
+    printf("duration: %fs", (double)(end - start) / CLOCKS_PER_SEC);
+    
     return 0;
 }
 #endif
