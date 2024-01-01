@@ -290,6 +290,8 @@ void divide(huge* dividend, huge* divisor, huge* quotient) {
     int c = compare(dividend, divisor);
     int sign = dividend->sign = (dividend->sign != divisor->sign) ? 1 : 0;
 
+    dividend->sign = 0;
+
     if (quotient) {
         set_huge(quotient, 0);
     }
@@ -298,43 +300,34 @@ void divide(huge* dividend, huge* divisor, huge* quotient) {
         return;
     }
 
-    huge result, sum;
-    set_huge(&result, 1);
-    set_huge(&sum, 0);
-
-    huge _dividend, _divisor, _quotient;
-    set_huge(&_dividend, 0);
+    huge result, _divisor;
     set_huge(&_divisor, 0);
-    set_huge(&_quotient, 0);
-    copy_huge(&_dividend, dividend);
-    copy_huge(&_divisor, divisor);
-    _dividend.sign = 0;
-    _divisor.sign = 0;
 
-    if (dividend->rep[0] == 0x01 && dividend->rep[1] == 0xd0) {
+    while (compare(dividend, divisor) >= 0) {
+        set_huge(&result, 1);
+        copy_huge(&_divisor, divisor);
+        _divisor.sign = 0;
 
+        while (compare(&_divisor, dividend) <= 0) {
+            left_shift(&_divisor); //乘以2
+            left_shift(&result);
+        }
+
+        right_shift(&_divisor);
+        right_shift(&result);
+        subtract(dividend, &_divisor);
+
+        if (quotient) {
+            add(quotient, &result);
+        }
     }
-    while (compare(&_divisor, dividend) <= 0) {
-        left_shift(&_divisor); //乘以2
-        left_shift(&result);
-    }
-
-    right_shift(&_divisor);
-    right_shift(&result);
-
-    subtract(&_dividend, &_divisor);
-    divide(&_dividend, divisor, &_quotient);
-    add(&result, &_quotient);
 
     if (quotient) {
-        copy_huge(quotient, &result);
         quotient->sign = sign;
     }
-    copy_huge(dividend, &_dividend);
     dividend->sign = sign;
 
     free(result.rep);
-    free(sum.rep);
 }
 
 void _inv(huge* a, huge* b, huge* x, huge* y) {
@@ -447,18 +440,18 @@ int main() {
     // multiply(&a, &b);
     // show_hex(a.rep, a.size);
 
-    // set_huge(&a, 1123456789);
-    // set_huge(&b, 321123);
-    // set_huge(&c, 0);
-    // divide(&a, &b, &c);
-    // show_hex(a.rep, a.size);
-    // show_hex(c.rep, c.size);
-    // set_huge(&a, 56704016);
-    // set_huge(&b, 23);
-    // set_huge(&c, 0);
-    // divide(&a, &b, &c);
-    // show_hex(a.rep, a.size);
-    // show_hex(c.rep, c.size);
+    set_huge(&a, 1123456789);
+    set_huge(&b, 321123);
+    set_huge(&c, 0);
+    divide(&a, &b, &c);
+    show_hex(a.rep, a.size);
+    show_hex(c.rep, c.size);
+    set_huge(&a, 56704016);
+    set_huge(&b, 23);
+    set_huge(&c, 0);
+    divide(&a, &b, &c);
+    show_hex(a.rep, a.size);
+    show_hex(c.rep, c.size);
 
     // set_huge(&a, 21 + 23 * 123456);
     // a.sign = 1;
@@ -472,20 +465,20 @@ int main() {
     // printf("sign:%d\n", a.sign);
     // show_hex(a.rep, a.size);
 
-    set_huge(&a, 1);
-    set_huge(&b, 0x80);
-    for(int i = 1; i <= 17; i++) {
-        left_shift(&a);
-        left_shift(&b);
-    }
-    show_hex(a.rep, a.size);
-    show_hex(b.rep, b.size);
-    for(int i = 1; i <= 17; i++) {
-        right_shift(&a);
-        right_shift(&b);
-    }
-    show_hex(a.rep, a.size);
-    show_hex(b.rep, b.size);
+    // set_huge(&a, 1);
+    // set_huge(&b, 0x80);
+    // for (int i = 1; i <= 17; i++) {
+    //     left_shift(&a);
+    //     left_shift(&b);
+    // }
+    // show_hex(a.rep, a.size);
+    // show_hex(b.rep, b.size);
+    // for (int i = 1; i <= 17; i++) {
+    //     right_shift(&a);
+    //     right_shift(&b);
+    // }
+    // show_hex(a.rep, a.size);
+    // show_hex(b.rep, b.size);
 
     return 0;
 }
