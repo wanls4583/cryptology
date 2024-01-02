@@ -12,12 +12,12 @@ int hex_decode(const unsigned char* input, unsigned char** decoded) {
         memcpy(*decoded, input, size);
         return size;
     }
-    size = strlen((const char*)input) / 2;
+    size = strlen((const char*)input) / 2 - 1;
     *decoded = (unsigned char*)malloc(size + 1);
     for (long i = 0; i < size; i++) {
-        unsigned char c = input[i * 2];
+        unsigned char c = input[i * 2 + 2];
         (*decoded)[i] = (c <= '9' ? c - '0' : tolower(c) - 'a' + 10) << 4;
-        c = input[i * 2 + 1];
+        c = input[i * 2 + 3];
         c = c <= '9' ? c - '0' : tolower(c) - 'a' + 10;
         (*decoded)[i] |= c;
     }
