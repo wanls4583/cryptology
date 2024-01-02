@@ -27,7 +27,7 @@ void expand_right(huge* h, int size) {
         return;
     }
     h->rep = (unsigned char*)realloc(h->rep, h->size + size);
-    h->rep[h->size] = 0;
+    memset(h->rep + h->size, 0, size);
     h->size += size;
 }
 
@@ -366,8 +366,10 @@ void multiply_(huge* a, huge* b) {
     a->sign = sign;
 }
 
+#include <time.h>
 // a = a^e%p (if p)
 void mod_pow(huge* a, huge* e, huge* p) {
+    time_t start, end;
     int maxBit = 0;
     int sumMapNum = e->size * 8;
     huge sumMap[sumMapNum];
@@ -395,10 +397,15 @@ void mod_pow(huge* a, huge* e, huge* p) {
                 if (bits == 2) {
                     copy_huge(&sum, a);
                 }
+                start = clock();
                 multiply(&sum, &sum);
+                end = clock();
+                printf("multiply-duration: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
                 if (p) {
                     divide(&sum, p, NULL);
                 }
+                start = clock();
+                printf("divide-duration: %fs\n", (double)(start - end) / CLOCKS_PER_SEC);
                 copy_huge(&sumMap[bits - 1], &sum);
                 maxBit = bits;
             }
@@ -597,6 +604,14 @@ int main() {
         set_huge(&b, 28406);
         multiply(&a, &b);
         // show_hex(a.rep, a.size);
+    }
+    end = clock();
+    printf("duration: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
+
+    start = clock();
+    for (int i = 0; i < 10000000; i++) {
+        set_huge(&a, 123456790);
+        expand(&a);
     }
     end = clock();
     printf("duration: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);

@@ -102,7 +102,7 @@ int main() {
     rsa.p = (huge*)malloc(sizeof(huge));
     rsa.key = (huge*)malloc(sizeof(huge));
     load_huge(rsa.p, TestModulus, sizeof(TestModulus));
-    load_huge(rsa.key, TestPublicKey, sizeof(TestPublicKey));
+    load_huge(rsa.key, TestPrivateKey, sizeof(TestPrivateKey));
 
     start = clock();
     len = rsa_encrypt((unsigned char*)"abc", 3, &out, &rsa);
