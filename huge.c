@@ -1,8 +1,9 @@
 #include <string.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include "huge.h"
 #include "hex.h"
+#include <stdio.h>
+#include <time.h>
 
 void swap_huge_rep(huge* a, huge* b) {
     unsigned char* rep = a->rep;
@@ -340,6 +341,11 @@ void multiply_(huge* a, huge* b) {
 
     while (compare(&n2, &y) < 0) {
         bits = 0;
+        if (y.size - n2.size > 0) {
+            int bytes = y.size - n2.size;
+            expand_right(&n2, bytes);
+            bits += bytes * 8;
+        }
         while (compare(&n2, &y) <= 0) {
             left_shift(&n2, 1);
             bits++;
@@ -366,7 +372,6 @@ void multiply_(huge* a, huge* b) {
     a->sign = sign;
 }
 
-#include <time.h>
 // a = a^e%p (if p)
 void mod_pow(huge* a, huge* e, huge* p) {
     time_t start, end;
@@ -397,15 +402,15 @@ void mod_pow(huge* a, huge* e, huge* p) {
                 if (bits == 2) {
                     copy_huge(&sum, a);
                 }
-                start = clock();
+                // start = clock();
                 multiply(&sum, &sum);
-                end = clock();
-                printf("multiply-duration: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
+                // end = clock();
+                // printf("multiply-duration: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
                 if (p) {
                     divide(&sum, p, NULL);
                 }
-                start = clock();
-                printf("divide-duration: %fs\n", (double)(start - end) / CLOCKS_PER_SEC);
+                // start = clock();
+                // printf("divide-duration: %fs\n", (double)(start - end) / CLOCKS_PER_SEC);
                 copy_huge(&sumMap[bits - 1], &sum);
                 maxBit = bits;
             }
@@ -463,6 +468,12 @@ void divide(huge* dividend, huge* divisor, huge* quotient) {
         set_huge(&result, 1);
         copy_huge(&_divisor, divisor);
         _divisor.sign = 0;
+
+        if (_dividend->size - _divisor.size > 1) {
+            int bytes = _dividend->size - _divisor.size - 1;
+            expand_right(&_divisor, bytes);
+            expand_right(&result, bytes);
+        }
 
         while (compare(&_divisor, _dividend) <= 0) {
             left_shift(&_divisor, 1); //乘以2
@@ -568,7 +579,7 @@ void inv(huge* h, huge* p) {
     negativeInv(h, p);
 }
 
-// #define TEST_HUGE
+#define TEST_HUGE
 #ifdef TEST_HUGE
 #include <time.h>
 int main() {
@@ -604,14 +615,6 @@ int main() {
         set_huge(&b, 28406);
         multiply(&a, &b);
         // show_hex(a.rep, a.size);
-    }
-    end = clock();
-    printf("duration: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
-
-    start = clock();
-    for (int i = 0; i < 10000000; i++) {
-        set_huge(&a, 123456790);
-        expand(&a);
     }
     end = clock();
     printf("duration: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
