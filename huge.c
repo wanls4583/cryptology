@@ -43,18 +43,23 @@ void copy_huge(huge* a, huge* b) {
 
 void load_huge(huge* h, unsigned char* c, int length) {
     int i = 0;
-    while (!c[i]) {
+    while (!c[i] && length) {
         i++;
         length--;
     }
     h->sign = 0;
-    h->size = length;
+    h->size = length ? length : 1;
     h->rep = (unsigned char*)malloc(h->size);
-    memcpy(h->rep, c + i, h->size);
+    if (length) {
+        memcpy(h->rep, c + i, h->size);
+    } else {
+        h->rep[0] = 0;
+    }
 }
 
 void unload_huge(huge* h, unsigned char* bytes, int length) {
-    memcpy(bytes + length - h->size, h, h->size);
+    memset(bytes, 0, length);
+    memcpy(bytes + length - h->size, h->rep, h->size);
 }
 
 void free_huge(huge* h) {
@@ -334,45 +339,60 @@ void mod_pow(huge* a, huge* e, huge* p) {
 void divide(huge* dividend, huge* divisor, huge* quotient) {
     int c = compare(dividend, divisor);
     int sign = dividend->sign = (dividend->sign != divisor->sign) ? 1 : 0;
+    huge* _dividend = dividend;
 
-    dividend->sign = 0;
+    if (_dividend == divisor) { //自己除自己
+        _dividend = (huge*)malloc(sizeof(huge));
+        set_huge(_dividend, 0);
+        copy_huge(_dividend, dividend);
+    }
+    _dividend->sign = 0;
 
     if (quotient) {
         set_huge(quotient, 0);
     }
     if (c < 0) {
-        dividend->sign = sign;
+        _dividend->sign = sign;
+        if (_dividend != dividend) {
+            copy_huge(dividend, _dividend);
+            free_huge(_dividend);
+        }
         return;
     }
 
     huge result, _divisor;
     set_huge(&_divisor, 0);
 
-    while (compare(dividend, divisor) >= 0) {
+    while (compare(_dividend, divisor) >= 0) {
         set_huge(&result, 1);
         copy_huge(&_divisor, divisor);
         _divisor.sign = 0;
 
-        while (compare(&_divisor, dividend) <= 0) {
+        while (compare(&_divisor, _dividend) <= 0) {
             left_shift(&_divisor); //乘以2
             left_shift(&result);
         }
 
         right_shift(&_divisor);
         right_shift(&result);
-        subtract(dividend, &_divisor);
+        subtract(_dividend, &_divisor);
 
         if (quotient) {
             add(quotient, &result);
         }
     }
 
+    _dividend->sign = sign;
     if (quotient) {
         quotient->sign = sign;
     }
-    dividend->sign = sign;
+    if (_dividend != dividend) {
+        copy_huge(dividend, _dividend);
+        free_huge(_dividend);
+    }
 
     free(result.rep);
+    free(_divisor.rep);
 }
 
 void _inv(huge* a, huge* b, huge* x, huge* y) {
