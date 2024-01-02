@@ -293,42 +293,58 @@ void multiply(huge* a, huge* b) {
 
 // a = a^e%p (if p)
 void mod_pow(huge* a, huge* e, huge* p) {
+    int maxBit = 0;
+    int sumMapNum = e->size * 8;
+    huge sumMap[sumMapNum];
     huge result, sum, ec, etmp, n2;
     set_huge(&result, 1);
     set_huge(&sum, 0);
     set_huge(&ec, 0);
     set_huge(&etmp, 0);
+    copy_huge(&ec, e);
     if (p) { //利用公式【(a*b)%p = ((a%p)*(b%p))%p】提升求模运算性能
         divide(a, p, NULL);
     }
 
-    while (compare(&ec, e) < 0) {
+    for (int i = 0; i < sumMapNum; i++) {
+        set_huge(&sumMap[i], 0);
+    }
+    copy_huge(&sumMap[0], a);
+
+    while (ec.rep[0] && !ec.sign) {
+        int bits = 1;
         set_huge(&n2, 1);
+        set_huge(&etmp, 1);
         copy_huge(&sum, a);
-        multiply(&result, &sum);
-        add(&ec, &n2);
-        copy_huge(&etmp, &ec);
 
         left_shift(&n2);
-        add(&etmp, &n2);
-
-        while (compare(&etmp, e) <= 0) {
-            multiply(&sum, &sum);
-            multiply(&result, &sum);
-            if (p) {
-                divide(&sum, p, NULL);
-                divide(&result, p, NULL);
+        while (compare(&n2, &ec) <= 0) {
+            if (++bits > maxBit) {
+                multiply(&sum, &sum);
+                copy_huge(&sumMap[bits - 1], &sum);
+                if (p) {
+                    divide(&sum, p, NULL);
+                }
+                maxBit = bits;
             }
-
-            add(&ec, &n2);
             left_shift(&n2);
-            add(&etmp, &n2);
+        }
+        right_shift(&n2);
+
+        subtract(&ec, &n2);
+        show_hex(ec.rep, ec.size);
+        multiply(&result, &sumMap[bits - 1]);
+        if (p) {
+            divide(&result, p, NULL);
         }
     }
 
     copy_huge(a, &result);
     divide(a, p, NULL);
 
+    for(int i = 0; i < sumMapNum; i++) {
+        free(sumMap[i].rep);
+    }
     free(result.rep);
     free(sum.rep);
     free(ec.rep);
@@ -472,7 +488,7 @@ void inv(huge* h, huge* p) {
     negativeInv(h, p);
 }
 
-// #define TEST_HUGE
+#define TEST_HUGE
 #ifdef TEST_HUGE
 #include <time.h>
 int main() {
