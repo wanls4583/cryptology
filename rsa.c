@@ -64,7 +64,7 @@ int rsa_decrypt(
     return 0;
 }
 
-// #define TEST_RSA
+#define TEST_RSA
 #ifdef TEST_RSA
 #include <time.h>
 #include <stdio.h>
