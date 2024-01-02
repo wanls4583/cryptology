@@ -332,7 +332,6 @@ void mod_pow(huge* a, huge* e, huge* p) {
         right_shift(&n2);
 
         subtract(&ec, &n2);
-        show_hex(ec.rep, ec.size);
         multiply(&result, &sumMap[bits - 1]);
         if (p) {
             divide(&result, p, NULL);
