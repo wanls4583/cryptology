@@ -286,7 +286,7 @@ void multiply_char(huge* a, unsigned char b) {
 }
 
 // 借助数组使用乘法实现大数相乘
-void multiply_mul(huge* a, huge* b) {
+void multiply(huge* a, huge* b) {
     int sign = (a->sign != b->sign) ? 1 : 0;
     int size = a->size + b->size;
     unsigned char sum[size];
@@ -323,179 +323,20 @@ void multiply_mul(huge* a, huge* b) {
     a->sign = sign;
 }
 
-// 使用加法实现大数相乘
-void multiply_add(huge* a, huge* b) {
-    int sign = (a->sign != b->sign) ? 1 : 0;
-    huge x, y;
-    set_huge(&x, 0);
-    set_huge(&y, 0);
-    copy_huge(&x, a);
-    copy_huge(&y, b);
-    x.sign = 0;
-    y.sign = 0;
-
-    if (compare(&x, &y) < 0) {
-        swap_huge_rep(&x, &y);
-    }
-
-    int zeros = 0;
-    huge sum, tmp;
-    set_huge(&sum, 0);
-    set_huge(&tmp, 0);
-    copy_huge(&tmp, &x);
-    for (int i = y.size - 1; i >= 0; i--) {
-        multiply_char(&tmp, y.rep[i]);
-        expand_right(&tmp, zeros);
-        add(&sum, &tmp);
-        copy_huge(&tmp, &x);
-        zeros++;
-    }
-    copy_huge(a, &sum);
-    free(x.rep);
-    free(y.rep);
-    free(sum.rep);
-    free(tmp.rep);
-    a->sign = sign;
-}
-
-// 使用移位实现大数相乘
-void multiply_shift(huge* a, huge* b) {
-    int sign = (a->sign != b->sign) ? 1 : 0;
-    int bits = 0;
-    huge x, y, n2;
-    set_huge(&x, 0);
-    set_huge(&y, 0);
-    set_huge(&n2, 1);
-    copy_huge(&x, a);
-    copy_huge(&y, b);
-    x.sign = 0;
-    y.sign = 0;
-
-    if (compare(&x, &y) < 0) {
-        swap_huge_rep(&x, &y);
-    }
-
-    huge sum, tmp;
-    set_huge(&sum, 0);
-    set_huge(&tmp, 0);
-
-    while (compare(&n2, &y) < 0) {
-        bits = 0;
-        if (y.size - n2.size > 0) {
-            int bytes = y.size - n2.size;
-            expand_right(&n2, bytes);
-            bits += bytes * 8;
-        }
-        while (compare(&n2, &y) <= 0) {
-            left_shift(&n2, 1);
-            bits++;
-        }
-        right_shift(&n2, 1);
-        bits--;
-
-        copy_huge(&tmp, &x);
-        left_shift(&tmp, bits);
-        add(&sum, &tmp);
-        subtract(&y, &n2);
-        set_huge(&n2, 1);
-    }
-
-    if (y.rep[0]) {
-        add(&sum, &x);
-    }
-
-    copy_huge(a, &sum);
-    free(x.rep);
-    free(y.rep);
-    free(sum.rep);
-    free(tmp.rep);
-    a->sign = sign;
-}
-
-void multiply(huge* a, huge* b) {
-    multiply_mul(a, b);
-}
-
-// 使用乘法和除法实现幂运算
-void mod_pow_mul_div(huge* a, huge* e, huge* p) {
-    time_t start, end;
-    int maxBit = 0;
-    int sumMapNum = e->size * 8;
-    huge sumMap[sumMapNum];
-    huge result, sum, ec, n2;
-    set_huge(&result, 1);
-    set_huge(&sum, 0);
-    set_huge(&ec, 0);
-    copy_huge(&ec, e);
-    if (p) { //利用公式【(a*b)%p = ((a%p)*(b%p))%p】提升求模运算性能
-        divide(a, p, NULL);
-    }
-
-    for (int i = 0; i < sumMapNum; i++) {
-        set_huge(&sumMap[i], 0);
-    }
-    copy_huge(&sumMap[0], a);
-
-    while (ec.rep[0] && !ec.sign) {
-        int bits = 1;
-        set_huge(&n2, 1);
-
-        left_shift(&n2, 1);
-        while (compare(&n2, &ec) <= 0) {
-            if (++bits > maxBit) {
-                if (bits == 2) {
-                    copy_huge(&sum, a);
-                }
-                // start = clock();
-                multiply(&sum, &sum);
-                // end = clock();
-                // printf("multiply-duration: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
-                if (p) {
-                    divide(&sum, p, NULL);
-                }
-                // start = clock();
-                // printf("divide-duration: %fs\n", (double)(start - end) / CLOCKS_PER_SEC);
-                copy_huge(&sumMap[bits - 1], &sum);
-                maxBit = bits;
-            }
-            left_shift(&n2, 1);
-        }
-        right_shift(&n2, 1);
-
-        subtract(&ec, &n2);
-        multiply(&result, &sumMap[bits - 1]);
-        if (p) {
-            divide(&result, p, NULL);
-        }
-    }
-
-    copy_huge(a, &result);
-    divide(a, p, NULL);
-
-    for (int i = 0; i < sumMapNum; i++) {
-        free(sumMap[i].rep);
-    }
-    free(result.rep);
-    free(sum.rep);
-    free(ec.rep);
-    free(n2.rep);
-}
-
-// 使用快速幂实现幂运算(只需用到乘法)
-void mod_pow_mul(huge* a, huge* e, huge* p) {
+// a = a^e%p (if p)
+void mod_pow(huge* a, huge* e, huge* p) {
     huge result, aTmp, ec;
     set_huge(&result, 1);
     set_huge(&aTmp, 0);
     set_huge(&ec, 0);
     copy_huge(&aTmp, a);
     copy_huge(&ec, e);
-    
+
     if (p) { //利用公式【(a*b)%p = ((a%p)*(b%p))%p】提升求模运算性能
         divide(a, p, NULL);
     }
 
-    while (ec.rep[0])
-    {
+    while (ec.rep[0]) {
         if (ec.rep[ec.size - 1] & 0x01) {
             multiply(&result, &aTmp);
             if (p) {
@@ -515,12 +356,35 @@ void mod_pow_mul(huge* a, huge* e, huge* p) {
     free(ec.rep);
 }
 
-// a = a^e%p (if p)
-void mod_pow(huge* a, huge* e, huge* p) {
-    mod_pow_mul(a, e, p);
+void get_remainder(huge* a, huge* p) {
+    int c = compare(a, p);
+    if (c <= 0) {
+        if (c == 0) {
+            set_huge(a, 0);
+        }
+        return;
+    }
+    int one = a->rep[a->size - 1] & 0x01;
+    right_shift(a, 1);
+    get_remainder(a, p);
+    left_shift(a, 1);
+    if (one) {
+        huge tmp;
+        set_huge(&tmp, 1);
+        add(a, &tmp);
+        free(tmp.rep);
+    }
+    if (compare(a, p) >= 0) {
+        subtract(a, p);
+    }
 }
 
 void divide(huge* dividend, huge* divisor, huge* quotient) {
+    if (!quotient) {
+        get_remainder(dividend, divisor);
+        return;
+    }
+
     int c = compare(dividend, divisor);
     int sign = dividend->sign = (dividend->sign != divisor->sign) ? 1 : 0;
     huge* _dividend = dividend;
@@ -531,10 +395,8 @@ void divide(huge* dividend, huge* divisor, huge* quotient) {
         copy_huge(_dividend, dividend);
     }
     _dividend->sign = 0;
+    set_huge(quotient, 0);
 
-    if (quotient) {
-        set_huge(quotient, 0);
-    }
     if (c < 0) {
         _dividend->sign = sign;
         if (_dividend != dividend) {
@@ -570,17 +432,13 @@ void divide(huge* dividend, huge* divisor, huge* quotient) {
         }
         right_shift(&_divisor, 1);
         subtract(_dividend, &_divisor);
-
-        if (quotient) {
-            left_shift(&result, bits - 1);
-            add(quotient, &result);
-        }
+        
+        left_shift(&result, bits - 1);
+        add(quotient, &result);
     }
 
     _dividend->sign = sign;
-    if (quotient) {
-        quotient->sign = sign;
-    }
+    quotient->sign = sign;
     if (_dividend != dividend) {
         copy_huge(dividend, _dividend);
         free_huge(_dividend);
@@ -733,19 +591,20 @@ int main() {
     // divide(&a, &b, &c);
     // show_hex(a.rep, a.size);
     // show_hex(c.rep, c.size);
-    // start = clock();
-    // unsigned char* a1, * b1;
-    // int size1, size2;
-    // for (int i = 0; i < 1; i++) {
-    //     size1 = hex_decode((unsigned char*)"0x77229a8f6d60170c9dd81cd228f93f95f18673b50dbeee798fe518406ffe8ade37915578ba024dab12fcf26f05b5597f120775050929fb20061a155fd8a79339e004761259f9b6f8d862fe75ca87d07c0ff21f615daa9aaef04dc401bc707c465f2558b221db40821cf29adc7715d93f4a61d9d89700ca35dcd69173aefce440", &a1);
-    //     size2 = hex_decode((unsigned char*)"0xc4f8e9e15dcadf2b96c763d981006a644ffb4415030a16ed1283883340f2aa0e2be2be8fa60150b9046965837c3e7d151b7de237ebb957c20663898250703b3f", &b1);
-    //     load_huge(&a, a1, size1);
-    //     load_huge(&b, b1, size2);
-    //     divide(&a, &b, NULL);
-    //     // show_hex(a.rep, a.size);
-    // }
-    // end = clock();
-    // printf("duration: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
+    start = clock();
+    unsigned char* a1, * b1;
+    int size1, size2;
+    for (int i = 0; i < 1; i++) {
+        size1 = hex_decode((unsigned char*)"0x77229a8f6d60170c9dd81cd228f93f95f18673b50dbeee798fe518406ffe8ade37915578ba024dab12fcf26f05b5597f120775050929fb20061a155fd8a79339e004761259f9b6f8d862fe75ca87d07c0ff21f615daa9aaef04dc401bc707c465f2558b221db40821cf29adc7715d93f4a61d9d89700ca35dcd69173aefce440", &a1);
+        size2 = hex_decode((unsigned char*)"0xc4f8e9e15dcadf2b96c763d981006a644ffb4415030a16ed1283883340f2aa0e2be2be8fa60150b9046965837c3e7d151b7de237ebb957c20663898250703b3f", &b1);
+        load_huge(&a, a1, size1);
+        load_huge(&b, b1, size2);
+        // divide(&a, &b, NULL);
+        get_remainder(&a, &b);
+        // show_hex(a.rep, a.size);
+    }
+    end = clock();
+    printf("duration: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
 
     // set_huge(&a, 21 + 23 * 123456);
     // a.sign = 1;
@@ -780,19 +639,31 @@ int main() {
     // left_shift(&a, 4);
     // show_hex(a.rep, a.size);
 
-    start = clock();
-    for (int i = 1; i <= 5000; i++) {
-        // if (i != 2) {
-        //     continue;
-        // }
-        set_huge(&a, 2);
-        set_huge(&b, i);
-        set_huge(&c, 23);
-        mod_pow(&a, &b, &c);
-        show_hex(a.rep, a.size);
-    }
-    end = clock();
-    printf("duration: %fs", (double)(end - start) / CLOCKS_PER_SEC);
+    // start = clock();
+    // for (int i = 1; i <= 5000; i++) {
+    //     // if (i != 2) {
+    //     //     continue;
+    //     // }
+    //     set_huge(&a, 2);
+    //     set_huge(&b, i);
+    //     set_huge(&c, 23);
+    //     mod_pow(&a, &b, &c);
+    //     show_hex(a.rep, a.size);
+    // }
+    // end = clock();
+    // printf("duration: %fs", (double)(end - start) / CLOCKS_PER_SEC);
+
+    // for (int i = 0; i < 10000; i++) {
+    //     // if (i != 46) {
+    //     //     continue;;
+    //     // }
+    //     set_huge(&a, i);
+    //     set_huge(&b, 23);
+    //     get_remainder(&a, &b);
+    //     printf("i=%d\n", i);
+    //     // show_hex(a.rep, a.size);
+    //     printf("%.02x\n", i % 23);
+    // }
 
     return 0;
 }

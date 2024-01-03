@@ -105,9 +105,11 @@ int main() {
     load_huge(rsa.key, TestPrivateKey, sizeof(TestPrivateKey));
 
     start = clock();
-    len = rsa_encrypt((unsigned char*)"abc", 3, &out, &rsa);
-    show_hex(out, len);
-    end = clock();
+    for(int i = 0; i < 10; i++) {
+        len = rsa_encrypt((unsigned char*)"abc", 3, &out, &rsa);
+        show_hex(out, len);
+        end = clock();
+    }
     printf("duration: %fs", (double)(end - start) / CLOCKS_PER_SEC);
 }
 #endif
