@@ -513,22 +513,27 @@ void divide(huge* dividend, huge* divisor, huge* quotient) {
         copy_huge(&_divisor, divisor);
         _divisor.sign = 0;
 
-        if (_dividend->size - _divisor.size > 1) {
-            int bytes = _dividend->size - _divisor.size - 1;
-            expand_right(&_divisor, bytes);
-            expand_right(&result, bytes);
+        if (_dividend->size - _divisor.size > 0) {
+            int bytes = _dividend->size - _divisor.size;
+            if (_dividend->rep[0] <= _divisor.rep[0]) {
+                bytes--;
+            }
+            if (bytes > 0) {
+                expand_right(&_divisor, bytes);
+                expand_right(&result, bytes);
+            }
         }
 
+        int bits = 0;
         while (compare(&_divisor, _dividend) <= 0) {
             left_shift(&_divisor, 1); //乘以2
-            left_shift(&result, 1);
+            bits++;
         }
-
         right_shift(&_divisor, 1);
-        right_shift(&result, 1);
         subtract(_dividend, &_divisor);
 
         if (quotient) {
+            left_shift(&result, bits - 1);
             add(quotient, &result);
         }
     }
@@ -623,7 +628,7 @@ void inv(huge* h, huge* p) {
     negativeInv(h, p);
 }
 
-// #define TEST_HUGE
+#define TEST_HUGE
 #ifdef TEST_HUGE
 #include <time.h>
 int main() {
@@ -649,19 +654,19 @@ int main() {
     // subtract(&a, &b);
     // show_hex(a.rep, a.size);
 
-    start = clock();
-    for (int i = 0; i < 1000000; i++) {
-        set_huge(&a, 7654321);
-        set_huge(&b, 123456790);
-        multiply(&a, &b);
-        // show_hex(a.rep, a.size);
-        set_huge(&a, 28406);
-        set_huge(&b, 28406);
-        multiply(&a, &b);
-        // show_hex(a.rep, a.size);
-    }
-    end = clock();
-    printf("duration: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
+    // start = clock();
+    // for (int i = 0; i < 1000000; i++) {
+    //     set_huge(&a, 7654321);
+    //     set_huge(&b, 123456790);
+    //     multiply(&a, &b);
+    //     // show_hex(a.rep, a.size);
+    //     set_huge(&a, 28406);
+    //     set_huge(&b, 28406);
+    //     multiply(&a, &b);
+    //     // show_hex(a.rep, a.size);
+    // }
+    // end = clock();
+    // printf("duration: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
 
     // start = clock();
     // unsigned char* a1, * b1;
@@ -677,18 +682,18 @@ int main() {
     // end = clock();
     // printf("duration: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
 
-    // set_huge(&a, 1123456789);
-    // set_huge(&b, 321123);
-    // set_huge(&c, 0);
-    // divide(&a, &b, &c);
-    // show_hex(a.rep, a.size);
-    // show_hex(c.rep, c.size);
-    // set_huge(&a, 56704016);
-    // set_huge(&b, 23);
-    // set_huge(&c, 0);
-    // divide(&a, &b, &c);
-    // show_hex(a.rep, a.size);
-    // show_hex(c.rep, c.size);
+    set_huge(&a, 1123456789);
+    set_huge(&b, 321123);
+    set_huge(&c, 0);
+    divide(&a, &b, &c);
+    show_hex(a.rep, a.size);
+    show_hex(c.rep, c.size);
+    set_huge(&a, 56704016);
+    set_huge(&b, 23);
+    set_huge(&c, 0);
+    divide(&a, &b, &c);
+    show_hex(a.rep, a.size);
+    show_hex(c.rep, c.size);
 
     // set_huge(&a, 21 + 23 * 123456);
     // a.sign = 1;
