@@ -380,11 +380,6 @@ void get_remainder(huge* a, huge* p) {
 }
 
 void divide(huge* dividend, huge* divisor, huge* quotient) {
-    if (!quotient) {
-        get_remainder(dividend, divisor);
-        return;
-    }
-
     int c = compare(dividend, divisor);
     int sign = dividend->sign = (dividend->sign != divisor->sign) ? 1 : 0;
     huge* _dividend = dividend;
@@ -395,56 +390,67 @@ void divide(huge* dividend, huge* divisor, huge* quotient) {
         copy_huge(_dividend, dividend);
     }
     _dividend->sign = 0;
-    set_huge(quotient, 0);
-
     if (c < 0) {
         _dividend->sign = sign;
         if (_dividend != dividend) {
             copy_huge(dividend, _dividend);
             free_huge(_dividend);
         }
+        if (quotient) {
+            set_huge(quotient, 0);
+        }
         return;
     }
 
-    huge result, _divisor;
+    int bits = 1, bitPos = 0;
+    huge _divisor;
     set_huge(&_divisor, 0);
+    copy_huge(&_divisor, divisor);
+
+    if (_dividend->size - _divisor.size > 0) {
+        int bytes = _dividend->size - _divisor.size;
+        if (_dividend->rep[0] <= _divisor.rep[0]) {
+            bytes--;
+        }
+        if (bytes > 0) {
+            expand_right(&_divisor, bytes);
+            bits += bytes * 8;
+        }
+    }
+    while (compare(_dividend, &_divisor) >= 0) {
+        left_shift(&_divisor, 1);
+        bits++;
+    }
+    right_shift(&_divisor, 1);
+    bits--;
+    bitPos = (bits / 8 + 1) * 8 - bits;
+
+    if (quotient) {
+        quotient->size = bits / 8 + 1;
+        quotient->sign = 0;
+        quotient->rep = (unsigned char*)malloc(quotient->size);
+        memset(quotient->rep, 0, quotient->size);
+    }
 
     while (compare(_dividend, divisor) >= 0) {
-        set_huge(&result, 1);
-        copy_huge(&_divisor, divisor);
-        _divisor.sign = 0;
-
-        if (_dividend->size - _divisor.size > 0) {
-            int bytes = _dividend->size - _divisor.size;
-            if (_dividend->rep[0] <= _divisor.rep[0]) {
-                bytes--;
+        if (compare(_dividend, &_divisor) >= 0) {
+            subtract(_dividend, &_divisor);
+            if (quotient) {
+                quotient->rep[bitPos / 8] |= (0x80 >> (bitPos % 8));
             }
-            if (bytes > 0) {
-                expand_right(&_divisor, bytes);
-                expand_right(&result, bytes);
-            }
-        }
-
-        int bits = 0;
-        while (compare(&_divisor, _dividend) <= 0) {
-            left_shift(&_divisor, 1); //乘以2
-            bits++;
         }
         right_shift(&_divisor, 1);
-        subtract(_dividend, &_divisor);
-        
-        left_shift(&result, bits - 1);
-        add(quotient, &result);
+        bitPos++;
     }
 
     _dividend->sign = sign;
-    quotient->sign = sign;
+    if (quotient) {
+        quotient->sign = sign;
+    }
     if (_dividend != dividend) {
         copy_huge(dividend, _dividend);
         free_huge(_dividend);
     }
-
-    free(result.rep);
     free(_divisor.rep);
 }
 
@@ -579,14 +585,14 @@ int main() {
     // end = clock();
     // printf("duration: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
 
-    // set_huge(&a, 1123456789);
-    // set_huge(&b, 321123);
-    // set_huge(&c, 0);
-    // divide(&a, &b, &c);
-    // show_hex(a.rep, a.size);
-    // show_hex(c.rep, c.size);
-    // set_huge(&a, 56704016);
-    // set_huge(&b, 23);
+    set_huge(&a, 1123456789);
+    set_huge(&b, 321123);
+    set_huge(&c, 0);
+    divide(&a, &b, &c);
+    show_hex(a.rep, a.size);
+    show_hex(c.rep, c.size);
+    // set_huge(&a, 20);
+    // set_huge(&b, 3);
     // set_huge(&c, 0);
     // divide(&a, &b, &c);
     // show_hex(a.rep, a.size);
@@ -599,9 +605,9 @@ int main() {
         size2 = hex_decode((unsigned char*)"0xc4f8e9e15dcadf2b96c763d981006a644ffb4415030a16ed1283883340f2aa0e2be2be8fa60150b9046965837c3e7d151b7de237ebb957c20663898250703b3f", &b1);
         load_huge(&a, a1, size1);
         load_huge(&b, b1, size2);
-        // divide(&a, &b, NULL);
-        get_remainder(&a, &b);
-        // show_hex(a.rep, a.size);
+        divide(&a, &b, &c);
+        // get_remainder(&a, &b);
+        show_hex(a.rep, a.size);
     }
     end = clock();
     printf("duration: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
