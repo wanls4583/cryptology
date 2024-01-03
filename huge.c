@@ -285,7 +285,46 @@ void multiply_char(huge* a, unsigned char b) {
     free(x.rep);
 }
 
-void multiply(huge* a, huge* b) {
+// 借助数组使用乘法实现大数相乘
+void multiply_mul(huge* a, huge* b) {
+    int sign = (a->sign != b->sign) ? 1 : 0;
+    int size = a->size + b->size;
+    unsigned char sum[size];
+
+    memset(sum, 0, size);
+
+    for (int i = a->size; i >= 1; i--) {
+        for (int j = b->size; j >= 1; j--) {
+            int index = i + j;
+            int num = 0, p = 0;
+            p = a->rep[i - 1] * b->rep[j - 1];
+
+            do {
+                index--;
+                num = sum[index] + p;
+                if (num >= 256) {
+                    p = num / 256;
+                    sum[index] = num % 256;
+                } else {
+                    p = 0;
+                    sum[index] = num;
+                }
+            } while (p);
+        }
+    }
+
+    int i = 0;
+    while (!sum[i]) {
+        i++;
+    }
+
+    free(a->rep);
+    load_huge(a, sum + i, size - i);
+    a->sign = sign;
+}
+
+// 使用加法实现大数相乘
+void multiply_add(huge* a, huge* b) {
     int sign = (a->sign != b->sign) ? 1 : 0;
     huge x, y;
     set_huge(&x, 0);
@@ -319,7 +358,8 @@ void multiply(huge* a, huge* b) {
     a->sign = sign;
 }
 
-void multiply_(huge* a, huge* b) {
+// 使用移位实现大数相乘
+void multiply_shift(huge* a, huge* b) {
     int sign = (a->sign != b->sign) ? 1 : 0;
     int bits = 0;
     huge x, y, n2;
@@ -370,6 +410,10 @@ void multiply_(huge* a, huge* b) {
     free(sum.rep);
     free(tmp.rep);
     a->sign = sign;
+}
+
+void multiply(huge* a, huge* b) {
+    multiply_mul(a, b);
 }
 
 // a = a^e%p (if p)
@@ -579,7 +623,7 @@ void inv(huge* h, huge* p) {
     negativeInv(h, p);
 }
 
-#define TEST_HUGE
+// #define TEST_HUGE
 #ifdef TEST_HUGE
 #include <time.h>
 int main() {
@@ -618,6 +662,20 @@ int main() {
     }
     end = clock();
     printf("duration: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
+
+    // start = clock();
+    // unsigned char* a1, * b1;
+    // int size1, size2;
+    // for (int i = 0; i < 100000; i++) {
+    //     size1 = hex_decode((unsigned char*)"0x40f73315d3f74703904e51e1c72686801de06a55417110e56280f1f8471a3802406d2110011e1f387f7b4c43258b0a1eedc558a3aac5aa2d20cf5e0d65d80db3", &a1);
+    //     size2 = hex_decode((unsigned char*)"0x40f73315d3f74703904e51e1c72686801de06a55417110e56280f1f8471a3802406d2110011e1f387f7b4c43258b0a1eedc558a3aac5aa2d20cf5e0d65d80db3", &b1);
+    //     load_huge(&a, a1, size1);
+    //     load_huge(&b, b1, size2);
+    //     multiply(&a, &b);
+    //     // show_hex(a.rep, a.size);
+    // }
+    // end = clock();
+    // printf("duration: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
 
     // set_huge(&a, 1123456789);
     // set_huge(&b, 321123);
