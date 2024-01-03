@@ -416,8 +416,8 @@ void multiply(huge* a, huge* b) {
     multiply_mul(a, b);
 }
 
-// a = a^e%p (if p)
-void mod_pow(huge* a, huge* e, huge* p) {
+// 使用乘法和除法实现幂运算
+void mod_pow_mul_div(huge* a, huge* e, huge* p) {
     time_t start, end;
     int maxBit = 0;
     int sumMapNum = e->size * 8;
@@ -479,6 +479,45 @@ void mod_pow(huge* a, huge* e, huge* p) {
     free(sum.rep);
     free(ec.rep);
     free(n2.rep);
+}
+
+// 使用快速幂实现幂运算(只需用到乘法)
+void mod_pow_mul(huge* a, huge* e, huge* p) {
+    huge result, aTmp, ec;
+    set_huge(&result, 1);
+    set_huge(&aTmp, 0);
+    set_huge(&ec, 0);
+    copy_huge(&aTmp, a);
+    copy_huge(&ec, e);
+    
+    if (p) { //利用公式【(a*b)%p = ((a%p)*(b%p))%p】提升求模运算性能
+        divide(a, p, NULL);
+    }
+
+    while (ec.rep[0])
+    {
+        if (ec.rep[ec.size - 1] & 0x01) {
+            multiply(&result, &aTmp);
+            if (p) {
+                divide(&result, p, NULL);
+            }
+        }
+        multiply(&aTmp, &aTmp);
+        if (p) {
+            divide(&aTmp, p, NULL);
+        }
+        right_shift(&ec, 1);
+    }
+
+    copy_huge(a, &result);
+    free(result.rep);
+    free(aTmp.rep);
+    free(ec.rep);
+}
+
+// a = a^e%p (if p)
+void mod_pow(huge* a, huge* e, huge* p) {
+    mod_pow_mul(a, e, p);
 }
 
 void divide(huge* dividend, huge* divisor, huge* quotient) {
@@ -628,7 +667,7 @@ void inv(huge* h, huge* p) {
     negativeInv(h, p);
 }
 
-#define TEST_HUGE
+// #define TEST_HUGE
 #ifdef TEST_HUGE
 #include <time.h>
 int main() {
@@ -682,18 +721,31 @@ int main() {
     // end = clock();
     // printf("duration: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
 
-    set_huge(&a, 1123456789);
-    set_huge(&b, 321123);
-    set_huge(&c, 0);
-    divide(&a, &b, &c);
-    show_hex(a.rep, a.size);
-    show_hex(c.rep, c.size);
-    set_huge(&a, 56704016);
-    set_huge(&b, 23);
-    set_huge(&c, 0);
-    divide(&a, &b, &c);
-    show_hex(a.rep, a.size);
-    show_hex(c.rep, c.size);
+    // set_huge(&a, 1123456789);
+    // set_huge(&b, 321123);
+    // set_huge(&c, 0);
+    // divide(&a, &b, &c);
+    // show_hex(a.rep, a.size);
+    // show_hex(c.rep, c.size);
+    // set_huge(&a, 56704016);
+    // set_huge(&b, 23);
+    // set_huge(&c, 0);
+    // divide(&a, &b, &c);
+    // show_hex(a.rep, a.size);
+    // show_hex(c.rep, c.size);
+    // start = clock();
+    // unsigned char* a1, * b1;
+    // int size1, size2;
+    // for (int i = 0; i < 1; i++) {
+    //     size1 = hex_decode((unsigned char*)"0x77229a8f6d60170c9dd81cd228f93f95f18673b50dbeee798fe518406ffe8ade37915578ba024dab12fcf26f05b5597f120775050929fb20061a155fd8a79339e004761259f9b6f8d862fe75ca87d07c0ff21f615daa9aaef04dc401bc707c465f2558b221db40821cf29adc7715d93f4a61d9d89700ca35dcd69173aefce440", &a1);
+    //     size2 = hex_decode((unsigned char*)"0xc4f8e9e15dcadf2b96c763d981006a644ffb4415030a16ed1283883340f2aa0e2be2be8fa60150b9046965837c3e7d151b7de237ebb957c20663898250703b3f", &b1);
+    //     load_huge(&a, a1, size1);
+    //     load_huge(&b, b1, size2);
+    //     divide(&a, &b, NULL);
+    //     // show_hex(a.rep, a.size);
+    // }
+    // end = clock();
+    // printf("duration: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
 
     // set_huge(&a, 21 + 23 * 123456);
     // a.sign = 1;
@@ -728,16 +780,19 @@ int main() {
     // left_shift(&a, 4);
     // show_hex(a.rep, a.size);
 
-    // start = clock();
-    // for (int i = 1; i <= 10000; i++) {
-    //     set_huge(&a, 2);
-    //     set_huge(&b, i);
-    //     set_huge(&c, 23);
-    //     mod_pow(&a, &b, &c);
-    //     show_hex(a.rep, a.size);
-    // }
-    // end = clock();
-    // printf("duration: %fs", (double)(end - start) / CLOCKS_PER_SEC);
+    start = clock();
+    for (int i = 1; i <= 5000; i++) {
+        // if (i != 2) {
+        //     continue;
+        // }
+        set_huge(&a, 2);
+        set_huge(&b, i);
+        set_huge(&c, 23);
+        mod_pow(&a, &b, &c);
+        show_hex(a.rep, a.size);
+    }
+    end = clock();
+    printf("duration: %fs", (double)(end - start) / CLOCKS_PER_SEC);
 
     return 0;
 }
