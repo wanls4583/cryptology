@@ -371,7 +371,6 @@ void mod_pow(huge* a, huge* e, huge* p) {
     set_huge(&ec, 0);
     copy_huge(&aTmp, a);
     copy_huge(&ec, e);
-
     if (p) { //利用公式【(a*b)%p = ((a%p)*(b%p))%p】提升求模运算性能
         divide(a, p, NULL);
     }
@@ -389,7 +388,6 @@ void mod_pow(huge* a, huge* e, huge* p) {
         }
         right_shift(&ec, 1);
     }
-
     copy_huge(a, &result);
     free(result.rep);
     free(aTmp.rep);
@@ -419,7 +417,8 @@ void divide(huge* dividend, huge* divisor, huge* quotient) {
         return;
     }
 
-    int bits = 1, bitPos = 0;
+    int bits = 1, bitPos = 0, tmp, zeros;
+    unsigned char mask = 0;
     huge _divisor;
     set_huge(&_divisor, 0);
     copy_huge(&_divisor, divisor);
@@ -456,8 +455,32 @@ void divide(huge* dividend, huge* divisor, huge* quotient) {
                 quotient->rep[bitPos / 8] |= (0x80 >> (bitPos % 8));
             }
         }
-        right_shift(&_divisor, 1);
-        bitPos++;
+
+        bits = 0;
+        if (_divisor.size > _dividend->size) { //使 _divisor 的位数和 _dividend 的位数一致，避免无效移位
+            bits = 0;
+            zeros = 0;
+            tmp = _divisor.size - _dividend->size;
+            if (tmp > 1) {
+                bits += (tmp - 1) * 8;
+            }
+            for (mask = 0x80; mask; mask >>= 1) {
+                if (mask & _divisor.rep[0]) {
+                    break;
+                }
+                zeros++;
+            }
+            bits += 8 - zeros;
+        }
+        tmp = _divisor.rep[0];
+        while (tmp > _dividend->rep[0]) { //尽可能一次移动多位
+            tmp >>= 1;
+            bits++;
+        }
+        bits = bits == 0 ? 1 : bits;
+
+        right_shift(&_divisor, bits);
+        bitPos += bits;
     }
 
     _dividend->sign = sign;
