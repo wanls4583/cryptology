@@ -221,7 +221,7 @@ void subtract(huge* a, huge* b) {
     copy_huge(&x, a);
     copy_huge(&y, b);
     if (x.sign == y.sign) {
-        int i = 0, j = 0;
+        int i = 0, j = 0, carry = 0;
         if (x.sign) { //-x-(-y)
             swap_huge_rep(&x, &y);
             x.sign = 0;
@@ -234,17 +234,12 @@ void subtract(huge* a, huge* b) {
         i = x.size - 1;
         j = y.size - 1;
         while (i >= 0 && j >= 0) {
-            int sub = x.rep[i] - y.rep[j];
+            int sub = x.rep[i] - y.rep[j] - carry;
             if (sub < 0) { //向上借1
-                int n = i - 1;
                 sub += 256;
-                while (n >= 0 && !x.rep[n]) {
-                    x.rep[n] += 255;
-                    n--;
-                }
-                if (n >= 0) {
-                    x.rep[n] -= 1;
-                }
+                carry = 1;
+            } else {
+                carry = 0;
             }
             x.rep[i] = sub;
             i--;
@@ -531,7 +526,7 @@ void inv(huge* h, huge* p) {
     negativeInv(h, p);
 }
 
-// #define TEST_HUGE
+#define TEST_HUGE
 #ifdef TEST_HUGE
 #include <time.h>
 int main() {
@@ -548,14 +543,10 @@ int main() {
     // add(&a, &b);
     // show_hex(a.rep, a.size);
 
-    // s1[0] = 2;
-    // s1[1] = 1;
-    // s2[0] = 1;
-    // s2[1] = 4;
-    // load_huge(&a, s1, 2);
-    // load_huge(&b, s2, 2);
-    // subtract(&a, &b);
-    // show_hex(a.rep, a.size);
+    set_huge(&a, 222222222);
+    set_huge(&b, 123456789);
+    subtract(&a, &b);
+    show_hex(a.rep, a.size);
 
     // start = clock();
     // for (int i = 0; i < 1000000; i++) {
@@ -585,32 +576,32 @@ int main() {
     // end = clock();
     // printf("duration: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
 
-    set_huge(&a, 1123456789);
-    set_huge(&b, 321123);
-    set_huge(&c, 0);
-    divide(&a, &b, &c);
-    show_hex(a.rep, a.size);
-    show_hex(c.rep, c.size);
+    // set_huge(&a, 1123456789);
+    // set_huge(&b, 321123);
+    // set_huge(&c, 0);
+    // divide(&a, &b, &c);
+    // show_hex(a.rep, a.size);
+    // show_hex(c.rep, c.size);
     // set_huge(&a, 20);
     // set_huge(&b, 3);
     // set_huge(&c, 0);
     // divide(&a, &b, &c);
     // show_hex(a.rep, a.size);
     // show_hex(c.rep, c.size);
-    start = clock();
-    unsigned char* a1, * b1;
-    int size1, size2;
-    for (int i = 0; i < 1; i++) {
-        size1 = hex_decode((unsigned char*)"0x77229a8f6d60170c9dd81cd228f93f95f18673b50dbeee798fe518406ffe8ade37915578ba024dab12fcf26f05b5597f120775050929fb20061a155fd8a79339e004761259f9b6f8d862fe75ca87d07c0ff21f615daa9aaef04dc401bc707c465f2558b221db40821cf29adc7715d93f4a61d9d89700ca35dcd69173aefce440", &a1);
-        size2 = hex_decode((unsigned char*)"0xc4f8e9e15dcadf2b96c763d981006a644ffb4415030a16ed1283883340f2aa0e2be2be8fa60150b9046965837c3e7d151b7de237ebb957c20663898250703b3f", &b1);
-        load_huge(&a, a1, size1);
-        load_huge(&b, b1, size2);
-        divide(&a, &b, &c);
-        // get_remainder(&a, &b);
-        show_hex(a.rep, a.size);
-    }
-    end = clock();
-    printf("duration: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
+    // start = clock();
+    // unsigned char* a1, * b1;
+    // int size1, size2;
+    // for (int i = 0; i < 1; i++) {
+    //     size1 = hex_decode((unsigned char*)"0x77229a8f6d60170c9dd81cd228f93f95f18673b50dbeee798fe518406ffe8ade37915578ba024dab12fcf26f05b5597f120775050929fb20061a155fd8a79339e004761259f9b6f8d862fe75ca87d07c0ff21f615daa9aaef04dc401bc707c465f2558b221db40821cf29adc7715d93f4a61d9d89700ca35dcd69173aefce440", &a1);
+    //     size2 = hex_decode((unsigned char*)"0xc4f8e9e15dcadf2b96c763d981006a644ffb4415030a16ed1283883340f2aa0e2be2be8fa60150b9046965837c3e7d151b7de237ebb957c20663898250703b3f", &b1);
+    //     load_huge(&a, a1, size1);
+    //     load_huge(&b, b1, size2);
+    //     divide(&a, &b, &c);
+    //     // get_remainder(&a, &b);
+    //     show_hex(a.rep, a.size);
+    // }
+    // end = clock();
+    // printf("duration: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
 
     // set_huge(&a, 21 + 23 * 123456);
     // a.sign = 1;
