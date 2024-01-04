@@ -4,7 +4,7 @@
 #include <ctype.h>
 #include "hex.h"
 
-int hex_decode(const unsigned char* input, unsigned char** decoded) {
+int hex_decode(unsigned char* input, unsigned char** decoded) {
     long size;
     if (strncmp("0x", (const char*)input, 2)) {
         size = strlen((const char*)input);
@@ -24,7 +24,7 @@ int hex_decode(const unsigned char* input, unsigned char** decoded) {
     return size;
 }
 
-void show_hex(const unsigned char* array, int length) {
+void show_hex(unsigned char* array, int length) {
     for (int i = 0; i < length; i++) {
         printf("%.02x", array[i]);
     }
