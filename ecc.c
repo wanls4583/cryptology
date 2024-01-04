@@ -95,7 +95,7 @@ void multiply_point(point* p1, huge* k, huge* a, huge* p) {
     copy_huge(&sum.y, &p1->y);
 
     for (int i = k->size - 1; i >= 0; i--) {
-        for (unsigned char mask = 0x00000001; mask; mask <<= 1) {
+        for (unsigned int mask = 0x00000001; mask; mask <<= 1) {
             if (k->rep[i] & mask) {
                 if (!hasCopy) {
                     hasCopy = 1;

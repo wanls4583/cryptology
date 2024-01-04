@@ -6,7 +6,7 @@
 #include <time.h>
 
 void swap_huge_rep(huge* a, huge* b) {
-    unsigned char* rep = a->rep;
+    u_word* rep = a->rep;
     unsigned int size = a->size;
     a->rep = b->rep;
     a->size = b->size;
@@ -15,9 +15,9 @@ void swap_huge_rep(huge* a, huge* b) {
 }
 
 void expand(huge* h) {
-    unsigned char* tmp = h->rep;
-    h->rep = (unsigned char*)malloc(h->size + 1);
-    memcpy(h->rep + 1, tmp, h->size);
+    u_word* tmp = h->rep;
+    h->rep = (u_word*)malloc(h->size * WORD_BYTES);
+    memcpy(h->rep + 1, tmp, h->size * WORD_BYTES);
     h->size++;
     h->rep[0] = 0x01;
     free(tmp);
@@ -27,8 +27,8 @@ void expand_right(huge* h, int size) {
     if (size <= 0 || h->size == 1 && !h->rep[0]) {
         return;
     }
-    h->rep = (unsigned char*)realloc(h->rep, h->size + size);
-    memset(h->rep + h->size, 0, size);
+    h->rep = (u_word*)realloc(h->rep, (h->size + size) * WORD_BYTES);
+    memset(h->rep + h->size, 0, size * WORD_BYTES);
     h->size += size;
 }
 
@@ -38,29 +38,52 @@ void copy_huge(huge* a, huge* b) {
     }
     a->sign = b->sign;
     a->size = b->size;
-    a->rep = (unsigned char*)malloc(b->size);
+    a->rep = (u_word*)malloc(b->size * WORD_BYTES);
     memcpy(a->rep, b->rep, b->size);
 }
 
 void load_huge(huge* h, unsigned char* c, int length) {
-    int i = 0;
-    while (!c[i] && length) {
+    int i = 0, len = length;
+    while (!c[i] && len) {
         i++;
-        length--;
+        len--;
     }
     h->sign = 0;
-    h->size = length ? length : 1;
-    h->rep = (unsigned char*)malloc(h->size);
-    if (length) {
-        memcpy(h->rep, c + i, h->size);
+    h->size = (len + WORD_BYTES - 1) / WORD_BYTES;
+    h->size = h->size == 0 ? 1 : h->size;
+    h->rep = (u_word*)malloc(h->size * WORD_BYTES);
+    if (len) {
+        int index = h->size - 1;
+        i = length - 1;
+        for (int index = h->size - 1; index >= 0; index--) {
+            for (int j = 0; j < WORD_BYTES && i >= 0; j++, i--) {
+                h->rep[index] |= (c[i] << (j * 8));
+            }
+        }
     } else {
         h->rep[0] = 0;
     }
 }
 
-void unload_huge(huge* h, unsigned char* bytes, int length) {
-    memset(bytes, 0, length);
-    memcpy(bytes + length - h->size, h->rep, h->size);
+void load_words(huge* h, u_word* words, int length) {
+    int i = 0;
+    while (!words[i] && length) {
+        i++;
+        length--;
+    }
+    h->sign = 0;
+    h->size = length ? length : 1;
+    h->rep = (u_word*)malloc(h->size * WORD_BYTES);
+    if (length) {
+        memcpy(h->rep, words + i, h->size * WORD_BYTES);
+    } else {
+        h->rep[0] = 0;
+    }
+}
+
+void unload_huge(huge* h, u_word* words, int length) {
+    memset(words, 0, length * WORD_BYTES);
+    memcpy(words + length - h->size, h->rep, h->size * WORD_BYTES);
 }
 
 void free_huge(huge* h) {
@@ -74,11 +97,11 @@ void contract(huge* h) {
         i++;
     }
     if (i > 0) {
-        unsigned char* tmp = h->rep;
+        u_word* tmp = h->rep;
         i = i == h->size ? h->size - 1 : i; // 保留一个0
         h->size -= i;
-        h->rep = (unsigned char*)malloc(h->size);
-        memcpy(h->rep, tmp + i, h->size);
+        h->rep = (u_word*)malloc(h->size * WORD_BYTES);
+        memcpy(h->rep, tmp + i, h->size * WORD_BYTES);
         free(tmp);
     }
 }
@@ -100,49 +123,20 @@ int compare(huge* a, huge* b) {
     }
 }
 
-void set_huge_1(huge* h, unsigned int val) {
-    h->rep = (unsigned char*)malloc(1);
+void set_huge(huge* h, unsigned int val) {
+    h->rep = (u_word*)malloc(WORD_BYTES);
     h->size = 1;
     h->rep[0] = val;
 }
 
-void set_huge(huge* h, unsigned int val) {
-    if (val < 256) {
-        set_huge_1(h, val);
-        return;
-    }
-    unsigned int mask = 0xff000000;
-    int shift = 0;
-
-    h->sign = 0;
-    h->size = 4;
-
-    for (; mask > 0x000000ff; mask >>= 8) {
-        if (!(mask & val)) {
-            h->size--;
-        } else {
-            break;
-        }
-    }
-
-    mask = 0x000000ff;
-    h->rep = (unsigned char*)malloc(h->size);
-
-    for (int i = h->size - 1; i >= 0; i--) {
-        h->rep[i] = (mask & val) >> shift;
-        mask <<= 8;
-        shift += 8;
-    }
-}
-
 void left_shift_1(huge* h) {
-    if (h->rep[0] & 0x80) {
+    if (h->rep[0] & WORD_HIGH_BIT) {
         expand(h);
         h->rep[0] = 0;
     }
 
     for (int i = 0; i < h->size - 1; i++) {
-        h->rep[i] = (h->rep[i] << 1) | ((h->rep[i + 1] & 0x80) ? 1 : 0);
+        h->rep[i] = (h->rep[i] << 1) | ((h->rep[i + 1] & WORD_HIGH_BIT) ? 1 : 0);
     }
 
     h->rep[h->size - 1] <<= 1;
@@ -154,10 +148,10 @@ void left_shift(huge* h, int size) {
         return;
     }
 
-    int i = 0, bytes = size / 8, n2 = 0x80, next = 0x80;
+    int i = 0, words = size / WORD_BITS, n2 = WORD_HIGH_BIT, next = WORD_HIGH_BIT;
 
-    expand_right(h, bytes);
-    size -= bytes * 8;
+    expand_right(h, words);
+    size -= words * WORD_BITS;
     if (size <= 0) {
         return;
     }
@@ -173,7 +167,7 @@ void left_shift(huge* h, int size) {
     }
 
     for (i = 0; i < h->size - 1; i++) {
-        h->rep[i] = (h->rep[i] << size) | ((h->rep[i + 1] & next) >> (8 - size));
+        h->rep[i] = (h->rep[i] << size) | ((h->rep[i + 1] & next) >> (WORD_BITS - size));
     }
 
     h->rep[h->size - 1] <<= size;
@@ -181,7 +175,7 @@ void left_shift(huge* h, int size) {
 
 void right_shift_1(huge* h) {
     for (int i = h->size - 1; i > 0; i--) {
-        h->rep[i] = (h->rep[i] >> 1) | ((h->rep[i - 1] & 0x01) ? 0x80 : 0);
+        h->rep[i] = (h->rep[i] >> 1) | ((h->rep[i - 1] & 0x01) ? WORD_HIGH_BIT : 0);
     }
 
     h->rep[0] >>= 1;
@@ -194,10 +188,10 @@ void right_shift(huge* h, int size) {
         return;
     }
 
-    int i = 0, bytes = size / 8, n2 = 0x1, next = 0x1;
+    int i = 0, words = size / WORD_BITS, n2 = 0x1, next = 0x1;
 
-    h->size -= bytes;
-    size -= bytes * 8;
+    h->size -= words;
+    size -= words * WORD_BITS;
     if (h->size <= 0) {
         h->size = 1;
         h->rep[0] = 0;
@@ -210,7 +204,7 @@ void right_shift(huge* h, int size) {
     }
 
     for (int i = h->size - 1; i > 0; i--) {
-        h->rep[i] = (h->rep[i] >> size) | ((h->rep[i - 1] & next) << (8 - size));
+        h->rep[i] = (h->rep[i] >> size) | ((h->rep[i - 1] & next) << (WORD_BITS - size));
     }
 
     h->rep[0] >>= size;
@@ -224,19 +218,20 @@ void add(huge* a, huge* b) {
     copy_huge(&x, a);
     copy_huge(&y, b);
     if (x.sign == y.sign) {
-        int i = 0, j = 0, carry = 0;
+        int i = 0, j = 0;
+        u_int64_t carry = 0;
         if (y.size > x.size) {
             swap_huge_rep(&x, &y);
         }
         i = x.size - 1;
         j = y.size - 1;
         while (i >= 0 || j >= 0) {
-            int sum = x.rep[i] + carry;
+            u_int64_t sum = x.rep[i] + carry;
             if (j >= 0) {
                 sum += y.rep[j];
             }
-            x.rep[i] = sum % 256;
-            carry = sum / 256;
+            x.rep[i] = sum % WORD_MAX;
+            carry = sum / WORD_MAX;
             i--;
             j--;
         }
@@ -263,7 +258,8 @@ void subtract(huge* a, huge* b) {
     copy_huge(&x, a);
     copy_huge(&y, b);
     if (x.sign == y.sign) {
-        int i = 0, j = 0, carry = 0;
+        int i = 0, j = 0;
+        u_int64_t carry = 0;
         if (x.sign) { //-x-(-y)
             swap_huge_rep(&x, &y);
             x.sign = 0;
@@ -276,9 +272,9 @@ void subtract(huge* a, huge* b) {
         i = x.size - 1;
         j = y.size - 1;
         while (i >= 0 && j >= 0) {
-            int sub = x.rep[i] - y.rep[j] - carry;
+            u_int64_t sub = x.rep[i] - y.rep[j] - carry;
             if (sub < 0) { //向上借1
-                sub += 256;
+                sub += WORD_MAX;
                 carry = 1;
             } else {
                 carry = 0;
@@ -304,47 +300,26 @@ void subtract(huge* a, huge* b) {
     free(y.rep);
 }
 
-void multiply_char(huge* a, unsigned char b) {
-    huge x;
-    set_huge(&x, 0);
-    copy_huge(&x, a);
-
-    int carry = 0, i = x.size - 1;
-    while (i >= 0) {
-        int sum = x.rep[i] * b + carry;
-        x.rep[i] = sum % 256;
-        carry = sum / 256;
-        i--;
-    }
-    if (carry) {
-        expand(&x);
-        x.rep[0] = carry;
-    }
-    contract(&x);
-    copy_huge(a, &x);
-    free(x.rep);
-}
-
 // 借助数组使用乘法实现大数相乘
 void multiply(huge* a, huge* b) {
     int sign = (a->sign != b->sign) ? 1 : 0;
     int size = a->size + b->size;
-    unsigned char sum[size];
+    u_word sum[size];
 
-    memset(sum, 0, size);
+    memset(sum, 0, size * WORD_BYTES);
 
     for (int i = a->size; i >= 1; i--) {
         for (int j = b->size; j >= 1; j--) {
             int index = i + j;
-            int num = 0, p = 0;
+            u_int64_t num = 0, p = 0;
             p = a->rep[i - 1] * b->rep[j - 1];
 
             do {
                 index--;
                 num = sum[index] + p;
-                if (num >= 256) {
-                    p = num / 256;
-                    sum[index] = num % 256;
+                if (num >= WORD_MAX) {
+                    p = num / WORD_MAX;
+                    sum[index] = num % WORD_MAX;
                 } else {
                     p = 0;
                     sum[index] = num;
@@ -359,7 +334,7 @@ void multiply(huge* a, huge* b) {
     }
 
     free(a->rep);
-    load_huge(a, sum + i, size - i);
+    load_words(a, sum + i, size - i);
     a->sign = sign;
 }
 
@@ -417,20 +392,20 @@ void divide(huge* dividend, huge* divisor, huge* quotient) {
         return;
     }
 
-    int bits = 1, bitPos = 0, tmp, zeros;
-    unsigned char mask = 0;
+    int bits = 1, bitPos = 0, zeros;
+    u_word mask = 0, tmp;
     huge _divisor;
     set_huge(&_divisor, 0);
     copy_huge(&_divisor, divisor);
 
     if (_dividend->size - _divisor.size > 0) {
-        int bytes = _dividend->size - _divisor.size;
+        int words = _dividend->size - _divisor.size;
         if (_dividend->rep[0] <= _divisor.rep[0]) {
-            bytes--;
+            words--;
         }
-        if (bytes > 0) {
-            expand_right(&_divisor, bytes);
-            bits += bytes * 8;
+        if (words > 0) {
+            expand_right(&_divisor, words);
+            bits += words * WORD_BITS;
         }
     }
     while (compare(_dividend, &_divisor) >= 0) {
@@ -439,20 +414,20 @@ void divide(huge* dividend, huge* divisor, huge* quotient) {
     }
     right_shift(&_divisor, 1);
     bits--;
-    bitPos = (bits / 8 + 1) * 8 - bits;
+    bitPos = (bits / WORD_BITS + 1) * WORD_BITS - bits;
 
     if (quotient) {
-        quotient->size = bits / 8 + 1;
+        quotient->size = bits / WORD_BITS + 1;
         quotient->sign = 0;
-        quotient->rep = (unsigned char*)malloc(quotient->size);
-        memset(quotient->rep, 0, quotient->size);
+        quotient->rep = (u_word*)malloc(quotient->size * WORD_BYTES);
+        memset(quotient->rep, 0, quotient->size * WORD_BYTES);
     }
 
     while (compare(_dividend, divisor) >= 0 && _dividend->sign == 0) {
         if (compare(_dividend, &_divisor) >= 0) {
             subtract(_dividend, &_divisor);
             if (quotient) {
-                quotient->rep[bitPos / 8] |= (0x80 >> (bitPos % 8));
+                quotient->rep[bitPos / WORD_BITS] |= (WORD_HIGH_BIT >> (bitPos % WORD_BITS));
             }
         }
 
@@ -462,15 +437,15 @@ void divide(huge* dividend, huge* divisor, huge* quotient) {
             zeros = 0;
             tmp = _divisor.size - _dividend->size;
             if (tmp > 1) {
-                bits += (tmp - 1) * 8;
+                bits += (tmp - 1) * WORD_BITS;
             }
-            for (mask = 0x80; mask; mask >>= 1) {
+            for (mask = WORD_HIGH_BIT; mask; mask >>= 1) {
                 if (mask & _divisor.rep[0]) {
                     break;
                 }
                 zeros++;
             }
-            bits += 8 - zeros;
+            bits += WORD_BITS - zeros;
         }
         tmp = _divisor.rep[0];
         while (tmp > _dividend->rep[0]) { //尽可能一次移动多位
