@@ -64,7 +64,7 @@ int rsa_decrypt(
     return 0;
 }
 
-// #define TEST_RSA
+#define TEST_RSA
 #ifdef TEST_RSA
 #include <time.h>
 #include <stdio.h>
@@ -105,11 +105,11 @@ int main() {
     load_huge(rsa.key, TestPrivateKey, sizeof(TestPrivateKey));
 
     start = clock();
-    for(int i = 0; i < 10; i++) {
+    for(int i = 0; i < 1; i++) {
         len = rsa_encrypt((unsigned char*)"abc", 3, &out, &rsa);
         show_hex(out, len);
-        end = clock();
     }
+    end = clock();
     printf("duration: %fs", (double)(end - start) / CLOCKS_PER_SEC);
 }
 #endif

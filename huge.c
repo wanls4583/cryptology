@@ -100,7 +100,17 @@ int compare(huge* a, huge* b) {
     }
 }
 
+void set_huge_1(huge* h, unsigned int val) {
+    h->rep = (unsigned char*)malloc(1);
+    h->size = 1;
+    h->rep[0] = val;
+}
+
 void set_huge(huge* h, unsigned int val) {
+    if (val < 256) {
+        set_huge_1(h, val);
+        return;
+    }
     unsigned int mask = 0xff000000;
     int shift = 0;
 
@@ -125,7 +135,25 @@ void set_huge(huge* h, unsigned int val) {
     }
 }
 
+void left_shift_1(huge* h) {
+    if (h->rep[0] & 0x80) {
+        expand(h);
+        h->rep[0] = 0;
+    }
+
+    for (int i = 0; i < h->size - 1; i++) {
+        h->rep[i] = (h->rep[i] << 1) | ((h->rep[i + 1] & 0x80) ? 1 : 0);
+    }
+
+    h->rep[h->size - 1] <<= 1;
+}
+
 void left_shift(huge* h, int size) {
+    if (size == 1) {
+        left_shift_1(h);
+        return;
+    }
+
     int i = 0, bytes = size / 8, n2 = 0x80, next = 0x80;
 
     expand_right(h, bytes);
@@ -151,7 +179,21 @@ void left_shift(huge* h, int size) {
     h->rep[h->size - 1] <<= size;
 }
 
+void right_shift_1(huge* h) {
+    for (int i = h->size - 1; i > 0; i--) {
+        h->rep[i] = (h->rep[i] >> 1) | ((h->rep[i - 1] & 0x01) ? 0x80 : 0);
+    }
+
+    h->rep[0] >>= 1;
+    contract(h);
+}
+
 void right_shift(huge* h, int size) {
+    if (size == 1) {
+        right_shift_1(h);
+        return;
+    }
+
     int i = 0, bytes = size / 8, n2 = 0x1, next = 0x1;
 
     h->size -= bytes;
@@ -354,29 +396,6 @@ void mod_pow(huge* a, huge* e, huge* p) {
     free(ec.rep);
 }
 
-void get_remainder(huge* a, huge* p) {
-    int c = compare(a, p);
-    if (c <= 0) {
-        if (c == 0) {
-            set_huge(a, 0);
-        }
-        return;
-    }
-    int one = a->rep[a->size - 1] & 0x01;
-    right_shift(a, 1);
-    get_remainder(a, p);
-    left_shift(a, 1);
-    if (one) {
-        huge tmp;
-        set_huge(&tmp, 1);
-        add(a, &tmp);
-        free(tmp.rep);
-    }
-    if (compare(a, p) >= 0) {
-        subtract(a, p);
-    }
-}
-
 void divide(huge* dividend, huge* divisor, huge* quotient) {
     int c = compare(dividend, divisor);
     int sign = dividend->sign = (dividend->sign != divisor->sign) ? 1 : 0;
@@ -430,7 +449,7 @@ void divide(huge* dividend, huge* divisor, huge* quotient) {
         memset(quotient->rep, 0, quotient->size);
     }
 
-    while (compare(_dividend, divisor) >= 0) {
+    while (compare(_dividend, divisor) >= 0 && _dividend->sign == 0) {
         if (compare(_dividend, &_divisor) >= 0) {
             subtract(_dividend, &_divisor);
             if (quotient) {
@@ -529,27 +548,17 @@ void inv(huge* h, huge* p) {
     negativeInv(h, p);
 }
 
-#define TEST_HUGE
+// #define TEST_HUGE
 #ifdef TEST_HUGE
 #include <time.h>
 int main() {
     time_t start, end;
     huge a, b, c;
-    // unsigned char s1[2], s2[2];
-    // s1[0] = 254;
-    // s1[1] = 255;
-    // s2[0] = 1;
-    // s2[1] = 1;
-    // load_huge(&a, s1, 2);
-    // load_huge(&b, s2, 2);
-    // a.sign = 1;
-    // add(&a, &b);
-    // show_hex(a.rep, a.size);
 
-    set_huge(&a, 222222222);
-    set_huge(&b, 123456789);
-    subtract(&a, &b);
-    show_hex(a.rep, a.size);
+    // set_huge(&a, 222222222);
+    // set_huge(&b, 123456789);
+    // subtract(&a, &b);
+    // show_hex(a.rep, a.size);
 
     // start = clock();
     // for (int i = 0; i < 1000000; i++) {
@@ -600,7 +609,6 @@ int main() {
         load_huge(&a, a1, size1);
         load_huge(&b, b1, size2);
         divide(&a, &b, &c);
-        // get_remainder(&a, &b);
         show_hex(a.rep, a.size);
     }
     end = clock();
@@ -652,18 +660,6 @@ int main() {
     // }
     // end = clock();
     // printf("duration: %fs", (double)(end - start) / CLOCKS_PER_SEC);
-
-    // for (int i = 0; i < 10000; i++) {
-    //     // if (i != 46) {
-    //     //     continue;;
-    //     // }
-    //     set_huge(&a, i);
-    //     set_huge(&b, 23);
-    //     get_remainder(&a, &b);
-    //     printf("i=%d\n", i);
-    //     // show_hex(a.rep, a.size);
-    //     printf("%.02x\n", i % 23);
-    // }
 
     return 0;
 }
