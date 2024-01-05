@@ -366,7 +366,7 @@ void huge_divide(huge* dividend, huge* divisor, huge* quotient) {
 
     if (_dividend == divisor) { //自己除自己
         _dividend = (huge*)malloc(sizeof(huge));
-        huge_set(_dividend, 0);
+        _dividend->rep = NULL;
         huge_copy(_dividend, dividend);
     }
     _dividend->sign = 0;
@@ -493,7 +493,7 @@ void huge_mod_pow(huge* a, huge* e, huge* p) {
 // 负数的逆元
 void huge_inverse_neg(huge* h, huge* p) {
     huge tmp;
-    huge_set(&tmp, 0);
+    tmp.rep = NULL;
 
     if (h->sign) {
         huge_divide(h, p, NULL);
@@ -512,11 +512,10 @@ void _mul_inverse(huge* a, huge* b, huge* x, huge* y) {
     }
 
     huge a1, b1, x1, y1;
-
-    huge_set(&a1, 0);
-    huge_set(&b1, 0);
-    huge_set(&x1, 0);
-    huge_set(&y1, 0);
+    a1.rep = NULL;
+    b1.rep = NULL;
+    x1.rep = NULL;
+    y1.rep = NULL;
 
     huge_copy(&a1, b);
     huge_copy(&b1, a);
@@ -542,9 +541,10 @@ void _mul_inverse(huge* a, huge* b, huge* x, huge* y) {
 // 求h在模p上的乘法逆元
 void huge_inverse_mul(huge* h, huge* p) {
     huge x, y, tmp;
-    huge_set(&x, 0);
-    huge_set(&y, 0);
-    huge_set(&tmp, 0);
+    x.rep = NULL;
+    y.rep = NULL;
+    tmp.rep = NULL;
+    
     huge_inverse_neg(h, p);
 
     if (huge_compare(h, p) == 0) { //h==p

@@ -102,7 +102,7 @@ int rsa_decrypt(
     return decrypted_size;
 }
 
-#define TEST_RSA
+// #define TEST_RSA
 #ifdef TEST_RSA
 #include <time.h>
 #include <stdio.h>
