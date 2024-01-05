@@ -9,7 +9,7 @@ int rsa_encrypt(
     unsigned char** output,
     rsa_key* public_key
 ) {
-    int p_size = public_key->p->size;
+    int p_size = public_key->p->size * HUGE_WORD_BYTES;
     int max_block_size = p_size - 11;
     int encrypted_size = 0;
     unsigned char padded_block[p_size];
@@ -57,7 +57,7 @@ int rsa_decrypt(
     unsigned char** output,
     rsa_key* private_key
 ) {
-    int p_size = private_key->p->size;
+    int p_size = private_key->p->size * HUGE_WORD_BYTES;
     int decrypted_size = 0;
     unsigned char padded_block[p_size];
 
@@ -147,16 +147,18 @@ int main() {
     load_huge(rsa.key, TestPublicKey, sizeof(TestPublicKey));
     start = clock();
     len = rsa_encrypt(data, strlen((const char*)data), &encData, &rsa);
-    show_hex(encData, len);
+    show_hex(encData, len, 1);
     end = clock();
     printf("enc-time: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
 
     load_huge(rsa.key, TestPrivateKey, sizeof(TestPrivateKey));
     start = clock();
-    len = rsa_decrypt(encData, strlen((const char*)encData), &decData, &rsa);
-    // show_hex(decData, len);
-    printf("%s\n", decData);
+    for(int i = 0; i < 10; i++) {
+        len = rsa_decrypt(encData, strlen((const char*)encData), &decData, &rsa);
+        // show_hex(decData, len, 1);
+    }
     end = clock();
+    printf("%s\n", decData);
     printf("dec-time: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
 
 }

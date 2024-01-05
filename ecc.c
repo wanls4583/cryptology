@@ -104,21 +104,21 @@ void multiply_point(point* p1, huge* k, huge* a, huge* p) {
                 } else {
                     add_points(p1, &sum, p);
                     // printf("before-----------:\n");
-                    // show_hex(p1->x.rep, p1->x.size);
-                    // show_hex(p1->y.rep, p1->y.size);
+                    // show_hex(p1->x.rep, p1->x.size, HUGE_WORD_BYTES);
+                    // show_hex(p1->y.rep, p1->y.size, HUGE_WORD_BYTES);
                     // printf("double:\n");
-                    // show_hex(sum.x.rep, sum.x.size);
-                    // show_hex(sum.y.rep, sum.y.size);
+                    // show_hex(sum.x.rep, sum.x.size, HUGE_WORD_BYTES);
+                    // show_hex(sum.y.rep, sum.y.size, HUGE_WORD_BYTES);
                     // add_points(p1, &sum, p);
                     // printf("after-----------:\n");
-                    // show_hex(p1->x.rep, p1->x.size);
-                    // show_hex(p1->y.rep, p1->y.size);
+                    // show_hex(p1->x.rep, p1->x.size, HUGE_WORD_BYTES);
+                    // show_hex(p1->y.rep, p1->y.size, HUGE_WORD_BYTES);
                 }
             }
             double_point(&sum, a, p);
             // printf("double:\n");
-            // show_hex(sum.x.rep, sum.x.size);
-            // show_hex(sum.y.rep, sum.y.size);
+            // show_hex(sum.x.rep, sum.x.size, HUGE_WORD_BYTES);
+            // show_hex(sum.y.rep, sum.y.size, HUGE_WORD_BYTES);
         }
     }
 
@@ -145,15 +145,15 @@ int main() {
     //     set_huge(&p1.x, x);
     //     set_huge(&p1.y, y);
     //     double_point(&p1, &a, &p);
-    //     show_hex(p1.x.rep, p1.x.size);
-    //     show_hex(p1.y.rep, p1.y.size);
+    //     show_hex(p1.x.rep, p1.x.size, HUGE_WORD_BYTES);
+    //     show_hex(p1.y.rep, p1.y.size, HUGE_WORD_BYTES);
     // }
 
     // set_huge(&p1.x, 1);
     // set_huge(&p1.y, 0);
     // double_point(&p1, &a, &p);
-    // show_hex(p1.x.rep, p1.x.size);
-    // show_hex(p1.y.rep, p1.y.size);
+    // show_hex(p1.x.rep, p1.x.size, HUGE_WORD_BYTES);
+    // show_hex(p1.y.rep, p1.y.size, HUGE_WORD_BYTES);
 
     // for (int x = 0; x < 200; x += 2) {
     //     int x1 = x, x2 = x+1;
@@ -165,8 +165,8 @@ int main() {
     //     set_huge(&p2.x, x2);
     //     set_huge(&p2.y, y2);
     //     add_points(&p1, &p2, &p);
-    //     show_hex(p1.x.rep, p1.x.size);
-    //     show_hex(p1.y.rep, p1.y.size);
+    //     show_hex(p1.x.rep, p1.x.size, HUGE_WORD_BYTES);
+    //     show_hex(p1.y.rep, p1.y.size, HUGE_WORD_BYTES);
     // }
 
     // set_huge(&p1.x, 0x04);
@@ -174,8 +174,8 @@ int main() {
     // set_huge(&p2.x, 1);
     // set_huge(&p2.y, 3);
     // add_points(&p1, &p2, &p);
-    // show_hex(p1.x.rep, p1.x.size);
-    // show_hex(p1.y.rep, p1.y.size);
+    // show_hex(p1.x.rep, p1.x.size, HUGE_WORD_BYTES);
+    // show_hex(p1.y.rep, p1.y.size, HUGE_WORD_BYTES);
     start = clock();
     for (int x = 0; x < 1000; x += 1) {
         // if (x != 126) {
@@ -187,15 +187,15 @@ int main() {
         set_huge(&p1.y, y);
         set_huge(&k, 1234);
         multiply_point(&p1, &k, &a, &p);
-        show_hex(p1.x.rep, p1.x.size);
-        show_hex(p1.y.rep, p1.y.size);
+        show_hex(p1.x.rep, p1.x.size, HUGE_WORD_BYTES);
+        show_hex(p1.y.rep, p1.y.size, HUGE_WORD_BYTES);
 
         set_huge(&p1.x, x);
         set_huge(&p1.y, y);
         set_huge(&k, 101);
         multiply_point(&p1, &k, &a, &p);
-        show_hex(p1.x.rep, p1.x.size);
-        show_hex(p1.y.rep, p1.y.size);
+        show_hex(p1.x.rep, p1.x.size, HUGE_WORD_BYTES);
+        show_hex(p1.y.rep, p1.y.size, HUGE_WORD_BYTES);
     }
     end = clock();
     printf("duration: %fs", (double)(end - start) / CLOCKS_PER_SEC);
