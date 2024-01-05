@@ -15,10 +15,10 @@ int rsa_encrypt(
     unsigned char padded_block[p_size];
 
     huge a, e, p;
-    set_huge(&e, 0);
-    set_huge(&p, 0);
-    copy_huge(&e, public_key->key);
-    copy_huge(&p, public_key->p);
+    huge_set(&e, 0);
+    huge_set(&p, 0);
+    huge_copy(&e, public_key->key);
+    huge_copy(&p, public_key->p);
 
     *output = NULL;
 
@@ -34,11 +34,11 @@ int rsa_encrypt(
             padded_block[i] = i;
         }
 
-        load_huge(&a, padded_block, p_size);
-        mod_pow(&a, &e, &p);
+        huge_load(&a, padded_block, p_size);
+        huge_mod_pow(&a, &e, &p);
 
         *output = (unsigned char*)realloc(*output, encrypted_size);
-        unload_huge(&a, *output + (encrypted_size - p_size), p_size);
+        huge_unload(&a, *output + (encrypted_size - p_size), p_size);
 
         len -= block_size;
         input += block_size;
@@ -62,20 +62,20 @@ int rsa_decrypt(
     unsigned char padded_block[p_size];
 
     huge a, e, p;
-    set_huge(&e, 0);
-    set_huge(&p, 0);
-    copy_huge(&e, private_key->key);
-    copy_huge(&p, private_key->p);
+    huge_set(&e, 0);
+    huge_set(&p, 0);
+    huge_copy(&e, private_key->key);
+    huge_copy(&p, private_key->p);
 
     *output = NULL;
 
     while (len >= p_size) {
         int data_szie = 0;
         memcpy(padded_block, input, p_size);
-        load_huge(&a, padded_block, p_size);
-        mod_pow(&a, &e, &p);
+        huge_load(&a, padded_block, p_size);
+        huge_mod_pow(&a, &e, &p);
         memset(padded_block, 0, p_size);
-        unload_huge(&a, padded_block, p_size);
+        huge_unload(&a, padded_block, p_size);
 
         int i = 1;
         if (padded_block[1] != 0x02) { //数据错误
@@ -141,17 +141,17 @@ int main() {
 
     rsa.p = (huge*)malloc(sizeof(huge));
     rsa.key = (huge*)malloc(sizeof(huge));
-    load_huge(rsa.p, TestModulus, sizeof(TestModulus));
+    huge_load(rsa.p, TestModulus, sizeof(TestModulus));
 
     data = (unsigned char*)"abcd123abcd123abcd123abcd123abcd123abcd123abcd123abc1";
-    load_huge(rsa.key, TestPublicKey, sizeof(TestPublicKey));
+    huge_load(rsa.key, TestPublicKey, sizeof(TestPublicKey));
     start = clock();
     len = rsa_encrypt(data, strlen((const char*)data), &encData, &rsa);
     show_hex(encData, len, 1);
     end = clock();
     printf("enc-time: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
 
-    load_huge(rsa.key, TestPrivateKey, sizeof(TestPrivateKey));
+    huge_load(rsa.key, TestPrivateKey, sizeof(TestPrivateKey));
     start = clock();
     for(int i = 0; i < 10; i++) {
         len = rsa_decrypt(encData, strlen((const char*)encData), &decData, &rsa);

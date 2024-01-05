@@ -9,35 +9,35 @@ void double_point(point* p1, huge* a, huge* p) {
     //y3=k(x1-x3)-y1
 
     huge k, x3, y3, tmp;
-    set_huge(&k, 3);
-    multiply(&k, &p1->x);
-    multiply(&k, &p1->x);
-    add(&k, a);
-    set_huge(&tmp, 2);
-    multiply(&tmp, &p1->y);
-    inv(&tmp, p);
-    multiply(&k, &tmp);
+    huge_set(&k, 3);
+    huge_multiply(&k, &p1->x);
+    huge_multiply(&k, &p1->x);
+    huge_add(&k, a);
+    huge_set(&tmp, 2);
+    huge_multiply(&tmp, &p1->y);
+    huge_inverse_mul(&tmp, p);
+    huge_multiply(&k, &tmp);
 
-    set_huge(&x3, 0);
-    copy_huge(&x3, &k);
-    multiply(&x3, &k);
-    subtract(&x3, &p1->x);
-    subtract(&x3, &p1->x);
-    divide(&x3, p, NULL);
+    huge_set(&x3, 0);
+    huge_copy(&x3, &k);
+    huge_multiply(&x3, &k);
+    huge_subtract(&x3, &p1->x);
+    huge_subtract(&x3, &p1->x);
+    huge_divide(&x3, p, NULL);
 
-    set_huge(&y3, 0);
-    copy_huge(&y3, &p1->x);
-    subtract(&y3, &x3);
-    multiply(&y3, &k);
-    subtract(&y3, &p1->y);
-    divide(&y3, p, NULL);
+    huge_set(&y3, 0);
+    huge_copy(&y3, &p1->x);
+    huge_subtract(&y3, &x3);
+    huge_multiply(&y3, &k);
+    huge_subtract(&y3, &p1->y);
+    huge_divide(&y3, p, NULL);
 
     x3.sign = 0;
-    // negativeInv(&x3, p);
-    negativeInv(&y3, p);
+    // huge_inverse_neg(&x3, p);
+    huge_inverse_neg(&y3, p);
 
-    copy_huge(&p1->x, &x3);
-    copy_huge(&p1->y, &y3);
+    huge_copy(&p1->x, &x3);
+    huge_copy(&p1->y, &y3);
     free(k.rep);
     free(x3.rep);
     free(y3.rep);
@@ -51,34 +51,34 @@ void add_points(point* p1, point* p2, huge* p) {
     //y3=k(x1-x3)-y1
 
     huge k, x3, y3, tmp;
-    set_huge(&k, 0);
-    copy_huge(&k, &p2->y);
-    subtract(&k, &p1->y);
-    set_huge(&tmp, 0);
-    copy_huge(&tmp, &p2->x);
-    subtract(&tmp, &p1->x);
-    inv(&tmp, p);
-    multiply(&k, &tmp);
+    huge_set(&k, 0);
+    huge_copy(&k, &p2->y);
+    huge_subtract(&k, &p1->y);
+    huge_set(&tmp, 0);
+    huge_copy(&tmp, &p2->x);
+    huge_subtract(&tmp, &p1->x);
+    huge_inverse_mul(&tmp, p);
+    huge_multiply(&k, &tmp);
 
-    set_huge(&x3, 0);
-    copy_huge(&x3, &k);
-    multiply(&x3, &k);
-    subtract(&x3, &p1->x);
-    subtract(&x3, &p2->x);
-    divide(&x3, p, NULL);
+    huge_set(&x3, 0);
+    huge_copy(&x3, &k);
+    huge_multiply(&x3, &k);
+    huge_subtract(&x3, &p1->x);
+    huge_subtract(&x3, &p2->x);
+    huge_divide(&x3, p, NULL);
 
-    set_huge(&y3, 0);
-    copy_huge(&y3, &p1->x);
-    subtract(&y3, &x3);
-    multiply(&y3, &k);
-    subtract(&y3, &p1->y);
-    divide(&y3, p, NULL);
+    huge_set(&y3, 0);
+    huge_copy(&y3, &p1->x);
+    huge_subtract(&y3, &x3);
+    huge_multiply(&y3, &k);
+    huge_subtract(&y3, &p1->y);
+    huge_divide(&y3, p, NULL);
 
-    negativeInv(&x3, p);
-    negativeInv(&y3, p);
+    huge_inverse_neg(&x3, p);
+    huge_inverse_neg(&y3, p);
 
-    copy_huge(&p1->x, &x3);
-    copy_huge(&p1->y, &y3);
+    huge_copy(&p1->x, &x3);
+    huge_copy(&p1->y, &y3);
     free(k.rep);
     free(x3.rep);
     free(y3.rep);
@@ -89,18 +89,18 @@ void multiply_point(point* p1, huge* k, huge* a, huge* p) {
     point sum;
     int hasCopy = 0;
 
-    set_huge(&sum.x, 0);
-    set_huge(&sum.y, 0);
-    copy_huge(&sum.x, &p1->x);
-    copy_huge(&sum.y, &p1->y);
+    huge_set(&sum.x, 0);
+    huge_set(&sum.y, 0);
+    huge_copy(&sum.x, &p1->x);
+    huge_copy(&sum.y, &p1->y);
 
     for (int i = k->size - 1; i >= 0; i--) {
         for (unsigned int mask = 0x00000001; mask; mask <<= 1) {
             if (k->rep[i] & mask) {
                 if (!hasCopy) {
                     hasCopy = 1;
-                    copy_huge(&p1->x, &sum.x);
-                    copy_huge(&p1->y, &sum.y);
+                    huge_copy(&p1->x, &sum.x);
+                    huge_copy(&p1->y, &sum.y);
                 } else {
                     add_points(p1, &sum, p);
                     // printf("before-----------:\n");
@@ -136,21 +136,21 @@ int main() {
     int _a = 1, b = 1, _p = 23;
     point p1, p2;
     huge a, p, k;
-    set_huge(&a, _a);
-    set_huge(&p, _p);
+    huge_set(&a, _a);
+    huge_set(&p, _p);
 
     // for (int x = 0; x < 100; x += 1) {
     //     int y = x * x * x + _a * x * x + b, r = y * 2 % _p;
     //     printf("x=%d,y=%d,r=%d\n", x, y, r);
-    //     set_huge(&p1.x, x);
-    //     set_huge(&p1.y, y);
+    //     huge_set(&p1.x, x);
+    //     huge_set(&p1.y, y);
     //     double_point(&p1, &a, &p);
     //     show_hex(p1.x.rep, p1.x.size, HUGE_WORD_BYTES);
     //     show_hex(p1.y.rep, p1.y.size, HUGE_WORD_BYTES);
     // }
 
-    // set_huge(&p1.x, 1);
-    // set_huge(&p1.y, 0);
+    // huge_set(&p1.x, 1);
+    // huge_set(&p1.y, 0);
     // double_point(&p1, &a, &p);
     // show_hex(p1.x.rep, p1.x.size, HUGE_WORD_BYTES);
     // show_hex(p1.y.rep, p1.y.size, HUGE_WORD_BYTES);
@@ -160,19 +160,19 @@ int main() {
     //     int y1 = x1 * x1 * x1 + _a * x1 * x1 + b;
     //     int y2 = x2 * x2 * x2 + _a * x2 * x2 + b;
     //     printf("x1=%d,y1=%d,x2=%d,y2=%d\n", x1, y1, x2, y2);
-    //     set_huge(&p1.x, x1);
-    //     set_huge(&p1.y, y1);
-    //     set_huge(&p2.x, x2);
-    //     set_huge(&p2.y, y2);
+    //     huge_set(&p1.x, x1);
+    //     huge_set(&p1.y, y1);
+    //     huge_set(&p2.x, x2);
+    //     huge_set(&p2.y, y2);
     //     add_points(&p1, &p2, &p);
     //     show_hex(p1.x.rep, p1.x.size, HUGE_WORD_BYTES);
     //     show_hex(p1.y.rep, p1.y.size, HUGE_WORD_BYTES);
     // }
 
-    // set_huge(&p1.x, 0x04);
-    // set_huge(&p1.y, 0x51);
-    // set_huge(&p2.x, 1);
-    // set_huge(&p2.y, 3);
+    // huge_set(&p1.x, 0x04);
+    // huge_set(&p1.y, 0x51);
+    // huge_set(&p2.x, 1);
+    // huge_set(&p2.y, 3);
     // add_points(&p1, &p2, &p);
     // show_hex(p1.x.rep, p1.x.size, HUGE_WORD_BYTES);
     // show_hex(p1.y.rep, p1.y.size, HUGE_WORD_BYTES);
@@ -183,16 +183,16 @@ int main() {
         // }
         int y = x * x * x + _a * x * x + b, r = y * 2 % _p;
         printf("x=%d,y=%d,r=%d\n", x, y, r);
-        set_huge(&p1.x, x);
-        set_huge(&p1.y, y);
-        set_huge(&k, 1234);
+        huge_set(&p1.x, x);
+        huge_set(&p1.y, y);
+        huge_set(&k, 1234);
         multiply_point(&p1, &k, &a, &p);
         show_hex(p1.x.rep, p1.x.size, HUGE_WORD_BYTES);
         show_hex(p1.y.rep, p1.y.size, HUGE_WORD_BYTES);
 
-        set_huge(&p1.x, x);
-        set_huge(&p1.y, y);
-        set_huge(&k, 101);
+        huge_set(&p1.x, x);
+        huge_set(&p1.y, y);
+        huge_set(&k, 101);
         multiply_point(&p1, &k, &a, &p);
         show_hex(p1.x.rep, p1.x.size, HUGE_WORD_BYTES);
         show_hex(p1.y.rep, p1.y.size, HUGE_WORD_BYTES);

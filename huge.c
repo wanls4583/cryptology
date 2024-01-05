@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <time.h>
 
-void swap_huge_rep(huge* a, huge* b) {
+void huge_swap(huge* a, huge* b) {
     huge_word* rep = a->rep;
     unsigned int size = a->size;
     a->rep = b->rep;
@@ -32,7 +32,7 @@ void expand_right(huge* h, int size) {
     h->size += size;
 }
 
-void copy_huge(huge* a, huge* b) {
+void huge_copy(huge* a, huge* b) {
     if (a->rep && a->size) {
         free(a->rep);
     }
@@ -42,7 +42,7 @@ void copy_huge(huge* a, huge* b) {
     memcpy(a->rep, b->rep, b->size * HUGE_WORD_BYTES);
 }
 
-void load_huge(huge* h, unsigned char* c, int length) {
+void huge_load(huge* h, unsigned char* c, int length) {
     int i = 0, len = length;
     while (!c[i] && len) {
         i++;
@@ -65,7 +65,7 @@ void load_huge(huge* h, unsigned char* c, int length) {
     }
 }
 
-void unload_huge(huge* h, unsigned char* c, int length) {
+void huge_unload(huge* h, unsigned char* c, int length) {
     huge_word num = huge_hton(h->rep[0]);
     int btyes = 0, i = 0;
     unsigned char* tmp = (unsigned char*)(&num);
@@ -88,7 +88,7 @@ void unload_huge(huge* h, unsigned char* c, int length) {
     }
 }
 
-void load_words(huge* h, huge_word* words, int length) {
+void huge_load_words(huge* h, huge_word* words, int length) {
     int i = 0;
     while (!words[i] && length) {
         i++;
@@ -104,17 +104,17 @@ void load_words(huge* h, huge_word* words, int length) {
     }
 }
 
-void unload_words(huge* h, huge_word* words, int length) {
+void huge_unload_words(huge* h, huge_word* words, int length) {
     memset(words, 0, length * HUGE_WORD_BYTES);
     memcpy(words + length - h->size, h->rep, h->size * HUGE_WORD_BYTES);
 }
 
-void free_huge(huge* h) {
+void huge_free(huge* h) {
     free(h->rep);
     free(h);
 }
 
-void contract(huge* h) {
+void huge_contract(huge* h) {
     int i = 0;
     while (!h->rep[i] && i < h->size) {
         i++;
@@ -129,7 +129,7 @@ void contract(huge* h) {
     }
 }
 
-int compare(huge* a, huge* b) {
+int huge_compare(huge* a, huge* b) {
     if (a->size == b->size) {
         for (int i = 0; i < a->size; i++) {
             if (a->rep[i] > b->rep[i]) {
@@ -146,7 +146,7 @@ int compare(huge* a, huge* b) {
     }
 }
 
-void set_huge(huge* h, unsigned int val) {
+void huge_set(huge* h, unsigned int val) {
     h->rep = (huge_word*)malloc(HUGE_WORD_BYTES);
     h->size = 1;
     h->sign = 0;
@@ -166,7 +166,7 @@ void left_shift_1(huge* h) {
     h->rep[h->size - 1] <<= 1;
 }
 
-void left_shift(huge* h, int size) {
+void huge_left_shift(huge* h, int size) {
     if (size == 1) {
         left_shift_1(h);
         return;
@@ -203,10 +203,10 @@ void right_shift_1(huge* h) {
     }
 
     h->rep[0] >>= 1;
-    contract(h);
+    huge_contract(h);
 }
 
-void right_shift(huge* h, int size) {
+void huge_right_shift(huge* h, int size) {
     if (size == 1) {
         right_shift_1(h);
         return;
@@ -232,20 +232,20 @@ void right_shift(huge* h, int size) {
     }
 
     h->rep[0] >>= size;
-    contract(h);
+    huge_contract(h);
 }
 
-void add(huge* a, huge* b) {
+void huge_add(huge* a, huge* b) {
     huge x, y;
-    set_huge(&x, 0);
-    set_huge(&y, 0);
-    copy_huge(&x, a);
-    copy_huge(&y, b);
+    x.rep = NULL;
+    y.rep = NULL;
+    huge_copy(&x, a);
+    huge_copy(&y, b);
     if (x.sign == y.sign) {
         int i = 0, j = 0;
         int64_t carry = 0;
         if (y.size > x.size) {
-            swap_huge_rep(&x, &y);
+            huge_swap(&x, &y);
         }
         i = x.size - 1;
         j = y.size - 1;
@@ -263,40 +263,40 @@ void add(huge* a, huge* b) {
             expand(&x);
         }
     } else if (x.sign) { //-x+y
-        swap_huge_rep(&x, &y);
+        huge_swap(&x, &y);
         x.sign = 0;
-        subtract(&x, &y);
+        huge_subtract(&x, &y);
     } else { //x+(-y)
         y.sign = 0;
-        subtract(&x, &y);
+        huge_subtract(&x, &y);
     }
-    copy_huge(a, &x);
+    huge_copy(a, &x);
     free(x.rep);
     free(y.rep);
 }
 
-void subtract(huge* a, huge* b) {
+void huge_subtract(huge* a, huge* b) {
     huge x, y;
-    set_huge(&x, 0);
-    set_huge(&y, 0);
-    copy_huge(&x, a);
-    copy_huge(&y, b);
+    x.rep = NULL;
+    y.rep = NULL;
+    huge_copy(&x, a);
+    huge_copy(&y, b);
     if (x.sign == y.sign) {
         int i = 0, j = 0;
         int64_t carry = 0;
         if (x.sign) { //-x-(-y)
-            swap_huge_rep(&x, &y);
+            huge_swap(&x, &y);
             x.sign = 0;
             y.sign = 0;
         }
-        if (compare(&x, &y) <= 0) { // 为0时也为负
-            swap_huge_rep(&x, &y);
+        if (huge_compare(&x, &y) <= 0) { // 为0时也为负
+            huge_swap(&x, &y);
             x.sign = 1;
         }
         i = x.size - 1;
         j = y.size - 1;
-        while (i >= 0 && j >= 0) {
-            int64_t sub = (int64_t)x.rep[i] - y.rep[j] - carry;
+        while (j >= 0 || carry) {
+            int64_t sub = (int64_t)x.rep[i] - (j >= 0 ? y.rep[j] : 0) - carry;
             if (sub < 0) { //向上借1
                 sub += HUGE_WORD_MAX;
                 carry = 1;
@@ -307,25 +307,22 @@ void subtract(huge* a, huge* b) {
             i--;
             j--;
         }
-        if (carry) {
-            x.rep[i] -= carry;
-        }
-        contract(&x);
+        huge_contract(&x);
     } else if (x.sign) { //-x-y
         x.sign = 1;
         y.sign = 1;
-        add(&x, &y);
+        huge_add(&x, &y);
     } else { //x-(-y)
         y.sign = 0;
-        add(&x, &y);
+        huge_add(&x, &y);
     }
-    copy_huge(a, &x);
+    huge_copy(a, &x);
     free(x.rep);
     free(y.rep);
 }
 
 // 借助数组使用乘法实现大数相乘
-void multiply(huge* a, huge* b) {
+void huge_multiply(huge* a, huge* b) {
     int sign = (a->sign != b->sign) ? 1 : 0;
     int size = a->size + b->size;
     huge_word sum[size];
@@ -358,29 +355,29 @@ void multiply(huge* a, huge* b) {
     }
 
     free(a->rep);
-    load_words(a, sum + i, size - i);
+    huge_load_words(a, sum + i, size - i);
     a->sign = sign;
 }
 
-void divide(huge* dividend, huge* divisor, huge* quotient) {
-    int c = compare(dividend, divisor);
+void huge_divide(huge* dividend, huge* divisor, huge* quotient) {
+    int c = huge_compare(dividend, divisor);
     int sign = dividend->sign = (dividend->sign != divisor->sign) ? 1 : 0;
     huge* _dividend = dividend;
 
     if (_dividend == divisor) { //自己除自己
         _dividend = (huge*)malloc(sizeof(huge));
-        set_huge(_dividend, 0);
-        copy_huge(_dividend, dividend);
+        huge_set(_dividend, 0);
+        huge_copy(_dividend, dividend);
     }
     _dividend->sign = 0;
     if (c < 0) {
         _dividend->sign = sign;
         if (_dividend != dividend) {
-            copy_huge(dividend, _dividend);
-            free_huge(_dividend);
+            huge_copy(dividend, _dividend);
+            huge_free(_dividend);
         }
         if (quotient) {
-            set_huge(quotient, 0);
+            huge_set(quotient, 0);
         }
         return;
     }
@@ -388,8 +385,8 @@ void divide(huge* dividend, huge* divisor, huge* quotient) {
     int bits = 1, bitPos = 0, zeros;
     huge_word mask = 0, tmp;
     huge _divisor;
-    set_huge(&_divisor, 0);
-    copy_huge(&_divisor, divisor);
+    _divisor.rep = NULL;
+    huge_copy(&_divisor, divisor);
 
     if (_dividend->size - _divisor.size > 0) {
         int words = _dividend->size - _divisor.size;
@@ -401,11 +398,11 @@ void divide(huge* dividend, huge* divisor, huge* quotient) {
             bits += words * HUGE_WORD_BITS;
         }
     }
-    while (compare(_dividend, &_divisor) >= 0) {
-        left_shift(&_divisor, 1);
+    while (huge_compare(_dividend, &_divisor) >= 0) {
+        huge_left_shift(&_divisor, 1);
         bits++;
     }
-    right_shift(&_divisor, 1);
+    huge_right_shift(&_divisor, 1);
     bits--;
     bitPos = (bits / HUGE_WORD_BITS + 1) * HUGE_WORD_BITS - bits;
 
@@ -416,9 +413,9 @@ void divide(huge* dividend, huge* divisor, huge* quotient) {
         memset(quotient->rep, 0, quotient->size * HUGE_WORD_BYTES);
     }
 
-    while (compare(_dividend, divisor) >= 0 && _dividend->sign == 0) {
-        if (compare(_dividend, &_divisor) >= 0) {
-            subtract(_dividend, &_divisor);
+    while (huge_compare(_dividend, divisor) >= 0 && _dividend->sign == 0) {
+        if (huge_compare(_dividend, &_divisor) >= 0) {
+            huge_subtract(_dividend, &_divisor);
             if (quotient) {
                 quotient->rep[bitPos / HUGE_WORD_BITS] |= (HUGE_WORD_HIGH_BIT >> (bitPos % HUGE_WORD_BITS));
             }
@@ -447,7 +444,7 @@ void divide(huge* dividend, huge* divisor, huge* quotient) {
         }
         bits = bits == 0 ? 1 : bits;
 
-        right_shift(&_divisor, bits);
+        huge_right_shift(&_divisor, bits);
         bitPos += bits;
     }
 
@@ -456,71 +453,85 @@ void divide(huge* dividend, huge* divisor, huge* quotient) {
         quotient->sign = sign;
     }
     if (_dividend != dividend) {
-        copy_huge(dividend, _dividend);
-        free_huge(_dividend);
+        huge_copy(dividend, _dividend);
+        huge_free(_dividend);
     }
     free(_divisor.rep);
 }
 
 // a = a^e%p (if p)
-void mod_pow(huge* a, huge* e, huge* p) {
+void huge_mod_pow(huge* a, huge* e, huge* p) {
     huge result, aTmp, ec;
-    set_huge(&result, 1);
-    set_huge(&aTmp, 0);
-    set_huge(&ec, 0);
-    copy_huge(&aTmp, a);
-    copy_huge(&ec, e);
+    huge_set(&result, 1);
+    aTmp.rep = NULL;
+    ec.rep = NULL;
+    huge_copy(&aTmp, a);
+    huge_copy(&ec, e);
     if (p) { //利用公式【(a*b)%p = ((a%p)*(b%p))%p】提升求模运算性能
-        divide(a, p, NULL);
+        huge_divide(a, p, NULL);
     }
 
     while (ec.rep[0]) {
         if (ec.rep[ec.size - 1] & 0x01) {
-            multiply(&result, &aTmp);
+            huge_multiply(&result, &aTmp);
             if (p) {
-                divide(&result, p, NULL);
+                huge_divide(&result, p, NULL);
             }
         }
-        multiply(&aTmp, &aTmp);
+        huge_multiply(&aTmp, &aTmp);
         if (p) {
-            divide(&aTmp, p, NULL);
+            huge_divide(&aTmp, p, NULL);
         }
-        right_shift(&ec, 1);
+        huge_right_shift(&ec, 1);
     }
-    copy_huge(a, &result);
+    huge_copy(a, &result);
     free(result.rep);
     free(aTmp.rep);
     free(ec.rep);
 }
 
-void _inv(huge* a, huge* b, huge* x, huge* y) {
+// 负数的逆元
+void huge_inverse_neg(huge* h, huge* p) {
+    huge tmp;
+    huge_set(&tmp, 0);
+
+    if (h->sign) {
+        huge_divide(h, p, NULL);
+        h->sign = 0;
+        huge_copy(&tmp, p);
+        huge_subtract(&tmp, h);
+        huge_copy(h, &tmp);
+    }
+}
+
+void _mul_inverse(huge* a, huge* b, huge* x, huge* y) {
     if (b->size == 1 && !b->rep[0]) {
-        set_huge(x, 1);
-        set_huge(y, 0);
+        huge_set(x, 1);
+        huge_set(y, 0);
         return;
     }
 
     huge a1, b1, x1, y1;
 
-    set_huge(&a1, 0);
-    set_huge(&b1, 0);
-    set_huge(&x1, 0);
-    set_huge(&y1, 0);
+    huge_set(&a1, 0);
+    huge_set(&b1, 0);
+    huge_set(&x1, 0);
+    huge_set(&y1, 0);
 
-    copy_huge(&a1, b);
-    copy_huge(&b1, a);
-    divide(&b1, b, NULL);
-    _inv(&a1, &b1, &x1, &y1);
+    huge_copy(&a1, b);
+    huge_copy(&b1, a);
+    huge_divide(&b1, b, NULL);
+    _mul_inverse(&a1, &b1, &x1, &y1);
 
     // x = y0
-    copy_huge(x, &y1);
+    huge_copy(x, &y1);
 
     // y = x0 - [a/b]*y0
-    copy_huge(&a1, a);
-    divide(&a1, b, &b1);
-    multiply(&b1, &y1);
-    subtract(&x1, &b1);
-    copy_huge(y, &x1);
+    huge_copy(&a1, a);
+    huge_divide(&a1, b, &b1);
+    huge_multiply(&b1, &y1);
+    huge_subtract(&x1, &b1);
+    huge_copy(y, &x1);
 
     free(a1.rep);
     free(b1.rep);
@@ -528,46 +539,32 @@ void _inv(huge* a, huge* b, huge* x, huge* y) {
     free(y1.rep);
 }
 
-// 负数的逆元
-void negativeInv(huge* h, huge* p) {
-    huge tmp;
-    set_huge(&tmp, 0);
-
-    if (h->sign) {
-        divide(h, p, NULL);
-        h->sign = 0;
-        copy_huge(&tmp, p);
-        subtract(&tmp, h);
-        copy_huge(h, &tmp);
-    }
-}
-
 // 求h在模p上的乘法逆元
-void inv(huge* h, huge* p) {
+void huge_inverse_mul(huge* h, huge* p) {
     huge x, y, tmp;
-    set_huge(&x, 0);
-    set_huge(&y, 0);
-    set_huge(&tmp, 0);
-    negativeInv(h, p);
+    huge_set(&x, 0);
+    huge_set(&y, 0);
+    huge_set(&tmp, 0);
+    huge_inverse_neg(h, p);
 
-    if (compare(h, p) == 0) { //h==p
-        set_huge(h, 1);
+    if (huge_compare(h, p) == 0) { //h==p
+        huge_set(h, 1);
         return;
     }
     if (h->size == 1 && !h->rep[0]) { //0
         return;
     }
 
-    copy_huge(&tmp, h);
-    divide(&tmp, p, NULL);
+    huge_copy(&tmp, h);
+    huge_divide(&tmp, p, NULL);
     if (tmp.size == 1 && !tmp.rep[0]) { //h%p==0,则返回p
-        copy_huge(h, p);
+        huge_copy(h, p);
         return;
     }
 
-    _inv(h, p, &x, &y);
-    copy_huge(h, &x);
-    negativeInv(h, p);
+    _mul_inverse(h, p, &x, &y);
+    huge_copy(h, &x);
+    huge_inverse_neg(h, p);
 }
 
 // #define TEST_HUGE
@@ -581,42 +578,42 @@ int main() {
 
     // size1 = hex_decode((unsigned char*)"0x1122334455", &a1);
     // unsigned char out[size1];
-    // load_huge(&a, a1, size1);
-    // unload_huge(&a, out, size1);
+    // huge_load(&a, a1, size1);
+    // huge_unload(&a, out, size1);
     // show_hex(out, size1);
 
-    // set_huge(&a, 4294967295);
-    // set_huge(&b, 123456789);
-    // add(&a, &b);
+    // huge_set(&a, 4294967295);
+    // huge_set(&b, 123456789);
+    // huge_add(&a, &b);
     // show_hex(a.rep, a.size, HUGE_WORD_BYTES);
 
-    // set_huge(&a, 222222222);
-    // set_huge(&b, 123456789);
-    // subtract(&a, &b);
+    // huge_set(&a, 222222222);
+    // huge_set(&b, 123456789);
+    // huge_subtract(&a, &b);
     // show_hex(a.rep, a.size, HUGE_WORD_BYTES);
 
     // for (int i = 0; i < 1; i++) {
     //     size1 = hex_decode((unsigned char*)"0x81cd228f93f95f18673b5", &a1);
     //     size2 = hex_decode((unsigned char*)"0x763d981006a644ffb4415", &b1);
-    //     load_huge(&a, a1, size1);
-    //     load_huge(&b, b1, size2);
-    //     subtract(&a, &b);
+    //     huge_load(&a, a1, size1);
+    //     huge_load(&b, b1, size2);
+    //     huge_subtract(&a, &b);
     //     show_hex(a.rep, a.size, HUGE_WORD_BYTES);
     // }
 
-    // set_huge(&a, 4294967295);
-    // set_huge(&b, 123456);
-    // multiply(&a, &b);
+    // huge_set(&a, 4294967295);
+    // huge_set(&b, 123456);
+    // huge_multiply(&a, &b);
     // show_hex(a.rep, a.size, HUGE_WORD_BYTES);
     // start = clock();
     // for (int i = 0; i < 1000000; i++) {
-    //     set_huge(&a, 7654321);
-    //     set_huge(&b, 123456790);
-    //     multiply(&a, &b);
+    //     huge_set(&a, 7654321);
+    //     huge_set(&b, 123456790);
+    //     huge_multiply(&a, &b);
     //     // show_hex(a.rep, a.size, HUGE_WORD_BYTES);
-    //     set_huge(&a, 28406);
-    //     set_huge(&b, 28406);
-    //     multiply(&a, &b);
+    //     huge_set(&a, 28406);
+    //     huge_set(&b, 28406);
+    //     huge_multiply(&a, &b);
     //     // show_hex(a.rep, a.size, HUGE_WORD_BYTES);
     // }
     // end = clock();
@@ -627,73 +624,73 @@ int main() {
     // for (int i = 0; i < 1000000; i++) {
     //     size1 = hex_decode((unsigned char*)"0x40f73315d3f74703904e51e1c72686801de06a55417110e56280f1f8471a3802406d2110011e1f387f7b4c43258b0a1eedc558a3aac5aa2d20cf5e0d65d80db3", &a1);
     //     size2 = hex_decode((unsigned char*)"0x40f73315d3f74703904e51e1c72686801de06a55417110e56280f1f8471a3802406d2110011e1f387f7b4c43258b0a1eedc558a3aac5aa2d20cf5e0d65d80db3", &b1);
-    //     load_huge(&a, a1, size1);
-    //     load_huge(&b, b1, size2);
-    //     multiply(&a, &b);
+    //     huge_load(&a, a1, size1);
+    //     huge_load(&b, b1, size2);
+    //     huge_multiply(&a, &b);
     //     // show_hex(a.rep, a.size, HUGE_WORD_BYTES);
     // }
     // end = clock();
     // printf("duration: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
     // size1 = hex_decode((unsigned char*)"0x84bb4d5aa3c6d45a79d615461ba398a91632046307c5977cea48334743939abf7e1650fd3f16d1769f89691faf45b6bccb44e25d6525ddf03c832051a70d7337", &a1);
-    // load_huge(&a, a1, size1);
-    // multiply(&a, &a);
+    // huge_load(&a, a1, size1);
+    // huge_multiply(&a, &a);
     // show_hex(a.rep, a.size, HUGE_WORD_BYTES);
 
-    // set_huge(&a, 1123456789);
-    // set_huge(&b, 321123);
-    // set_huge(&c, 0);
-    // divide(&a, &b, &c);
+    // huge_set(&a, 1123456789);
+    // huge_set(&b, 321123);
+    // huge_set(&c, 0);
+    // huge_divide(&a, &b, &c);
     // show_hex(a.rep, a.size, HUGE_WORD_BYTES);
     // show_hex(c.rep, c.size, HUGE_WORD_BYTES);
-    // set_huge(&a, 20);
-    // set_huge(&b, 3);
-    // set_huge(&c, 0);
-    // divide(&a, &b, &c);
+    // huge_set(&a, 20);
+    // huge_set(&b, 3);
+    // huge_set(&c, 0);
+    // huge_divide(&a, &b, &c);
     // show_hex(a.rep, a.size, HUGE_WORD_BYTES);
     // show_hex(c.rep, c.size, HUGE_WORD_BYTES);
     // start = clock();
     // for (int i = 0; i < 10000; i++) {
     //     size1 = hex_decode((unsigned char*)"0x77229a8f6d60170c9dd81cd228f93f95f18673b50dbeee798fe518406ffe8ade37915578ba024dab12fcf26f05b5597f120775050929fb20061a155fd8a79339e004761259f9b6f8d862fe75ca87d07c0ff21f615daa9aaef04dc401bc707c465f2558b221db40821cf29adc7715d93f4a61d9d89700ca35dcd69173aefce440", &a1);
     //     size2 = hex_decode((unsigned char*)"0xc4f8e9e15dcadf2b96c763d981006a644ffb4415030a16ed1283883340f2aa0e2be2be8fa60150b9046965837c3e7d151b7de237ebb957c20663898250703b3f", &b1);
-    //     load_huge(&a, a1, size1);
-    //     load_huge(&b, b1, size2);
-    //     divide(&a, &b, &c);
+    //     huge_load(&a, a1, size1);
+    //     huge_load(&b, b1, size2);
+    //     huge_divide(&a, &b, &c);
     //     // show_hex(a.rep, a.size, HUGE_WORD_BYTES);
     // }
     // end = clock();
     // printf("duration: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
 
-    // set_huge(&a, 21 + 23 * 123456);
+    // huge_set(&a, 21 + 23 * 123456);
     // a.sign = 1;
-    // set_huge(&b, 23);
-    // inv(&a, &b);
+    // huge_set(&b, 23);
+    // huge_inverse_mul(&a, &b);
     // printf("sign:%d\n", a.sign);
     // show_hex(a.rep, a.size, HUGE_WORD_BYTES);
-    // set_huge(&a, 12);
-    // set_huge(&b, 3);
-    // inv(&a, &b);
+    // huge_set(&a, 12);
+    // huge_set(&b, 3);
+    // huge_inverse_mul(&a, &b);
     // printf("sign:%d\n", a.sign);
     // show_hex(a.rep, a.size, HUGE_WORD_BYTES);
 
-    // set_huge(&a, 1);
-    // set_huge(&b, 0x80);
+    // huge_set(&a, 1);
+    // huge_set(&b, 0x80);
     // for (int i = 1; i <= 17; i++) {
-    //     left_shift(&a, 1);
-    //     left_shift(&b, 1);
+    //     huge_left_shift(&a, 1);
+    //     huge_left_shift(&b, 1);
     // }
     // show_hex(a.rep, a.size, HUGE_WORD_BYTES);
     // show_hex(b.rep, b.size, HUGE_WORD_BYTES);
     // for (int i = 1; i <= 17; i++) {
-    //     right_shift(&a, 1);
-    //     right_shift(&b, 1);
+    //     huge_right_shift(&a, 1);
+    //     huge_right_shift(&b, 1);
     // }
     // show_hex(a.rep, a.size, HUGE_WORD_BYTES);
     // show_hex(b.rep, b.size, HUGE_WORD_BYTES);
-    // set_huge(&a, 0x6ef6);
-    // left_shift(&a, 2);
+    // huge_set(&a, 0x6ef6);
+    // huge_left_shift(&a, 2);
     // show_hex(a.rep, a.size, HUGE_WORD_BYTES);
-    // set_huge(&a, 0x6ef6);
-    // left_shift(&a, 4);
+    // huge_set(&a, 0x6ef6);
+    // huge_left_shift(&a, 4);
     // show_hex(a.rep, a.size, HUGE_WORD_BYTES);
 
     // start = clock();
@@ -701,10 +698,10 @@ int main() {
     //     // if (i != 2) {
     //     //     continue;
     //     // }
-    //     set_huge(&a, 2);
-    //     set_huge(&b, i);
-    //     set_huge(&c, 23);
-    //     mod_pow(&a, &b, &c);
+    //     huge_set(&a, 2);
+    //     huge_set(&b, i);
+    //     huge_set(&c, 23);
+    //     huge_mod_pow(&a, &b, &c);
     //     show_hex(a.rep, a.size, HUGE_WORD_BYTES);
     // }
     // end = clock();
