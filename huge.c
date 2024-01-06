@@ -383,13 +383,17 @@ void huge_divide_small(huge* dividend, huge* divisor, huge* quotient) {
         huge_copy(_dividend, dividend);
     }
     _dividend->sign = 0;
-    if (c < 0 || dividend->size == 1) {
+
+    if (c <= 0 || dividend->size == 1) {
         huge_word q = 0;
-        if (dividend->size == 1) {
+        if (c == 0) {
+            q = 1;
+            free(_dividend->rep);
+            huge_set(_dividend, 0);
+        } else if (dividend->size == 1) {
             q = dividend->rep[0] / divisor->rep[0];
             _dividend->rep[0] = dividend->rep[0] % divisor->rep[0];
         }
-        _dividend->sign = sign;
         if (_dividend != dividend) {
             huge_copy(dividend, _dividend);
             huge_free(_dividend);
@@ -397,6 +401,8 @@ void huge_divide_small(huge* dividend, huge* divisor, huge* quotient) {
         if (quotient) {
             huge_set(quotient, q);
         }
+        dividend->sign = sign;
+
         return;
     }
 
@@ -511,9 +517,9 @@ huge_word get_one_quotient(huge* dividend, huge* divisor, int bits) {
 
     if (huge_compare(&tmp, dividend) > 0) {
         q1--;
-        huge_add(dividend, divisor);
+    } else {
+        huge_subtract(dividend, &tmp);
     }
-    huge_subtract(dividend, &tmp);
 
     if (bits) {
         huge_right_shift(dividend, bits);
@@ -525,30 +531,25 @@ huge_word get_one_quotient(huge* dividend, huge* divisor, int bits) {
 
 // Knuth 除法（https://www.cnblogs.com/kentle/p/16180799.html，https://zach41.github.io/2017/07/18/Knuth%20Arithmetic%20Algorithm/）
 void huge_divide(huge* dividend, huge* divisor, huge* quotient) {
-    if (dividend->size < 3 || divisor->size < 2) {
+    int c = huge_compare(dividend, divisor);
+    if (dividend->size < 3 || divisor->size < 2 || c <= 0) {
         huge_divide_small(dividend, divisor, quotient);
         return;
     }
 
-    int c = huge_compare(dividend, divisor);
     int sign = dividend->sign = (dividend->sign != divisor->sign) ? 1 : 0;
-    huge* _dividend = dividend;
-
-    if (_dividend == divisor) { //自己除自己
-        _dividend = (huge*)malloc(sizeof(huge));
-        _dividend->rep = NULL;
-        huge_copy(_dividend, dividend);
-    }
-
     int bits = 0;
     int q_size = dividend->size - divisor->size + 1;
     huge_word dr1 = divisor->rep[0], q[q_size], qj;
     huge divd, divr;
+
     divd.rep = NULL;
     divr.rep = NULL;
     huge_copy(&divd, dividend);
     huge_copy(&divr, divisor);
     divd.size = divisor->size - 1;
+    divd.sign = 0;
+    divr.sign = 0;
 
     while ((dr1 & HUGE_WORD_HIGH_BIT) == 0) { //使divisor.rep[0] >= b/2
         bits++;
@@ -565,6 +566,7 @@ void huge_divide(huge* dividend, huge* divisor, huge* quotient) {
         }
         if (c == 0) {
             q[j] = 1;
+            huge_set(&divd, 0);
             continue;
         }
         qj = get_one_quotient(&divd, &divr, bits);
@@ -572,8 +574,10 @@ void huge_divide(huge* dividend, huge* divisor, huge* quotient) {
     }
 
     huge_copy(dividend, &divd);
+    dividend->sign = sign;
     if (quotient) {
         huge_load_words(quotient, q, q_size);
+        quotient->sign = sign;
     }
 }
 

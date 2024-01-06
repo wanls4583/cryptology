@@ -62,6 +62,7 @@ int rsa_decrypt(
     unsigned char padded_block[p_size];
 
     huge a, e, p;
+    huge_set(&a, 0);
     huge_set(&e, 0);
     huge_set(&p, 0);
     huge_copy(&e, private_key->key);
@@ -154,8 +155,7 @@ int main() {
     huge_load(rsa.key, TestPrivateKey, sizeof(TestPrivateKey));
     start = clock();
     for(int i = 0; i < 10; i++) {
-        len = rsa_decrypt(encData, strlen((const char*)encData), &decData, &rsa);
-        // show_hex(decData, len, 1);
+        rsa_decrypt(encData, len, &decData, &rsa);
     }
     end = clock();
     printf("%s\n", decData);
