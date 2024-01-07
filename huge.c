@@ -243,19 +243,19 @@ void huge_add(huge* a, huge* b) {
     huge_copy(&y, b);
     if (x.sign == y.sign) {
         int i = 0, j = 0;
-        int64_t carry = 0;
+        u_int64_t carry = 0;
         if (y.size > x.size) {
             huge_swap(&x, &y);
         }
         i = x.size - 1;
         j = y.size - 1;
         while (i >= 0 || j >= 0) {
-            int64_t sum = (int64_t)x.rep[i] + carry;
+            u_int64_t sum = (u_int64_t)x.rep[i] + carry;
             if (j >= 0) {
                 sum += y.rep[j];
             }
-            x.rep[i] = sum % HUGE_WORD_MAX;
-            carry = sum / HUGE_WORD_MAX;
+            x.rep[i] = sum & HUGE_WORD_FULL_BIT;
+            carry = sum >> HUGE_WORD_BITS;
             i--;
             j--;
         }
@@ -325,8 +325,8 @@ void huge_multiply_word(huge* a, huge_word word) {
     u_int64_t carry = 0, sum = 0;
     for (int i = a->size - 1; i >= 0; i--) {
         sum = (u_int64_t)a->rep[i] * word + carry;
-        a->rep[i] = sum % HUGE_WORD_MAX;
-        carry = sum / HUGE_WORD_MAX;
+        a->rep[i] = sum & HUGE_WORD_FULL_BIT;
+        carry = sum >> HUGE_WORD_BITS;
     }
     if (carry) {
         expand(a);
@@ -352,8 +352,8 @@ void huge_multiply(huge* a, huge* b) {
                 index--;
                 num = sum[index] + p;
                 if (num >= HUGE_WORD_MAX) {
-                    p = num / HUGE_WORD_MAX;
-                    sum[index] = num % HUGE_WORD_MAX;
+                    sum[index] = num & HUGE_WORD_FULL_BIT;
+                    p = num >> HUGE_WORD_BITS;
                 } else {
                     p = 0;
                     sum[index] = num;
@@ -696,7 +696,7 @@ void huge_inverse_mul(huge* h, huge* p) {
     huge_inverse_neg(h, p);
 }
 
-#define TEST_HUGE
+// #define TEST_HUGE
 #ifdef TEST_HUGE
 #include <time.h>
 int main() {

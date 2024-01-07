@@ -5,6 +5,7 @@ typedef u_int32_t huge_word;
 #define HUGE_WORD_BITS (HUGE_WORD_BYTES*8)
 #define HUGE_WORD_MAX ((u_int64_t)4294967296)
 #define HUGE_WORD_HIGH_BIT 0x80000000
+#define HUGE_WORD_FULL_BIT 0xffffffff
 typedef struct huge {
     int size;
     int sign;
