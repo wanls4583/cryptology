@@ -406,7 +406,7 @@ void huge_divide_small(huge* dividend, huge* divisor, huge* quotient) {
         return;
     }
 
-    int bits = 1, bitPos = 0, zeros;
+    int bits = 1, bitPos = 0, bSize = 0, zeros;
     huge_word mask = 0, tmp;
     huge _divisor;
     _divisor.rep = NULL;
@@ -428,10 +428,11 @@ void huge_divide_small(huge* dividend, huge* divisor, huge* quotient) {
     }
     huge_right_shift(&_divisor, 1);
     bits--;
-    bitPos = (bits / HUGE_WORD_BITS + (bits % HUGE_WORD_BITS ? 1 : 0)) * HUGE_WORD_BITS - bits;
+    bSize = bits / HUGE_WORD_BITS + (bits % HUGE_WORD_BITS ? 1 : 0);
+    bitPos = bSize * HUGE_WORD_BITS - bits;
 
     if (quotient) {
-        quotient->size = bits / HUGE_WORD_BITS + 1;
+        quotient->size = bSize;
         quotient->sign = 0;
         quotient->rep = (huge_word*)malloc(quotient->size * HUGE_WORD_BYTES);
         memset(quotient->rep, 0, quotient->size * HUGE_WORD_BYTES);
@@ -496,6 +497,12 @@ huge_word get_one_quotient(huge* dividend, huge* divisor, int bits) {
     u_int64_t dr1 = (u_int64_t)divisor->rep[0];
     u_int64_t dr2 = (u_int64_t)divisor->rep[1];
 
+    if (dividend->size == divisor->size) {
+        dd3 = dd2;
+        dd2 = dd1;
+        dd1 = 0;
+    }
+
     u_int64_t q1 = (dd1 * b + dd2) / dr1;
     if (q1 >= b) {
         q1 = b - 1;
@@ -515,10 +522,10 @@ huge_word get_one_quotient(huge* dividend, huge* divisor, int bits) {
     huge_copy(&tmp, divisor);
     huge_multiply_word(&tmp, q1);
 
-    if (huge_compare(&tmp, dividend) > 0) {
+    huge_subtract(dividend, &tmp);
+    if (dividend->sign) {
         q1--;
-    } else {
-        huge_subtract(dividend, &tmp);
+        huge_add(dividend, divisor);
     }
 
     if (bits) {
@@ -689,7 +696,7 @@ void huge_inverse_mul(huge* h, huge* p) {
     huge_inverse_neg(h, p);
 }
 
-// #define TEST_HUGE
+#define TEST_HUGE
 #ifdef TEST_HUGE
 #include <time.h>
 int main() {
@@ -764,20 +771,20 @@ int main() {
     // huge_divide(&a, &b, &c);
     // show_hex(a.rep, a.size, HUGE_WORD_BYTES);
     // show_hex(c.rep, c.size, HUGE_WORD_BYTES);
-    start = clock();
-    for (int i = 0; i < 100000; i++) {
-        size1 = hex_decode((unsigned char*)"0x77229a8f6d60170c9dd81cd228f93f95f18673b50dbeee798fe518406ffe8ade37915578ba024dab12fcf26f05b5597f120775050929fb20061a155fd8a79339e004761259f9b6f8d862fe75ca87d07c0ff21f615daa9aaef04dc401bc707c465f2558b221db40821cf29adc7715d93f4a61d9d89700ca35dcd69173aefce440", &a1);
+    // start = clock();
+    for (int i = 0; i < 1; i++) {
+        size1 = hex_decode((unsigned char*)"0xf48e9e9297dc258097dc258077229a8f6d60170c9dd81cd228f93f95f18673b50dbeee798fe518406ffe8ade37915578ba024dab12fcf26f05b5597f120775050929fb20061a155fd8a79339e004761259f9b6f8d862fe75ca87d07c0ff21f615daa9aaef04dc401bc707c465f2558b221db40821cf29adc7715d93f4a61d9d89700ca35dcd69173aefce440", &a1);
         size2 = hex_decode((unsigned char*)"0xc4f8e9e15dcadf2b96c763d981006a644ffb4415030a16ed1283883340f2aa0e2be2be8fa60150b9046965837c3e7d151b7de237ebb957c20663898250703b3f", &b1);
         huge_load(&a, a1, size1);
         huge_load(&b, b1, size2);
         huge_divide(&a, &b, &c);
-        // show_hex(a.rep, a.size, HUGE_WORD_BYTES);
-        // show_hex(c.rep, c.size, HUGE_WORD_BYTES);
+        show_hex(a.rep, a.size, HUGE_WORD_BYTES);
+        show_hex(c.rep, c.size, HUGE_WORD_BYTES);
     }
-    end = clock();
-    printf("duration: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
-    // size1 = hex_decode((unsigned char*)"0x112233445566778899", &a1);
-    // size2 = hex_decode((unsigned char*)"0x8877665544332211", &b1);
+    // end = clock();
+    // printf("duration: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
+    // size1 = hex_decode((unsigned char*)"0xf48e9e9297dc258097dc2580", &a1);
+    // size2 = hex_decode((unsigned char*)"0xc4f8e9e144332211", &b1);
     // huge_load(&a, a1, size1);
     // huge_load(&b, b1, size2);
     // huge_divide(&a, &b, &c);
