@@ -334,8 +334,8 @@ void huge_multiply_word(huge* a, huge_word word) {
     }
 }
 
-// 借助数组使用乘法实现大数相乘
-void huge_multiply(huge* a, huge* b) {
+// 借助数组使用乘法实现大数相乘（时间复杂度：n^2）
+void huge_multiply_nn(huge* a, huge* b) {
     int sign = (a->sign != b->sign) ? 1 : 0;
     int size = a->size + b->size;
     huge_word sum[size];
@@ -370,6 +370,85 @@ void huge_multiply(huge* a, huge* b) {
     free(a->rep);
     huge_load_words(a, sum + i, size - i);
     a->sign = sign;
+}
+// karatsuba 分治乘法（时间复杂度：n^1.5）
+void huge_multiply_karatsuba(huge* a, huge* b, huge* c) {
+    if (a->size == 1) {
+        huge_copy(c, b);
+        huge_multiply_word(c, a->rep[0]);
+        return;
+    }
+    if (b->size == 1) {
+        huge_copy(c, a);
+        huge_multiply_word(c, b->rep[0]);
+        return;
+    }
+
+    int size = a->size > b->size ? a->size : b->size;
+    size >>= 1;
+
+    huge a1, a0, b1, b0;
+    huge_set(&a1, 0);
+    huge_set(&a0, 0);
+    huge_set(&b1, 0);
+    huge_set(&b0, 0);
+
+    a1.size = a->size - size;
+    a0.size = size > a->size ? a->size: size;
+    b1.size = b->size - size;
+    b0.size = size > a->size ? a->size: size;;
+    a0.rep = (huge_word*)realloc(a0.rep, a0.size * HUGE_WORD_BYTES);
+    b0.rep = (huge_word*)realloc(b0.rep, b0.size * HUGE_WORD_BYTES);
+    memcpy(a0.rep, a->rep + a->size - a0.size, a0.size * HUGE_WORD_BYTES);
+    memcpy(b0.rep, b->rep + b->size - b0.size, b0.size * HUGE_WORD_BYTES);
+    if (a1.size > 0) {
+        a1.rep = (huge_word*)realloc(a1.rep, a1.size * HUGE_WORD_BYTES);
+        memcpy(a1.rep, a->rep, a1.size * HUGE_WORD_BYTES);
+    } else {
+        a1.size = 1;
+    }
+    if (b1.size > 0) {
+        b1.rep = (huge_word*)realloc(b1.rep, b1.size * HUGE_WORD_BYTES);
+        memcpy(b1.rep, b->rep, b1.size * HUGE_WORD_BYTES);
+    } else {
+        b1.size = 1;
+    }
+
+    huge z0, z1, z2;
+    huge_set(&z0, 0);
+    huge_set(&z1, 0);
+    huge_set(&z2, 0);
+
+    huge_multiply_karatsuba(&a0, &b0, &z0);
+    huge_multiply_karatsuba(&a1, &b1, &z2);
+    huge_add(&a1, &a0);
+    huge_add(&b1, &b0);
+    huge_multiply_karatsuba(&a1, &b1, &z1);
+    huge_subtract(&z1, &z0);
+    huge_subtract(&z1, &z2);
+
+    expand_right(&z2, size * 2);
+    expand_right(&z1, size);
+    huge_add(&z2, &z1);
+    huge_add(&z2, &z0);
+
+    huge_copy(c, &z2);
+    free(a1.rep);
+    free(a0.rep);
+    free(b1.rep);
+    free(b0.rep);
+    free(z0.rep);
+    free(z1.rep);
+    free(z2.rep);
+}
+
+void huge_multiply(huge* a, huge* b) {
+    // huge c;
+    // c.rep = NULL;
+    // huge_multiply_karatsuba(a, b, &c);
+    // huge_copy(a, &c);
+    // free(c.rep);
+    huge_multiply_nn(a, b);
 }
 
 void huge_divide_small(huge* dividend, huge* divisor, huge* quotient) {
@@ -696,7 +775,7 @@ void huge_inverse_mul(huge* h, huge* p) {
     huge_inverse_neg(h, p);
 }
 
-// #define TEST_HUGE
+#define TEST_HUGE
 #ifdef TEST_HUGE
 #include <time.h>
 int main() {
@@ -747,20 +826,18 @@ int main() {
     // }
     // end = clock();
     // printf("duration: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
-    // start = clock();
-    // unsigned char* a1, * b1;
-    // int size1, size2;
-    // for (int i = 0; i < 1000000; i++) {
-    //     size1 = hex_decode((unsigned char*)"0x40f73315d3f74703904e51e1c72686801de06a55417110e56280f1f8471a3802406d2110011e1f387f7b4c43258b0a1eedc558a3aac5aa2d20cf5e0d65d80db3", &a1);
-    //     size2 = hex_decode((unsigned char*)"0x40f73315d3f74703904e51e1c72686801de06a55417110e56280f1f8471a3802406d2110011e1f387f7b4c43258b0a1eedc558a3aac5aa2d20cf5e0d65d80db3", &b1);
-    //     huge_load(&a, a1, size1);
-    //     huge_load(&b, b1, size2);
-    //     huge_multiply(&a, &b);
-    //     // show_hex(a.rep, a.size, HUGE_WORD_BYTES);
-    // }
-    // end = clock();
-    // printf("duration: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
-    // size1 = hex_decode((unsigned char*)"0x84bb4d5aa3c6d45a79d615461ba398a91632046307c5977cea48334743939abf7e1650fd3f16d1769f89691faf45b6bccb44e25d6525ddf03c832051a70d7337", &a1);
+    start = clock();
+    for (int i = 0; i < 1; i++) {
+        size1 = hex_decode((unsigned char*)"0x40f73315d3f74703904e51e1c72686801de06a55417110e56280f1f8471a3802406d2110011e1f387f7b4c43258b0a1eedc558a3aac5aa2d20cf5e0d65d80db340f73315d3f74703904e51e1c72686801de06a55417110e56280f1f8471a3802406d2110011e1f387f7b4c43258b0a1eedc558a3aac5aa2d20cf5e0d65d80db340f73315d3f74703904e51e1c72686801de06a55417110e56280f1f8471a3802406d2110011e1f387f7b4c43258b0a1eedc558a3aac5aa2d20cf5e0d65d80db340f73315d3f74703904e51e1c72686801de06a55417110e56280f1f8471a3802406d2110011e1f387f7b4c43258b0a1eedc558a3aac5aa2d20cf5e0d65d80db3", &a1);
+        size2 = hex_decode((unsigned char*)"0x40f73315d3f74703904e51e1c72686801de06a55417110e56280f1f8471a3802406d2110011e1f387f7b4c43258b0a1eedc558a3aac5aa2d20cf5e0d65d80db340f73315d3f74703904e51e1c72686801de06a55417110e56280f1f8471a3802406d2110011e1f387f7b4c43258b0a1eedc558a3aac5aa2d20cf5e0d65d80db340f73315d3f74703904e51e1c72686801de06a55417110e56280f1f8471a3802406d2110011e1f387f7b4c43258b0a1eedc558a3aac5aa2d20cf5e0d65d80db340f73315d3f74703904e51e1c72686801de06a55417110e56280f1f8471a3802406d2110011e1f387f7b4c43258b0a1eedc558a3aac5aa2d20cf5e0d65d80db3", &b1);
+        huge_load(&a, a1, size1);
+        huge_load(&b, b1, size2);
+        huge_multiply(&a, &b);
+    }
+    show_hex(a.rep, a.size, HUGE_WORD_BYTES);
+    end = clock();
+    printf("duration: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
+    // size1 = hex_decode((unsigned char*)"0x5544332211", &a1);
     // huge_load(&a, a1, size1);
     // huge_multiply(&a, &a);
     // show_hex(a.rep, a.size, HUGE_WORD_BYTES);
@@ -772,15 +849,15 @@ int main() {
     // show_hex(a.rep, a.size, HUGE_WORD_BYTES);
     // show_hex(c.rep, c.size, HUGE_WORD_BYTES);
     // start = clock();
-    for (int i = 0; i < 1; i++) {
-        size1 = hex_decode((unsigned char*)"0xf48e9e9297dc258097dc258077229a8f6d60170c9dd81cd228f93f95f18673b50dbeee798fe518406ffe8ade37915578ba024dab12fcf26f05b5597f120775050929fb20061a155fd8a79339e004761259f9b6f8d862fe75ca87d07c0ff21f615daa9aaef04dc401bc707c465f2558b221db40821cf29adc7715d93f4a61d9d89700ca35dcd69173aefce440", &a1);
-        size2 = hex_decode((unsigned char*)"0xc4f8e9e15dcadf2b96c763d981006a644ffb4415030a16ed1283883340f2aa0e2be2be8fa60150b9046965837c3e7d151b7de237ebb957c20663898250703b3f", &b1);
-        huge_load(&a, a1, size1);
-        huge_load(&b, b1, size2);
-        huge_divide(&a, &b, &c);
-        show_hex(a.rep, a.size, HUGE_WORD_BYTES);
-        show_hex(c.rep, c.size, HUGE_WORD_BYTES);
-    }
+    // for (int i = 0; i < 1; i++) {
+    //     size1 = hex_decode((unsigned char*)"0xf48e9e9297dc258097dc258077229a8f6d60170c9dd81cd228f93f95f18673b50dbeee798fe518406ffe8ade37915578ba024dab12fcf26f05b5597f120775050929fb20061a155fd8a79339e004761259f9b6f8d862fe75ca87d07c0ff21f615daa9aaef04dc401bc707c465f2558b221db40821cf29adc7715d93f4a61d9d89700ca35dcd69173aefce440", &a1);
+    //     size2 = hex_decode((unsigned char*)"0xc4f8e9e15dcadf2b96c763d981006a644ffb4415030a16ed1283883340f2aa0e2be2be8fa60150b9046965837c3e7d151b7de237ebb957c20663898250703b3f", &b1);
+    //     huge_load(&a, a1, size1);
+    //     huge_load(&b, b1, size2);
+    //     huge_divide(&a, &b, &c);
+    //     show_hex(a.rep, a.size, HUGE_WORD_BYTES);
+    //     show_hex(c.rep, c.size, HUGE_WORD_BYTES);
+    // }
     // end = clock();
     // printf("duration: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
     // size1 = hex_decode((unsigned char*)"0xf48e9e9297dc258097dc2580", &a1);
