@@ -172,7 +172,8 @@ void huge_left_shift(huge* h, int size) {
         return;
     }
 
-    int i = 0, words = size / HUGE_WORD_BITS, n2 = HUGE_WORD_HIGH_BIT, next = HUGE_WORD_HIGH_BIT;
+    int i = 0, words = size / HUGE_WORD_BITS;
+    huge_word n2 = HUGE_WORD_HIGH_BIT, next = HUGE_WORD_HIGH_BIT;
 
     expand_right(h, words);
     size -= words * HUGE_WORD_BITS;
@@ -212,7 +213,8 @@ void huge_right_shift(huge* h, int size) {
         return;
     }
 
-    int i = 0, words = size / HUGE_WORD_BITS, n2 = 0x1, next = 0x1;
+    int i = 0, words = size / HUGE_WORD_BITS;
+    huge_word n2 = 0x1, next = 0x1;
 
     h->size -= words;
     size -= words * HUGE_WORD_BITS;
@@ -775,7 +777,7 @@ void huge_inverse_mul(huge* h, huge* p) {
     huge_inverse_neg(h, p);
 }
 
-#define TEST_HUGE
+// #define TEST_HUGE
 #ifdef TEST_HUGE
 #include <time.h>
 int main() {
@@ -860,8 +862,8 @@ int main() {
     // }
     // end = clock();
     // printf("duration: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
-    // size1 = hex_decode((unsigned char*)"0xf48e9e9297dc258097dc2580", &a1);
-    // size2 = hex_decode((unsigned char*)"0xc4f8e9e144332211", &b1);
+    // size1 = hex_decode((unsigned char*)"0x3b157da53bcf906e48169a0ddcb0", &a1);
+    // size2 = hex_decode((unsigned char*)"0x0d0dc3a7af44344495afaec2f8b9", &b1);
     // huge_load(&a, a1, size1);
     // huge_load(&b, b1, size2);
     // huge_divide(&a, &b, &c);
