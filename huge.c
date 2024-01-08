@@ -775,7 +775,7 @@ void huge_inverse_mul(huge* h, huge* p) {
     huge_inverse_neg(h, p);
 }
 
-// #define TEST_HUGE
+#define TEST_HUGE
 #ifdef TEST_HUGE
 #include <time.h>
 int main() {
@@ -826,17 +826,17 @@ int main() {
     // }
     // end = clock();
     // printf("duration: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
-    start = clock();
-    for (int i = 0; i < 1; i++) {
-        size1 = hex_decode((unsigned char*)"0x40f73315d3f74703904e51e1c72686801de06a55417110e56280f1f8471a3802406d2110011e1f387f7b4c43258b0a1eedc558a3aac5aa2d20cf5e0d65d80db340f73315d3f74703904e51e1c72686801de06a55417110e56280f1f8471a3802406d2110011e1f387f7b4c43258b0a1eedc558a3aac5aa2d20cf5e0d65d80db340f73315d3f74703904e51e1c72686801de06a55417110e56280f1f8471a3802406d2110011e1f387f7b4c43258b0a1eedc558a3aac5aa2d20cf5e0d65d80db340f73315d3f74703904e51e1c72686801de06a55417110e56280f1f8471a3802406d2110011e1f387f7b4c43258b0a1eedc558a3aac5aa2d20cf5e0d65d80db3", &a1);
-        size2 = hex_decode((unsigned char*)"0x40f73315d3f74703904e51e1c72686801de06a55417110e56280f1f8471a3802406d2110011e1f387f7b4c43258b0a1eedc558a3aac5aa2d20cf5e0d65d80db340f73315d3f74703904e51e1c72686801de06a55417110e56280f1f8471a3802406d2110011e1f387f7b4c43258b0a1eedc558a3aac5aa2d20cf5e0d65d80db340f73315d3f74703904e51e1c72686801de06a55417110e56280f1f8471a3802406d2110011e1f387f7b4c43258b0a1eedc558a3aac5aa2d20cf5e0d65d80db340f73315d3f74703904e51e1c72686801de06a55417110e56280f1f8471a3802406d2110011e1f387f7b4c43258b0a1eedc558a3aac5aa2d20cf5e0d65d80db3", &b1);
-        huge_load(&a, a1, size1);
-        huge_load(&b, b1, size2);
-        huge_multiply(&a, &b);
-    }
-    show_hex(a.rep, a.size, HUGE_WORD_BYTES);
-    end = clock();
-    printf("duration: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
+    // start = clock();
+    // for (int i = 0; i < 1; i++) {
+    //     size1 = hex_decode((unsigned char*)"0x40f73315d3f74703904e51e1c72686801de06a55417110e56280f1f8471a3802406d2110011e1f387f7b4c43258b0a1eedc558a3aac5aa2d20cf5e0d65d80db340f73315d3f74703904e51e1c72686801de06a55417110e56280f1f8471a3802406d2110011e1f387f7b4c43258b0a1eedc558a3aac5aa2d20cf5e0d65d80db340f73315d3f74703904e51e1c72686801de06a55417110e56280f1f8471a3802406d2110011e1f387f7b4c43258b0a1eedc558a3aac5aa2d20cf5e0d65d80db340f73315d3f74703904e51e1c72686801de06a55417110e56280f1f8471a3802406d2110011e1f387f7b4c43258b0a1eedc558a3aac5aa2d20cf5e0d65d80db3", &a1);
+    //     size2 = hex_decode((unsigned char*)"0x40f73315d3f74703904e51e1c72686801de06a55417110e56280f1f8471a3802406d2110011e1f387f7b4c43258b0a1eedc558a3aac5aa2d20cf5e0d65d80db340f73315d3f74703904e51e1c72686801de06a55417110e56280f1f8471a3802406d2110011e1f387f7b4c43258b0a1eedc558a3aac5aa2d20cf5e0d65d80db340f73315d3f74703904e51e1c72686801de06a55417110e56280f1f8471a3802406d2110011e1f387f7b4c43258b0a1eedc558a3aac5aa2d20cf5e0d65d80db340f73315d3f74703904e51e1c72686801de06a55417110e56280f1f8471a3802406d2110011e1f387f7b4c43258b0a1eedc558a3aac5aa2d20cf5e0d65d80db3", &b1);
+    //     huge_load(&a, a1, size1);
+    //     huge_load(&b, b1, size2);
+    //     huge_multiply(&a, &b);
+    // }
+    // show_hex(a.rep, a.size, HUGE_WORD_BYTES);
+    // end = clock();
+    // printf("duration: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
     // size1 = hex_decode((unsigned char*)"0x5544332211", &a1);
     // huge_load(&a, a1, size1);
     // huge_multiply(&a, &a);
@@ -879,6 +879,14 @@ int main() {
     // huge_inverse_mul(&a, &b);
     // printf("sign:%d\n", a.sign);
     // show_hex(a.rep, a.size, HUGE_WORD_BYTES);
+    size1 = hex_decode((unsigned char*)"0x49fb8d96c64584d71bdfba03e56b62d3155e27eb", &a1);
+    size2 = hex_decode((unsigned char*)"0xac6fc137ef1674526aebc5f8f21f53f40fe0515f", &b1);
+    huge_load(&a, a1, size1);
+    huge_load(&b, b1, size2);
+    show_hex(a.rep, a.size, HUGE_WORD_BYTES);
+    show_hex(b.rep, b.size, HUGE_WORD_BYTES);
+    huge_inverse_mul(&a, &b);
+    show_hex(a.rep, a.size, HUGE_WORD_BYTES);
 
     // huge_set(&a, 1);
     // huge_set(&b, 0x80);
