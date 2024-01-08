@@ -3,22 +3,38 @@
 #include "rsa.h"
 #include "hex.h"
 
-int rsa_encrypt(
+#define RSA_NO_PADDING 0
+#define RSA_PKCS1_PADDING 1
+#define RSA_PKCS1_OAEP_PADDING 2
+
+#define RSA_PKCS1_PADDING_BT_0 0x00
+#define RSA_PKCS1_PADDING_BT_1 0x01
+#define RSA_PKCS1_PADDING_BT_2 0x02
+
+int rsa_encrypt_procss(
+    rsa_key* rsa_key,
     unsigned char* input,
     unsigned int len,
     unsigned char** output,
-    rsa_key* public_key
+    int padded_mode,
+    int padded_bt
 ) {
-    int p_size = public_key->p->size * HUGE_WORD_BYTES;
-    int max_block_size = p_size - 11;
+    int p_size = rsa_key->p->size * HUGE_WORD_BYTES;
+    int max_block_size = p_size;
     int encrypted_size = 0;
     unsigned char padded_block[p_size];
+
+    if (padded_mode == RSA_PKCS1_PADDING) {
+        max_block_size -= 11;
+    } else if (padded_mode == RSA_PKCS1_OAEP_PADDING) {
+        max_block_size -= 41;
+    }
 
     huge a, e, p;
     huge_set(&e, 0);
     huge_set(&p, 0);
-    huge_copy(&e, public_key->key);
-    huge_copy(&p, public_key->p);
+    huge_copy(&e, rsa_key->key);
+    huge_copy(&p, rsa_key->p);
 
     *output = NULL;
 
@@ -28,10 +44,24 @@ int rsa_encrypt(
 
         memset(padded_block, 0, p_size);
         memcpy(padded_block + p_size - block_size, input, block_size);
-        padded_block[1] = 0x02;
-        // 填充随机数
-        for (int i = 2; i < p_size - block_size - 1; i++) {
-            padded_block[i] = i;
+
+        if (padded_mode == RSA_PKCS1_PADDING) {
+            padded_block[1] = padded_bt;
+            if (padded_bt == RSA_PKCS1_PADDING_BT_2) {
+                // 填充随机数
+                for (int i = 2; i < p_size - block_size - 1; i++) {
+                    padded_block[i] = i;
+                }
+            } else {
+                int bt = 0x00;
+                if (padded_bt == RSA_PKCS1_PADDING_BT_1) {
+                    bt = 0xff;
+                }
+                // 00或ff填充
+                for (int i = 2; i < p_size - block_size - 1; i++) {
+                    padded_block[i] = bt;
+                }
+            }
         }
 
         huge_load(&a, padded_block, p_size);
@@ -51,13 +81,14 @@ int rsa_encrypt(
     return encrypted_size;
 }
 
-int rsa_decrypt(
+int rsa_decrypt_process(
+    rsa_key* rsa_key,
     unsigned char* input,
     unsigned int len,
     unsigned char** output,
-    rsa_key* private_key
+    int padded_mode
 ) {
-    int p_size = private_key->p->size * HUGE_WORD_BYTES;
+    int p_size = rsa_key->p->size * HUGE_WORD_BYTES;
     int decrypted_size = 0;
     unsigned char padded_block[p_size];
 
@@ -65,8 +96,8 @@ int rsa_decrypt(
     huge_set(&a, 0);
     huge_set(&e, 0);
     huge_set(&p, 0);
-    huge_copy(&e, private_key->key);
-    huge_copy(&p, private_key->p);
+    huge_copy(&e, rsa_key->key);
+    huge_copy(&p, rsa_key->p);
 
     *output = NULL;
 
@@ -78,11 +109,26 @@ int rsa_decrypt(
         memset(padded_block, 0, p_size);
         huge_unload(&a, padded_block, p_size);
 
-        int i = 1;
-        if (padded_block[1] != 0x02) { //数据错误
-            return 0;
+        int i = 0;
+        if (padded_mode == RSA_NO_PADDING) {
+            // 找到填充后的真实数据
+            while (!padded_block[i] && i < p_size) { i++; }
+        } else if (padded_mode == RSA_PKCS1_PADDING) {
+            i = 1;
+            // 找到填充后的真实数据
+            if (padded_block[1] == RSA_PKCS1_PADDING_BT_0) {
+                while (!padded_block[i] && i < p_size) { i++; }
+            } else if (padded_block[1] == RSA_PKCS1_PADDING_BT_1) {
+                while (padded_block[i] == 0xff && i < p_size) { i++; }
+                i++;
+            } else if (padded_block[1] == RSA_PKCS1_PADDING_BT_2) {
+                while (padded_block[i] && i < p_size) { i++; }
+                i++;
+            } else { //数据错误
+                return 0;
+            }
         }
-        while (padded_block[i++]) {} //找到填充后的真实数据
+
         data_szie = p_size - i;
         if (data_szie <= 0) { //数据错误
             return 0;
@@ -103,7 +149,56 @@ int rsa_decrypt(
     return decrypted_size;
 }
 
-// #define TEST_RSA
+int rsa_encrypt(
+    rsa_key* rsa_key,
+    unsigned char* input,
+    unsigned int len,
+    unsigned char** output,
+    int padded_mode
+) {
+    if (padded_mode == RSA_NO_PADDING) {
+        return rsa_encrypt_procss(rsa_key, input, len, output, padded_mode, 0);
+    } else if (padded_mode == RSA_PKCS1_PADDING) {
+        return rsa_encrypt_procss(rsa_key, input, len, output, padded_mode, RSA_PKCS1_PADDING_BT_2);
+    } else if (padded_mode == RSA_PKCS1_OAEP_PADDING) {
+        return 0;
+    } else {
+        return 0;
+    }
+}
+
+int rsa_sign(
+    rsa_key* rsa_key,
+    unsigned char* input,
+    unsigned int len,
+    unsigned char** output,
+    int padded_mode
+) {
+    if (padded_mode == RSA_NO_PADDING) {
+        return rsa_encrypt_procss(rsa_key, input, len, output, padded_mode, 0);
+    } else if (padded_mode == RSA_PKCS1_PADDING) {
+        return rsa_encrypt_procss(rsa_key, input, len, output, padded_mode, RSA_PKCS1_PADDING_BT_1);
+    } else if (padded_mode == RSA_PKCS1_OAEP_PADDING) {
+        return 0;
+    } else {
+        return 0;
+    }
+}
+
+int rsa_decrypt(
+    rsa_key* rsa_key,
+    unsigned char* input,
+    unsigned int len,
+    unsigned char** output,
+    int padded_mode
+) {
+    if (padded_mode == RSA_NO_PADDING || padded_mode == RSA_PKCS1_PADDING) {
+        return rsa_decrypt_process(rsa_key, input, len, output, padded_mode);
+    }
+    return 0;
+}
+
+#define TEST_RSA
 #ifdef TEST_RSA
 #include <time.h>
 #include <stdio.h>
@@ -147,15 +242,15 @@ int main() {
     data = (unsigned char*)"abcd123abcd123abcd123abcd123abcd123abcd123abcd123abc1";
     huge_load(rsa.key, TestPublicKey, sizeof(TestPublicKey));
     start = clock();
-    len = rsa_encrypt(data, strlen((const char*)data), &encData, &rsa);
+    len = rsa_encrypt(&rsa, data, strlen((const char*)data), &encData, RSA_PKCS1_PADDING);
     show_hex(encData, len, 1);
     end = clock();
     printf("enc-time: %fs\n", (double)(end - start) / CLOCKS_PER_SEC);
 
     huge_load(rsa.key, TestPrivateKey, sizeof(TestPrivateKey));
     start = clock();
-    for(int i = 0; i < 10; i++) {
-        rsa_decrypt(encData, len, &decData, &rsa);
+    for (int i = 0; i < 10; i++) {
+        rsa_decrypt(&rsa, encData, len, &decData, RSA_PKCS1_PADDING);
     }
     end = clock();
     printf("%s\n", decData);

@@ -10,16 +10,18 @@ typedef struct {
 rsa_key;
 
 int rsa_encrypt(
+	rsa_key* public_key,
 	unsigned char* input,
 	unsigned int len,
 	unsigned char** output,
-	rsa_key* public_key
+	int padded_mode
 );
 int rsa_decrypt(
+	rsa_key* private_key,
 	unsigned char* input,
 	unsigned int len,
 	unsigned char** output,
-	rsa_key* private_key
+	int padded_mode
 );
 
 #endif

@@ -775,7 +775,7 @@ void huge_inverse_mul(huge* h, huge* p) {
     huge_inverse_neg(h, p);
 }
 
-#define TEST_HUGE
+// #define TEST_HUGE
 #ifdef TEST_HUGE
 #include <time.h>
 int main() {
