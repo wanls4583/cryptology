@@ -1,4 +1,7 @@
 
+#ifndef HUGE_H
+#define HUGE_H
+
 typedef u_int32_t huge_word;
 #define huge_hton htonl
 #define HUGE_WORD_BYTES (sizeof(huge_word))
@@ -32,3 +35,5 @@ void huge_divide(huge* dividend, huge* divisor, huge* quotient);
 void huge_mod_pow(huge* a, huge* e, huge* n);
 void huge_inverse_mul(huge* h, huge* p);
 void huge_inverse_neg(huge* h, huge* p);
+
+#endif

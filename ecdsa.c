@@ -34,22 +34,24 @@ void ecdsa_sign(
     huge r, s, k, z;
     r.rep = NULL;
     s.rep = NULL;
+    p1.x.rep = NULL;
+    p1.y.rep = NULL;
 
-    // generate_message_secret(params, &k);
-    unsigned char K[] = {
-        0x9E, 0x56, 0xF5, 0x09, 0x19, 0x67, 0x84, 0xD9, 0x63, 0xD1, 0xC0,
-        0xA4, 0x01, 0x51, 0x0E, 0xE7, 0xAD, 0xA3, 0xDC, 0xC5, 0xDE, 0xE0,
-        0x4B, 0x15, 0x4B, 0xF6, 0x1A, 0xF1, 0xD5, 0xA6, 0xDE, 0xCE
-    };
-    load_huge(&k, (unsigned char*)K, sizeof(K));
+    generate_message_secret(params, &k);
+    // unsigned char K[] = {
+    //     0x9E, 0x56, 0xF5, 0x09, 0x19, 0x67, 0x84, 0xD9, 0x63, 0xD1, 0xC0,
+    //     0xA4, 0x01, 0x51, 0x0E, 0xE7, 0xAD, 0xA3, 0xDC, 0xC5, 0xDE, 0xE0,
+    //     0x4B, 0x15, 0x4B, 0xF6, 0x1A, 0xF1, 0xD5, 0xA6, 0xDE, 0xCE
+    // };
+    // huge_load(&k, (unsigned char*)K, sizeof(K));
 
-    p1.x = params->G.x;
-    p1.y = params->G.y;
+    huge_copy(&p1.x, &params->G.x);
+    huge_copy(&p1.y, &params->G.y);
     multiply_point(&p1, &k, &params->a, &params->p);
 
     // r = x1 % n
     huge_copy(&r, &p1.x);
-    huge_mod_pow(&r, &k, &params->n);
+    huge_divide(&r, &params->n, NULL);
 
     // s = (inv(k)*(z+r*da)) mod n
     hash = (unsigned char*)ctx->hash;
@@ -70,6 +72,8 @@ void ecdsa_sign(
     free(s.rep);
     free(k.rep);
     free(z.rep);
+    free(p1.x.rep);
+    free(p1.y.rep);
 }
 
 int ecdsa_verify(
@@ -85,8 +89,13 @@ int ecdsa_verify(
     u1.rep = NULL;
     u2.rep = NULL;
     invs.rep = NULL;
+    p1.x.rep = NULL;
+    p1.y.rep = NULL;
+    p2.x.rep = NULL;
+    p2.y.rep = NULL;
 
     huge_copy(&invs, &signature->s);
+    huge_inverse_mul(&invs, &params->n);
 
     // u1 = (z * inv(s)) % n
     hash = (unsigned char*)ctx->hash;
@@ -103,25 +112,30 @@ int ecdsa_verify(
     huge_divide(&u2, &params->n, NULL);
 
     // p1 = u1 * G + u2 * Qa
-    p1.x = params->G.x;
-    p1.y = params->G.y;
-    p2.x = public_key->Q.x;
-    p2.y = public_key->Q.y;
+    huge_copy(&p1.x, &params->G.x);
+    huge_copy(&p1.y, &params->G.y);
+    huge_copy(&p2.x, &public_key->Q.x);
+    huge_copy(&p2.y, &public_key->Q.y);
     multiply_point(&p1, &u1, &params->a, &params->p);
     multiply_point(&p2, &u2, &params->a, &params->p);
     add_points(&p1, &p2, &params->p);
+    huge_divide(&p1.x, &params->n, NULL);
 
     result = huge_compare(&signature->r, &p1.x);
     free(u1.rep);
     free(u2.rep);
     free(z.rep);
     free(invs.rep);
+    free(p1.x.rep);
+    free(p1.y.rep);
+    free(p2.x.rep);
+    free(p2.y.rep);
 
     return result;
 }
 
-#define TEST_DSA
-#ifdef TEST_DSA
+#define TEST_ECDSA
+#ifdef TEST_ECDSA
 #include <string.h>
 int main() {
     // ECC parameters
@@ -154,7 +168,8 @@ int main() {
     // key
     unsigned char w[] = { 0xDC, 0x51, 0xD3, 0x86, 0x6A, 0x15, 0xBA, 0xCD, 0xE3,
         0x3D, 0x96, 0xF9, 0x92, 0xFC, 0xA9, 0x9D, 0xA7, 0xE6, 0xEF, 0x09, 0x34, 0xE7,
-        0x09, 0x75, 0x59, 0xC2, 0x7F, 0x16, 0x14, 0xC8, 0x8A, 0x7F };
+        0x09, 0x75, 0x59, 0xC2, 0x7F, 0x16, 0x14, 0xC8, 0x8A, 0x7F
+    };
 
     elliptic_curve curve;
     ecc_key key;
@@ -162,24 +177,24 @@ int main() {
 
     digest_ctx ctx;
 
-    load_huge(&curve.p, (unsigned char*)P, sizeof(P));
-    set_huge(&curve.a, 3);
+    huge_load(&curve.p, (unsigned char*)P, sizeof(P));
+    huge_set(&curve.a, 3);
     curve.a.sign = 1;
-    load_huge(&curve.b, b, sizeof(b));
-    load_huge(&curve.G.x, gx, sizeof(gx));
-    load_huge(&curve.G.y, gy, sizeof(gy));
-    load_huge(&curve.n, q, sizeof(q));
+    huge_load(&curve.b, b, sizeof(b));
+    huge_load(&curve.G.x, gx, sizeof(gx));
+    huge_load(&curve.G.y, gy, sizeof(gy));
+    huge_load(&curve.n, q, sizeof(q));
 
     // Generate new public key from private key �w� and point �G�
-    load_huge(&key.d, w, sizeof(w));
-    set_huge(&key.Q.x, 0);
-    set_huge(&key.Q.y, 0);
-    copy_huge(&key.Q.x, &curve.G.x);
-    copy_huge(&key.Q.y, &curve.G.y);
+    huge_load(&key.d, w, sizeof(w));
+    huge_set(&key.Q.x, 0);
+    huge_set(&key.Q.y, 0);
+    huge_copy(&key.Q.x, &curve.G.x);
+    huge_copy(&key.Q.y, &curve.G.y);
     multiply_point(&key.Q, &key.d, &curve.a, &curve.p);
 
     new_sha256_digest(&ctx);
-    update_digest(&ctx, "abc", 3);
+    update_digest(&ctx, (unsigned char*)"abc", 3);
     finalize_digest(&ctx);
 
     ecdsa_sign(&curve, &key, &ctx, &signature);

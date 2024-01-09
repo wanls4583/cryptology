@@ -118,7 +118,7 @@ int dsa_verify(
     return result;
 }
 
-#define TEST_DSA
+// #define TEST_DSA
 #ifdef TEST_DSA
 #include <string.h>
 int main() {
