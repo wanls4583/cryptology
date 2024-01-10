@@ -14,7 +14,8 @@ static int unbase64[] =
 };
 
 void base64_encode(unsigned char* input, int len, unsigned char* output) {
-	unsigned char c = 0, i = 0, j = 0, end;
+	unsigned char c = 0;
+	int i = 0, j = 0, end;
 
 	while (i <= len - 3) {
 		output[j++] = (input[i] & 0xfc) >> 2;
