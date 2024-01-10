@@ -134,7 +134,7 @@ int ecdsa_verify(
     return result;
 }
 
-#define TEST_ECDSA
+// #define TEST_ECDSA
 #ifdef TEST_ECDSA
 #include <string.h>
 int main() {
