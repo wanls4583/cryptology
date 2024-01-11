@@ -70,7 +70,7 @@ int base64_decode(unsigned char* input, int len, unsigned char* output) {
 	return j;
 }
 
-#define TEST_BASE64
+// #define TEST_BASE64
 #ifdef TEST_BASE64
 #include <string.h>
 #include <stdlib.h>
