@@ -13,30 +13,30 @@ rc4_state;
 void rc4_40_encrypt(
 	unsigned char* plaintext,
 	int plaintext_len,
-	unsigned char ciphertext[],
+	unsigned char* key,
 	void* state,
-	unsigned char* key
+	unsigned char ciphertext[]
 );
 void rc4_40_decrypt(
 	unsigned char* ciphertext,
 	int ciphertext_len,
-	unsigned char plaintext[],
+	unsigned char* key,
 	void* state,
-	unsigned char* key
+	unsigned char plaintext[]
 );
 void rc4_128_encrypt(
 	unsigned char* plaintext,
 	int plaintext_len,
-	unsigned char ciphertext[],
+	unsigned char* key,
 	void* state,
-	unsigned char* key
+	unsigned char ciphertext[]
 );
 void rc4_128_decrypt(
 	unsigned char* ciphertext,
 	int ciphertext_len,
-	unsigned char plaintext[],
+	unsigned char* key,
 	void* state,
-	unsigned char* key
+	unsigned char plaintext[]
 );
 
 #endif
