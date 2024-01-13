@@ -89,7 +89,7 @@ void rc4_128_decrypt(
     rc4_process(ciphertext, ciphertext_len, key, 16, state, plaintext);
 }
 
-#define TEST_RC4
+// #define TEST_RC4
 #ifdef TEST_RC4
 #include <string.h>
 #include <stdio.h>
