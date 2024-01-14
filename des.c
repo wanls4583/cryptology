@@ -350,7 +350,7 @@ void des3_decrypt(
     des_operate(input, input_len, out, iv, key, OP_DECRYPT, 1);
 }
 
-#define TEST_DES
+// #define TEST_DES
 #ifdef TEST_DES
 int main() {
     // unsigned char target[7];
