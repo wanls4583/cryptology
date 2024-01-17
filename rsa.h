@@ -1,6 +1,10 @@
 #ifndef RSA_H
 #define RSA_H
 
+#define RSA_NO_PADDING 0
+#define RSA_PKCS1_PADDING 1
+#define RSA_PKCS1_OAEP_PADDING 2
+
 #include "huge.h"
 
 typedef struct {

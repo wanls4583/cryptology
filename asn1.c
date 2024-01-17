@@ -97,6 +97,7 @@ int asn1parse(
 
         if (tag & 0x20) { //复合类型
             token->length += buffer - start;
+            token->data = start;
             if (tag_len > length) { //解析错误
                 return 0;
             }
@@ -221,7 +222,7 @@ int pem_decode(unsigned char* pem_buffer, unsigned char* der_buffer) {
     return size;
 }
 
-#define TEST_ASN1
+// #define TEST_ASN1
 #ifdef TEST_ASN1
 #include <sys/stat.h>
 #include <unistd.h>

@@ -16,6 +16,7 @@ typedef struct huge {
 } huge;
 
 int  huge_compare(huge* a, huge* b);
+int  huge_bytes(huge* h);
 void huge_set(huge* h, unsigned int val);
 void huge_copy(huge* a, huge* b);
 void huge_load(huge* h, unsigned char* c, int length);

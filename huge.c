@@ -65,6 +65,20 @@ void huge_load(huge* h, unsigned char* c, int length) {
     }
 }
 
+int huge_bytes(huge* h) {
+    huge_word num = huge_hton(h->rep[0]);
+    int btyes = 0, i = 0;
+    unsigned char* tmp = (unsigned char*)(&num);
+
+    btyes += h->size * HUGE_WORD_BYTES;
+    while (!tmp[i] && i < HUGE_WORD_BYTES) {
+        btyes--;
+        i++;
+    }
+
+    return btyes;
+}
+
 void huge_unload(huge* h, unsigned char* c, int length) {
     huge_word num = huge_hton(h->rep[0]);
     int btyes = 0, i = 0;
@@ -110,8 +124,9 @@ void huge_unload_words(huge* h, huge_word* words, int length) {
 }
 
 void huge_free(huge* h) {
-    free(h->rep);
-    free(h);
+    if (h->rep) {
+        free(h->rep);
+    }
 }
 
 void huge_contract(huge* h) {
@@ -396,9 +411,9 @@ void huge_multiply_karatsuba(huge* a, huge* b, huge* c) {
     huge_set(&b0, 0);
 
     a1.size = a->size - size;
-    a0.size = size > a->size ? a->size: size;
+    a0.size = size > a->size ? a->size : size;
     b1.size = b->size - size;
-    b0.size = size > a->size ? a->size: size;;
+    b0.size = size > a->size ? a->size : size;;
     a0.rep = (huge_word*)realloc(a0.rep, a0.size * HUGE_WORD_BYTES);
     b0.rep = (huge_word*)realloc(b0.rep, b0.size * HUGE_WORD_BYTES);
     memcpy(a0.rep, a->rep + a->size - a0.size, a0.size * HUGE_WORD_BYTES);

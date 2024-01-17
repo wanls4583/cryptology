@@ -3,10 +3,6 @@
 #include "rsa.h"
 #include "hex.h"
 
-#define RSA_NO_PADDING 0
-#define RSA_PKCS1_PADDING 1
-#define RSA_PKCS1_OAEP_PADDING 2
-
 #define RSA_PKCS1_PADDING_BT_0 0x00
 #define RSA_PKCS1_PADDING_BT_1 0x01
 #define RSA_PKCS1_PADDING_BT_2 0x02
@@ -114,7 +110,7 @@ int rsa_decrypt_process(
             // 找到填充后的真实数据
             while (!padded_block[i] && i < p_size) { i++; }
         } else if (padded_mode == RSA_PKCS1_PADDING) {
-            i = 1;
+            i = 2;
             // 找到填充后的真实数据
             if (padded_block[1] == RSA_PKCS1_PADDING_BT_0) {
                 while (!padded_block[i] && i < p_size) { i++; }
