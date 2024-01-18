@@ -696,7 +696,7 @@ int validate_certificate_dsa(signed_x509_certificate* certificate) {
         &certificate->dsa_signature_value);
 }
 
-#define TEST_X509
+// #define TEST_X509
 #ifdef TEST_X509
 #include <unistd.h>
 #include <sys/stat.h>
