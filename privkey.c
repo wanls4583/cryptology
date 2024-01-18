@@ -3,6 +3,23 @@
 #include "asn1.h"
 #include "privkey.h"
 
+/**
+ * Parse the modulus and private exponent from the buffer, which
+ * should contain a DER-encoded RSA private key file.  There's a
+ * lot more information in the private key file format, but this
+ * app isn't set up to use any of it.
+ * This, according to PKCS #1 (note that this is not in pkcs #8 format), is:
+ * Version
+ * modulus (n)
+ * public exponent (e)
+ * private exponent (d)
+ * prime1 (p)
+ * prime2 (q)
+ * exponent1 (d mod p-1)
+ * exponent2 (d mod q-1)
+ * coefficient (inverse of q % p)
+ * Here, all we care about is n & d.
+ */
 int parse_private_key(
     rsa_key* privkey,
     unsigned char* buffer,
@@ -18,7 +35,14 @@ int parse_private_key(
 
     version = (struct asn1struct*)private_key.children;
     p = (struct asn1struct*)version->next;
-    // Just read this to skip over it
+
+    if (p->tag == ASN1_SEQUENCE) {
+        struct asn1struct* key_info = (struct asn1struct*)p->next;
+        asn1parse(key_info->data, key_info->length, &private_key);
+        version = (struct asn1struct*)private_key.children;
+        p = (struct asn1struct*)version->next;
+    }
+
     public_exponent = (struct asn1struct*)p->next;
     private_exponent = (struct asn1struct*)public_exponent->next;
 
@@ -40,9 +64,18 @@ int parse_private_key(
 int main() {
     rsa_key privkey;
     int buffer_length;
-    unsigned char* buffer = load_file("./res/key.der", &buffer_length);
+    int pem_buffer_length;
+    unsigned char* buffer;
+    unsigned char* pem_buffer;
+
+    // buffer = load_file("./res/key.der", &buffer_length);
+
+    pem_buffer = load_file("./res/rootCA.key", &pem_buffer_length);
+    buffer = (unsigned char*)malloc(pem_buffer_length);
+    buffer_length = pem_decode(pem_buffer, buffer);
 
     parse_private_key(&privkey, buffer, buffer_length);
+
     printf("Modulus:");
     show_hex(privkey.p->rep, privkey.p->size, HUGE_WORD_BYTES);
     printf("Private Exponent:");
