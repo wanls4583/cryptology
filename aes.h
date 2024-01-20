@@ -1,40 +1,40 @@
 #ifndef AES_H
 #define AES_H
-void gHash(unsigned char* input, int inputLen, unsigned char* H, unsigned char* macBlock);
+void g_hash(unsigned char* input, int inputLen, unsigned char* H, unsigned char* macBlock);
 
-void cbcMac(unsigned char* input, int inputLen, unsigned char* macBlock, unsigned char *key, int keyLen);
+void cbc_mac(unsigned char* input, int inputLen, unsigned char* macBlock, unsigned char* key, int keyLen);
 
-void aesBlockEncrypt(unsigned char* inputBlock, unsigned char* outBlock, unsigned char* key, int keyLen);
+void aes_block_encrypt(unsigned char* inputBlock, unsigned char* outBlock, unsigned char* key, int keyLen);
 
-void aes128Encrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* key);
+void aes_128_encrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, unsigned char* key);
 
-void aes128Decrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* key);
+void aes_128_decrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, unsigned char* key);
 
-void aes256Encrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* key);
+void aes_256_encrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, unsigned char* key);
 
-void aes256Decrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* key);
+void aes_256_decrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, unsigned char* key);
 
-void aes128CtrEncrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* key);
+void aes_128_ctr_encrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, unsigned char* key);
 
-void aes128CtrDecrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* key);
+void aes_128_ctr_decrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, unsigned char* key);
 
-void aes256CtrEncrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* key);
+void aes_256_ctr_encrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, unsigned char* key);
 
-void aes256CtrDecrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* key);
+void aes_256_ctr_decrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, unsigned char* key);
 
-void aes128CcmEncrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* add, int addLen, unsigned char* key);
+void aes_128_ccm_encrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, unsigned char* add, int addLen, unsigned char* key);
 
-void aes128CcmDecrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* add, int addLen, unsigned char* key);
+void aes_128_ccm_decrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, unsigned char* add, int addLen, unsigned char* key);
 
-void aes256CcmEncrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* add, int addLen, unsigned char* key);
+void aes_256_ccm_encrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, unsigned char* add, int addLen, unsigned char* key);
 
-void aes256CcmDecrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* add, int addLen, unsigned char* key);
+void aes_256_ccm_decrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, unsigned char* add, int addLen, unsigned char* key);
 
-void aes128GcmEncrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* add, int addLen, unsigned char* key);
+void aes_128_gcm_encrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, unsigned char* add, int addLen, unsigned char* key);
 
-void aes128GcmDecrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* add, int addLen, unsigned char* key);
+void aes_128_gcm_decrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, unsigned char* add, int addLen, unsigned char* key);
 
-void aes256GcmEncrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* add, int addLen, unsigned char* key);
+void aes_256_gcm_encrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, unsigned char* add, int addLen, unsigned char* key);
 
-void aes256GcmDecrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, int ivLen, unsigned char* add, int addLen, unsigned char* key);
+void aes_256_gcm_decrypt(unsigned char* input, int inputLen, unsigned char* out, unsigned char* iv, unsigned char* add, int addLen, unsigned char* key);
 #endif

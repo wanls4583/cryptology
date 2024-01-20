@@ -30,5 +30,6 @@ void show_hash(void* hash, int result_size);
 int digest_hash(digest_ctx* context, u8* input, int len);
 void update_digest(digest_ctx* context, u8* input, int input_len);
 void finalize_digest(digest_ctx* context);
+void copy_digest(digest_ctx* target, digest_ctx* src);
 
 #endif

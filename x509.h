@@ -88,6 +88,11 @@ int parse_x509_certificate(
 	unsigned int certificate_length,
 	signed_x509_certificate* parsed_certificate
 );
+unsigned char* parse_x509_chain(
+	unsigned char* buffer,
+	int pdu_length,
+	public_key_info* server_public_key
+);
 void free_x509_certificate(signed_x509_certificate* certificate);
 
 #endif
