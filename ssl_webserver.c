@@ -51,10 +51,7 @@ char* read_line(int connection, TLSParameters* tls_context) {
 
 static void build_success_response(int connection, TLSParameters* tls_context) {
   char buf[255];
-  sprintf(buf, "HTTP/1.1 200 Success\r\nConnection: Close\r\n\
-Content-Type:text/html\r\n\
-\r\n<html><head><title>Test Page</title></head><body>Nothing here</body></html>\
-\r\n");
+  sprintf(buf, "HTTP/1.1 200 Success\r\nConnection: Close\r\nContent-Type:text/html\r\n\r\n<html><head><title>Test Page</title></head><body>Nothing here</body></html>\r\n");
 
   // Technically, this should account for short writes.
   if (tls_send(connection, (unsigned char*)buf, strlen((char*)buf), 0, tls_context) < strlen(buf)) {

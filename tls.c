@@ -220,7 +220,12 @@ int send_message(
         return -1;
     }
 
-    // printf("send:%d\n", send_buffer_size);
+    printf("send:%d", send_buffer_size);
+    printf(",msg_type:%d", content_type);
+    if (content_type == content_handshake) {
+        printf(",handshake_type:%d", content[0]);
+    }
+    printf("\n");
     // show_hex(send_buffer, send_buffer_size, 1);
 
     parameters->seq_num++;
@@ -368,7 +373,7 @@ void compute_master_secret(
         parameters->client_random, RANDOM_LENGTH * 2,
         parameters->master_secret, MASTER_SECRET_LENGTH
     );
-    
+
     printf("master_secret:");
     show_hex(parameters->master_secret, 48, 1);
 }
@@ -467,6 +472,8 @@ unsigned char* parse_client_hello(
     if (hello.session_id_length > 0) {
         hello.session_id = (unsigned char*)malloc(hello.session_id_length);
         read_pos = read_buffer((void*)hello.session_id, (void*)read_pos, hello.session_id_length);
+        // printf("session_id:");
+        // show_hex(hello.session_id, hello.session_id_length, 1);
         // TODO if this is non-empty, the client is trying to trigger a restart
     }
 
@@ -478,14 +485,20 @@ unsigned char* parse_client_hello(
     hello.compression_methods = (unsigned char*)malloc(hello.compression_methods_length);
     read_pos = read_buffer((void*)hello.compression_methods, (void*)read_pos, hello.compression_methods_length);
 
-    for (i = 0; i < hello.cipher_suites_length; i++) {
-        hello.cipher_suites[i] = ntohs(hello.cipher_suites[i]);
-        if (hello.cipher_suites[i] < MAX_SUPPORTED_CIPHER_SUITE && suites[hello.cipher_suites[i]].bulk_encrypt != NULL) {
-            parameters->pending_recv_parameters.suite = hello.cipher_suites[i];
-            parameters->pending_send_parameters.suite = hello.cipher_suites[i];
-            break;
-        }
-    }
+    // printf("cipher_suites:");
+    // show_hex(hello.cipher_suites, hello.cipher_suites_length * 2, 1);
+
+    // for (i = 0; i < hello.cipher_suites_length; i++) {
+    //     hello.cipher_suites[i] = ntohs(hello.cipher_suites[i]);
+    //     if (hello.cipher_suites[i] < MAX_SUPPORTED_CIPHER_SUITE && suites[hello.cipher_suites[i]].bulk_encrypt != NULL) {
+    //         parameters->pending_recv_parameters.suite = hello.cipher_suites[i];
+    //         parameters->pending_send_parameters.suite = hello.cipher_suites[i];
+    //         break;
+    //     }
+    // }
+
+    parameters->pending_recv_parameters.suite = TLS_RSA_WITH_AES_256_CBC_SHA;
+    parameters->pending_send_parameters.suite = TLS_RSA_WITH_AES_256_CBC_SHA;
 
     if (i == MAX_SUPPORTED_CIPHER_SUITE) {
         return NULL;
@@ -520,7 +533,7 @@ int send_server_hello(int connection, TLSParameters* parameters) {
     package.server_version.minor = 1;
     time(&local_time);
     package.random.gmt_unix_time = htonl(local_time);
-    // package.random.gmt_unix_time = 1705734549;
+    package.random.gmt_unix_time = 1705734549;
     // TODO - actually make this random.
     // This is 28 bytes, but client random is 32 - the first four bytes of
     // "client random" are the GMT unix time computed above.
@@ -557,6 +570,9 @@ int send_server_hello(int connection, TLSParameters* parameters) {
     write_buffer = append_buffer(write_buffer, (void*)&package.compression_method, 1);
 
     assert(((unsigned char*)write_buffer - send_buffer) == send_buffer_size);
+
+    printf("send_server_hello:");
+    show_hex(send_buffer, send_buffer_size, 1);
 
     send_handshake_message(connection, server_hello, send_buffer, send_buffer_size, parameters);
 
@@ -1205,7 +1221,9 @@ int receive_tls_msg(
             msg_buf += bytes_read;
         }
 
-        printf("msg_type:%d,recv:%d\n", message.type, message.length);
+        printf("recv:%d", message.length);
+        printf(",msg_type:%d", message.type);
+        printf("\n");
         // show_hex(encrypted_message, message.length, 1);
 
         // If a cipherspec is active, all of "encrypted_message" will be encrypted.  
