@@ -39,7 +39,6 @@ typedef enum {
 	// End of list of algorithms defined by RFC 2246
 
 	// These are all defined in RFC 4346 (v1.1), not 2246 (v1.0)
-	//
 	TLS_KRB5_WITH_DES_CBC_SHA = 0x001E,
 	TLS_KRB5_WITH_3DES_EDE_CBC_SHA = 0x001F,
 	TLS_KRB5_WITH_RC4_128_SHA = 0x0020,
