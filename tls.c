@@ -1440,7 +1440,9 @@ int receive_tls_msg(
 
         printf("recv:%d", message.length);
         printf(",msg_type:%d", message.type);
-        printf("\n");
+        if (message.type != content_handshake) {
+            printf("\n");
+        }
         // show_hex(encrypted_message, message.length, 1);
 
         // If a cipherspec is active, all of "encrypted_message" will be encrypted.  
@@ -1472,7 +1474,7 @@ int receive_tls_msg(
             handshake.length = read_pos[0] << 16 | read_pos[1] << 8 | read_pos[2];
             read_pos += 3;
 
-            printf("handshake_type:%d\n", handshake.msg_type);
+            printf(",handshake_type:%d\n", handshake.msg_type);
 
             // TODO check for negative or unreasonably long length
             // Now, depending on the type, read in and process the packet itself.
