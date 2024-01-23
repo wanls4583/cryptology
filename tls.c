@@ -56,7 +56,7 @@ CipherSuite suites[] =
     { TLS_DHE_DSS_WITH_3DES_EDE_CBC_SHA, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
     { TLS_DHE_RSA_EXPORT_WITH_DES40_CBC_SHA, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
     { TLS_DHE_RSA_WITH_DES_CBC_SHA, 8, 8, 8, SHA1_BYTE_SIZE, (encrypt_func)des_encrypt, (decrypt_func)des_decrypt, new_sha1_digest },
-    { TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
+    { TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA, 8, 8, 24, SHA1_BYTE_SIZE, (encrypt_func)des3_encrypt, (decrypt_func)des3_decrypt, new_sha1_digest },
     { TLS_DH_anon_EXPORT_WITH_RC4_40_MD5, 0, 0, 0, MD5_BYTE_SIZE, NULL, NULL, new_md5_digest },
     { TLS_DH_anon_WITH_RC4_128_MD5, 0, 0, 0, MD5_BYTE_SIZE, NULL, NULL, new_md5_digest },
     { TLS_DH_anon_EXPORT_WITH_DES40_CBC_SHA, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
@@ -557,23 +557,23 @@ unsigned char* parse_client_hello(
     hello.compression_methods = (unsigned char*)malloc(hello.compression_methods_length);
     read_pos = read_buffer((void*)hello.compression_methods, (void*)read_pos, hello.compression_methods_length);
 
-    // printf("cipher_suites:");
-    // show_hex(hello.cipher_suites, hello.cipher_suites_length * 2, 1);
+    printf("cipher_suites:");
+    for (i = 0; i < hello.cipher_suites_length / 2; i++) {
+        hello.cipher_suites[i] = ntohs(hello.cipher_suites[i]);
+        if (hello.cipher_suites[i] > 0 && hello.cipher_suites[i] < MAX_SUPPORTED_CIPHER_SUITE) {
+            printf("%0.4x ", hello.cipher_suites[i]);
+        }
+        // if (hello.cipher_suites[i] < MAX_SUPPORTED_CIPHER_SUITE && suites[hello.cipher_suites[i]].bulk_encrypt != NULL) {
+        //     parameters->pending_recv_parameters.suite = hello.cipher_suites[i];
+        //     parameters->pending_send_parameters.suite = hello.cipher_suites[i];
+        //     break;
+        // }
+    }
+    printf("\n");
 
-    // for (i = 0; i < hello.cipher_suites_length; i++) {
-    //     hello.cipher_suites[i] = ntohs(hello.cipher_suites[i]);
-    //     if (hello.cipher_suites[i] < MAX_SUPPORTED_CIPHER_SUITE && suites[hello.cipher_suites[i]].bulk_encrypt != NULL) {
-    //         parameters->pending_recv_parameters.suite = hello.cipher_suites[i];
-    //         parameters->pending_send_parameters.suite = hello.cipher_suites[i];
-    //         break;
-    //     }
-    // }
-
-    // parameters->pending_recv_parameters.suite = TLS_RSA_WITH_AES_256_CBC_SHA;
-    // parameters->pending_send_parameters.suite = TLS_RSA_WITH_AES_256_CBC_SHA;
-
-    parameters->pending_recv_parameters.suite = TLS_DHE_RSA_WITH_AES_256_CBC_SHA;
-    parameters->pending_send_parameters.suite = TLS_DHE_RSA_WITH_AES_256_CBC_SHA;
+    // 0039 0035 0033 002f 0016 000a 0005 0004
+    parameters->pending_recv_parameters.suite = 0x0004;
+    parameters->pending_send_parameters.suite = 0x0004;
 
     if (i == MAX_SUPPORTED_CIPHER_SUITE) {
         return NULL;

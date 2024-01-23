@@ -276,12 +276,10 @@ void des_operate(
     int triplicate
 ) {
     unsigned char input_block[8];
-    unsigned char iv_block[8];
-    memcpy(iv_block, iv, 8);
     while (input_len >= 8) {
         memcpy(input_block, input, 8);
         if (type == OP_ENCRYPT) {
-            _xor(input_block, iv_block, 8); //CBC模式
+            _xor(input_block, iv, 8); //CBC模式
             des_block_operate(input_block, key, out, type);
             if (triplicate) { //三重DES
                 memcpy(input_block, out, 8);
@@ -289,7 +287,7 @@ void des_operate(
                 memcpy(input_block, out, 8);
                 des_block_operate(input_block, key + 16, out, type);
             }
-            memcpy(iv_block, out, 8);
+            memcpy(iv, out, 8);
         } else {
             if (triplicate) { //三重DES
                 des_block_operate(input_block, key + 16, out, type);
@@ -300,8 +298,8 @@ void des_operate(
             } else {
                 des_block_operate(input_block, key, out, type);
             }
-            _xor(out, iv_block, 8); //CBC模式
-            memcpy(iv_block, input, 8);
+            _xor(out, iv, 8); //CBC模式
+            memcpy(iv, input, 8);
         }
         input += 8;
         out += 8;

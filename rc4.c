@@ -10,10 +10,10 @@ void swap(unsigned char* S, int i, int j) {
 void rc4_process(
     unsigned char* text,
     int text_len,
-    unsigned char* key,
-    int key_len,
+    unsigned char output[],
     rc4_state* state,
-    unsigned char output[]
+    unsigned char* key,
+    int key_len
 ) {
     int i = 0, j = 0, t = 0;
     unsigned char* S = state->S;
@@ -52,41 +52,41 @@ void rc4_process(
 void rc4_40_encrypt(
     unsigned char* plaintext,
     int plaintext_len,
-    unsigned char* key,
+    unsigned char ciphertext[],
     void* state,
-    unsigned char ciphertext[]
+    unsigned char* key
 ) {
-    rc4_process(plaintext, plaintext_len, key, 5, state, ciphertext);
+    rc4_process(plaintext, plaintext_len, ciphertext, state, key, 5);
 }
 
 void rc4_40_decrypt(
     unsigned char* ciphertext,
     int ciphertext_len,
-    unsigned char* key,
+    unsigned char plaintext[],
     void* state,
-    unsigned char plaintext[]
+    unsigned char* key
 ) {
-    rc4_process(ciphertext, ciphertext_len, key, 5, state, plaintext);
+    rc4_process(ciphertext, ciphertext_len, plaintext, state, key, 5);
 }
 
 void rc4_128_encrypt(
     unsigned char* plaintext,
     int plaintext_len,
-    unsigned char* key,
+    unsigned char ciphertext[],
     void* state,
-    unsigned char ciphertext[]
+    unsigned char* key
 ) {
-    rc4_process(plaintext, plaintext_len, key, 16, state, ciphertext);
+    rc4_process(plaintext, plaintext_len, ciphertext, state, key, 16);
 }
 
 void rc4_128_decrypt(
     unsigned char* ciphertext,
     int ciphertext_len,
-    unsigned char* key,
+    unsigned char plaintext[],
     void* state,
-    unsigned char plaintext[]
+    unsigned char* key
 ) {
-    rc4_process(ciphertext, ciphertext_len, key, 16, state, plaintext);
+    rc4_process(ciphertext, ciphertext_len, plaintext, state, key, 16);
 }
 
 // #define TEST_RC4
@@ -100,32 +100,32 @@ int main() {
 
     state.S[0] = 0;
     state.S[1] = 0;
-    rc4_process((unsigned char*)"abcdefghijklmnop", 16, (unsigned char*)"abcdef", 6, &state, enc);
+    rc4_process((unsigned char*)"abcdefghijklmnop", 16, enc, &state, (unsigned char*)"abcdef", 6);
     show_hex(enc, 16, 1);
 
     state.S[0] = 0;
     state.S[1] = 0;
-    rc4_process(enc, 16, (unsigned char*)"abcdef", 6, &state, dec);
+    rc4_process(enc, 16, dec, &state, (unsigned char*)"abcdef", 6);
     printf("%s\n", dec);
 
     state.S[0] = 0;
     state.S[1] = 0;
-    rc4_40_encrypt((unsigned char*)"abcdefghijklmnop", 16, (unsigned char*)"abcdef", &state, enc);
+    rc4_40_encrypt((unsigned char*)"abcdefghijklmnop", 16, enc, &state, (unsigned char*)"abcdef");
     show_hex(enc, 16, 1);
 
     state.S[0] = 0;
     state.S[1] = 0;
-    rc4_40_decrypt(enc, 16, (unsigned char*)"abcdef", &state, dec);
+    rc4_40_decrypt(enc, 16, dec, &state, (unsigned char*)"abcdef");
     printf("%s\n", dec);
 
     state.S[0] = 0;
     state.S[1] = 0;
-    rc4_128_encrypt((unsigned char*)"abcdefghijklmnop", 16, (unsigned char*)"abcdefghijk12345", &state, enc);
+    rc4_128_encrypt((unsigned char*)"abcdefghijklmnop", 16, enc, &state, (unsigned char*)"abcdefghijk12345");
     show_hex(enc, 16, 1);
 
     state.S[0] = 0;
     state.S[1] = 0;
-    rc4_128_decrypt(enc, 16, (unsigned char*)"abcdefghijk12345", &state, dec);
+    rc4_128_decrypt(enc, 16, dec, &state, (unsigned char*)"abcdefghijk12345");
     printf("%s\n", dec);
 }
 #endif
