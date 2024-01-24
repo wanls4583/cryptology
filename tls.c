@@ -24,6 +24,7 @@
 #include "aes.h"
 #include "tls.h"
 #include "hex.h"
+#include "asn1.h"
 
 void set_data(unsigned char* target, unsigned char* str) {
     int length;
@@ -151,13 +152,16 @@ void init_dh_tmp_key() {
 }
 
 int init_rsa_key() {
+    unsigned char* pem_buffer;
     unsigned char* buffer;
     int buffer_length;
 
-    if (!(buffer = load_file("./res/rsakey.der", &buffer_length))) {
+    if (!(pem_buffer = load_file("./res/rsa_key.pem", &buffer_length))) {
         perror("Unable to load file");
         return 0;
     }
+    buffer = (unsigned char*)malloc(buffer_length);
+    buffer_length = pem_decode(pem_buffer, buffer);
 
     parse_private_key(&private_key, buffer, buffer_length);
     free(buffer);
@@ -589,8 +593,8 @@ unsigned char* parse_client_hello(
     printf("\n");
 
     // 0039 0038 0037 0036 0035 0033 0032 0031 0030 002f 0007 0005 0004 0016 0013 0010 000d 000a
-    parameters->pending_recv_parameters.suite = 0x0036;
-    parameters->pending_send_parameters.suite = 0x0036;
+    parameters->pending_recv_parameters.suite = TLS_DHE_RSA_WITH_AES_256_CBC_SHA;
+    parameters->pending_send_parameters.suite = TLS_DHE_RSA_WITH_AES_256_CBC_SHA;
 
     if (i == MAX_SUPPORTED_CIPHER_SUITE) {
         return NULL;
@@ -727,7 +731,7 @@ int send_certificate(int connection, TLSParameters* parameters) {
     case TLS_DH_RSA_WITH_3DES_EDE_CBC_SHA:
     case TLS_DH_RSA_WITH_AES_128_CBC_SHA:
     case TLS_DH_RSA_WITH_AES_256_CBC_SHA:
-        strcpy(cert_url, "./res/dhcert.der");
+        strcpy(cert_url, "./res/rsa_dhcert.der");
         break;
     case TLS_DH_DSS_EXPORT_WITH_DES40_CBC_SHA:
     case TLS_DH_DSS_WITH_DES_CBC_SHA:
@@ -741,7 +745,18 @@ int send_certificate(int connection, TLSParameters* parameters) {
     case TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA:
     case TLS_DHE_RSA_WITH_AES_128_CBC_SHA:
     case TLS_DHE_RSA_WITH_AES_256_CBC_SHA:
-        strcpy(cert_url, "./res/rsacert.der");
+        strcpy(cert_url, "./res/rsa_cert.der");
+        break;
+    case TLS_RSA_WITH_NULL_MD5:
+    case TLS_RSA_WITH_NULL_SHA:
+    case TLS_RSA_WITH_RC4_128_MD5:
+    case TLS_RSA_WITH_RC4_128_SHA:
+    case TLS_RSA_WITH_IDEA_CBC_SHA:
+    case TLS_RSA_WITH_DES_CBC_SHA:
+    case TLS_RSA_WITH_3DES_EDE_CBC_SHA:
+    case TLS_RSA_WITH_AES_128_CBC_SHA:
+    case TLS_RSA_WITH_AES_256_CBC_SHA:
+        strcpy(cert_url, "./res/rsa_cert.der");
         break;
     default:
         return 0;
