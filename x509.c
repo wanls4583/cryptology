@@ -264,6 +264,7 @@ int parse_validity(validity_period* target, struct asn1struct* source) {
 
 static const unsigned char OID_RSA[] = { 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x01 };
 static const unsigned char OID_DSA[] = { 0x2A, 0x86, 0x48, 0xCE, 0x38, 0x04, 0x01 };
+static const unsigned char OID_DH[] = { 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x03, 0x01 };
 
 static int parse_dsa_params(public_key_info* target, struct asn1struct* source) {
     struct asn1struct* p;
@@ -277,6 +278,19 @@ static int parse_dsa_params(public_key_info* target, struct asn1struct* source) 
     parse_huge(&target->dsa_parameters.p, p);
     parse_huge(&target->dsa_parameters.q, q);
     parse_huge(&target->dsa_parameters.g, g);
+
+    return 0;
+}
+
+static int parse_dh_params(public_key_info* target, struct asn1struct* source) {
+    struct asn1struct* p;
+    struct asn1struct* g;
+
+    p = source->children;
+    g = p->next;
+
+    parse_huge(&target->dh_parameters.p, p);
+    parse_huge(&target->dh_parameters.g, g);
 
     return 0;
 }
@@ -346,6 +360,22 @@ static int parse_public_key_info(public_key_info* target, struct asn1struct* sou
         }
 
         parse_dsa_params(target, params);
+    } else  if (!memcmp(oid->data, &OID_DH, sizeof(OID_DH))) {
+        struct asn1struct* params;
+        target->algorithm = dh;
+
+        if (!validate_node(&public_key_value, ASN1_INTEGER, 0, "DH public key value")) {
+            return 6;
+        }
+
+        parse_huge(&target->dh_parameters.Y, &public_key_value);
+        params = oid->next;
+
+        if (!validate_node(params, ASN1_SEQUENCE, 2, "DH public key params")) {
+            return 6;
+        }
+
+        parse_dh_params(target, params);
     } else {
         fprintf(stderr, "Error; unsupported OID in public key info.\n");
         return 7;
@@ -675,6 +705,12 @@ void display_x509_certificate(signed_x509_certificate* certificate) {
         break;
     case dh:
         printf("DH\n");
+        printf("y: ");
+        print_huge(&certificate->tbsCertificate.subjectPublicKeyInfo.dh_parameters.Y);
+        printf("p: ");
+        print_huge(&certificate->tbsCertificate.subjectPublicKeyInfo.dh_parameters.p);
+        printf("g: ");
+        print_huge(&certificate->tbsCertificate.subjectPublicKeyInfo.dh_parameters.g);
         break;
     default:
         printf("?\n");
@@ -774,7 +810,7 @@ int validate_certificate_dsa(signed_x509_certificate* certificate) {
 #include <fcntl.h>
 int main() {
     int argc = 3;
-    char* argv[] = { "", "-pem", "/Users/lisong/Downloads/rootCA.crt" };
+    char* argv[] = { "", "-pem", "./res/dhserver.pem" };
     int certificate_file;
     struct stat certificate_file_stat;
     unsigned char* buffer;
@@ -827,14 +863,15 @@ int main() {
         case md5WithRSAEncryption:
         case shaWithRSAEncryption:
         case sha256WithRSAEncryption:
-            if (validate_certificate_rsa(&certificate, &certificate.tbsCertificate.subjectPublicKeyInfo.rsa_public_key)) {
+            if (rsa == certificate.tbsCertificate.subjectPublicKeyInfo.algorithm &&
+                validate_certificate_rsa(&certificate, &certificate.tbsCertificate.subjectPublicKeyInfo.rsa_public_key)) {
                 printf("Certificate is a valid self-signed certificate.\n");
             } else {
                 printf("Certificate is corrupt or not self-signed.\n");
             }
             break;
         case shaWithDSA:
-            if (validate_certificate_dsa(&certificate)) {
+            if (dsa == certificate.tbsCertificate.subjectPublicKeyInfo.algorithm && validate_certificate_dsa(&certificate)) {
                 printf("Certificate is a valid self-signed certificate.\n");
             } else {
                 printf("Certificate is corrupt or not self-signed.\n");

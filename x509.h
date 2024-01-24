@@ -5,6 +5,7 @@
 #include "huge.h"
 #include "rsa.h"
 #include "dsa.h"
+#include "dh.h"
 
 typedef enum {
 	rsa,
@@ -54,6 +55,8 @@ typedef struct {
 
 	// DSA parameters, only if algorithm == dsa
 	huge dsa_public_key;
+
+	dh_key dh_parameters;
 }
 public_key_info;
 

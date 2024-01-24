@@ -96,10 +96,11 @@ CipherSuite suites[] =
 };
 
 rsa_key private_key;
-dh_key dhkey;
+dh_key dh_priv_key;
+dh_key dh_tmp_key;
 huge dh_priv;
 
-void init_dh_key() {
+void init_dh_tmp_key() {
     unsigned char priv[] = {
         0x53, 0x61, 0xae, 0x4f, 0x6f, 0x25, 0x98, 0xde, 0xc4, 0xbf, 0x0b, 0xbe, 0x09,
         0x5f, 0xdf, 0x90, 0x2f, 0x4c, 0x8e, 0x09
@@ -138,27 +139,42 @@ void init_dh_key() {
 
     huge pub;
     pub.rep = NULL;
-    dhkey.Y.rep = NULL;
+    dh_tmp_key.Y.rep = NULL;
 
-    huge_load(&dhkey.p, P, sizeof(P));
-    huge_load(&dhkey.g, G, sizeof(G));
+    huge_load(&dh_tmp_key.p, P, sizeof(P));
+    huge_load(&dh_tmp_key.g, G, sizeof(G));
     huge_load(&dh_priv, priv, sizeof(priv));
 
-    huge_copy(&pub, &dhkey.g);
-    huge_mod_pow(&pub, &dh_priv, &dhkey.p);
-    huge_copy(&dhkey.Y, &pub);
+    huge_copy(&pub, &dh_tmp_key.g);
+    huge_mod_pow(&pub, &dh_priv, &dh_tmp_key.p);
+    huge_copy(&dh_tmp_key.Y, &pub);
 }
 
 int init_rsa_key() {
     unsigned char* buffer;
     int buffer_length;
 
-    if (!(buffer = load_file("./res/key.der", &buffer_length))) {
+    if (!(buffer = load_file("./res/rsakey.der", &buffer_length))) {
         perror("Unable to load file");
         return 0;
     }
 
     parse_private_key(&private_key, buffer, buffer_length);
+    free(buffer);
+
+    return 1;
+}
+
+int init_dh_key() {
+    unsigned char* buffer;
+    int buffer_length;
+
+    if (!(buffer = load_file("./res/dhkey.der", &buffer_length))) {
+        perror("Unable to load file");
+        return 0;
+    }
+
+    parse_private_dh_key(&dh_priv_key, buffer, buffer_length);
     free(buffer);
 
     return 1;
@@ -177,6 +193,7 @@ void init_parameters(TLSParameters* parameters) {
     init_protection_parameters(&parameters->pending_recv_parameters);
     init_protection_parameters(&parameters->active_send_parameters);
     init_protection_parameters(&parameters->active_recv_parameters);
+    init_dh_tmp_key();
     init_dh_key();
     init_rsa_key();
 
@@ -572,8 +589,8 @@ unsigned char* parse_client_hello(
     printf("\n");
 
     // 0039 0035 0033 002f 0016 000a 0005 0004
-    parameters->pending_recv_parameters.suite = 0x0004;
-    parameters->pending_send_parameters.suite = 0x0004;
+    parameters->pending_recv_parameters.suite = 0x0037;
+    parameters->pending_send_parameters.suite = 0x0037;
 
     if (i == MAX_SUPPORTED_CIPHER_SUITE) {
         return NULL;
@@ -702,8 +719,28 @@ int send_certificate(int connection, TLSParameters* parameters) {
     int certificate_file;
     struct stat certificate_stat;
     short cert_len;
+    char cert_url[200] = { 0 };
 
-    if ((certificate_file = open("./res/cert.der", O_RDONLY)) == -1) {
+    switch (parameters->pending_send_parameters.suite) {
+    case TLS_DH_RSA_EXPORT_WITH_DES40_CBC_SHA:
+    case TLS_DH_RSA_WITH_DES_CBC_SHA:
+    case TLS_DH_RSA_WITH_3DES_EDE_CBC_SHA:
+    case TLS_DH_RSA_WITH_AES_128_CBC_SHA:
+    case TLS_DH_RSA_WITH_AES_256_CBC_SHA:
+        strcpy(cert_url, "./res/dhcert.der");
+        break;
+    case TLS_DHE_RSA_EXPORT_WITH_DES40_CBC_SHA:
+    case TLS_DHE_RSA_WITH_DES_CBC_SHA:
+    case TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA:
+    case TLS_DHE_RSA_WITH_AES_128_CBC_SHA:
+    case TLS_DHE_RSA_WITH_AES_256_CBC_SHA:
+        strcpy(cert_url, "./res/rsacert.der");
+        break;
+    default:
+        return 0;
+    }
+
+    if ((certificate_file = open(cert_url, O_RDONLY)) == -1) {
         perror("unable to load certificate file");
         return 1;
     }
@@ -925,9 +962,7 @@ unsigned char* parse_client_key_exchange(
     huge Yc;
 
     switch (parameters->pending_send_parameters.suite) {
-    case TLS_NULL_WITH_NULL_NULL:
-        return NULL;
-    case TLS_RSA_WITH_NULL_MD5:
+    case TLS_RSA_WITH_NULL_MD5: //RSA密钥交换
     case TLS_RSA_WITH_NULL_SHA:
     case TLS_RSA_EXPORT_WITH_RC4_40_MD5:
     case TLS_RSA_WITH_RC4_128_MD5:
@@ -955,35 +990,29 @@ unsigned char* parse_client_key_exchange(
         // secret for RSA is exactly 48 bytes long).
         compute_master_secret(premaster_secret, premaster_secret_length > MASTER_SECRET_LENGTH ? MASTER_SECRET_LENGTH : premaster_secret_length, parameters);
         break;
-    case TLS_DH_DSS_EXPORT_WITH_DES40_CBC_SHA:
-    case TLS_DH_DSS_WITH_DES_CBC_SHA:
-    case TLS_DH_DSS_WITH_3DES_EDE_CBC_SHA:
-    case TLS_DH_RSA_EXPORT_WITH_DES40_CBC_SHA:
+    case TLS_DH_RSA_EXPORT_WITH_DES40_CBC_SHA: //静态DH密钥交换
     case TLS_DH_RSA_WITH_DES_CBC_SHA:
     case TLS_DH_RSA_WITH_3DES_EDE_CBC_SHA:
-    case TLS_DHE_DSS_EXPORT_WITH_DES40_CBC_SHA:
-    case TLS_DHE_DSS_WITH_DES_CBC_SHA:
-    case TLS_DHE_DSS_WITH_3DES_EDE_CBC_SHA:
-    case TLS_DHE_RSA_EXPORT_WITH_DES40_CBC_SHA:
-    case TLS_DHE_RSA_WITH_DES_CBC_SHA:
-    case TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA:
-    case TLS_DH_anon_EXPORT_WITH_RC4_40_MD5:
-    case TLS_DH_anon_WITH_RC4_128_MD5:
-    case TLS_DH_anon_EXPORT_WITH_DES40_CBC_SHA:
-    case TLS_DH_anon_WITH_DES_CBC_SHA:
-    case TLS_DH_anon_WITH_3DES_EDE_CBC_SHA:
-    case TLS_DH_DSS_WITH_AES_128_CBC_SHA:
     case TLS_DH_RSA_WITH_AES_128_CBC_SHA:
-    case TLS_DHE_DSS_WITH_AES_128_CBC_SHA:
-    case TLS_DHE_RSA_WITH_AES_128_CBC_SHA:
-    case TLS_DH_anon_WITH_AES_128_CBC_SHA:
-    case TLS_DH_DSS_WITH_AES_256_CBC_SHA:
     case TLS_DH_RSA_WITH_AES_256_CBC_SHA:
+        huge_load(&Yc, read_pos + 2, pdu_length - 2);
+        huge_mod_pow(&Yc, &dh_priv_key.Y, &dh_priv_key.p);
+        premaster_secret_length = huge_bytes(&Yc);
+        premaster_secret = (unsigned char*)malloc(premaster_secret_length);
+        huge_unload(&Yc, premaster_secret, premaster_secret_length);
+
+        printf("premaster_secret:");
+        show_hex(premaster_secret, premaster_secret_length, 1);
+
+        compute_master_secret(premaster_secret, premaster_secret_length, parameters);
+        break;
+    case TLS_DHE_RSA_WITH_DES_CBC_SHA: //动态DH密钥交换
+    case TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA:
+    case TLS_DHE_RSA_WITH_AES_128_CBC_SHA:
     case TLS_DHE_DSS_WITH_AES_256_CBC_SHA:
     case TLS_DHE_RSA_WITH_AES_256_CBC_SHA:
-    case TLS_DH_anon_WITH_AES_256_CBC_SHA:
         huge_load(&Yc, read_pos + 2, pdu_length - 2);
-        huge_mod_pow(&Yc, &dh_priv, &dhkey.p);
+        huge_mod_pow(&Yc, &dh_priv, &dh_tmp_key.p);
         premaster_secret_length = huge_bytes(&Yc);
         premaster_secret = (unsigned char*)malloc(premaster_secret_length);
         huge_unload(&Yc, premaster_secret, premaster_secret_length);
@@ -1020,9 +1049,9 @@ int send_server_key_exchange(int connection, TLSParameters* parameters) {
     }
 
     int sign_out_len = 0;
-    int p_size = huge_bytes(&dhkey.p);
-    int g_size = huge_bytes(&dhkey.g);
-    int Y_size = huge_bytes(&dhkey.Y);
+    int p_size = huge_bytes(&dh_tmp_key.p);
+    int g_size = huge_bytes(&dh_tmp_key.g);
+    int Y_size = huge_bytes(&dh_tmp_key.Y);
     int dh_len = p_size + g_size + Y_size + 6;
     int hash_input_len = RANDOM_LENGTH * 2 + dh_len;
 
@@ -1048,17 +1077,17 @@ int send_server_key_exchange(int connection, TLSParameters* parameters) {
     buffer = dh_input;
     buffer[1] = p_size;
     buffer += 2;
-    huge_unload(&dhkey.p, buffer, p_size);
+    huge_unload(&dh_tmp_key.p, buffer, p_size);
     buffer += p_size;
 
     buffer[1] = g_size;
     buffer += 2;
-    huge_unload(&dhkey.g, buffer, g_size);
+    huge_unload(&dh_tmp_key.g, buffer, g_size);
     buffer += g_size;
 
     buffer[1] = Y_size;
     buffer += 2;
-    huge_unload(&dhkey.Y, buffer, Y_size);
+    huge_unload(&dh_tmp_key.Y, buffer, Y_size);
     // ServerDHParams-end
 
     // hash-begin
