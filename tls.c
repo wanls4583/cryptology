@@ -588,9 +588,9 @@ unsigned char* parse_client_hello(
     }
     printf("\n");
 
-    // 0039 0035 0033 002f 0016 000a 0005 0004
-    parameters->pending_recv_parameters.suite = 0x0037;
-    parameters->pending_send_parameters.suite = 0x0037;
+    // 0039 0038 0037 0036 0035 0033 0032 0031 0030 002f 0007 0005 0004 0016 0013 0010 000d 000a
+    parameters->pending_recv_parameters.suite = 0x0036;
+    parameters->pending_send_parameters.suite = 0x0036;
 
     if (i == MAX_SUPPORTED_CIPHER_SUITE) {
         return NULL;
@@ -728,6 +728,13 @@ int send_certificate(int connection, TLSParameters* parameters) {
     case TLS_DH_RSA_WITH_AES_128_CBC_SHA:
     case TLS_DH_RSA_WITH_AES_256_CBC_SHA:
         strcpy(cert_url, "./res/dhcert.der");
+        break;
+    case TLS_DH_DSS_EXPORT_WITH_DES40_CBC_SHA:
+    case TLS_DH_DSS_WITH_DES_CBC_SHA:
+    case TLS_DH_DSS_WITH_3DES_EDE_CBC_SHA:
+    case TLS_DH_DSS_WITH_AES_128_CBC_SHA:
+    case TLS_DH_DSS_WITH_AES_256_CBC_SHA:
+        strcpy(cert_url, "./res/dsa_dhcert.der");
         break;
     case TLS_DHE_RSA_EXPORT_WITH_DES40_CBC_SHA:
     case TLS_DHE_RSA_WITH_DES_CBC_SHA:
@@ -995,6 +1002,11 @@ unsigned char* parse_client_key_exchange(
     case TLS_DH_RSA_WITH_3DES_EDE_CBC_SHA:
     case TLS_DH_RSA_WITH_AES_128_CBC_SHA:
     case TLS_DH_RSA_WITH_AES_256_CBC_SHA:
+    case TLS_DH_DSS_EXPORT_WITH_DES40_CBC_SHA:
+    case TLS_DH_DSS_WITH_DES_CBC_SHA:
+    case TLS_DH_DSS_WITH_3DES_EDE_CBC_SHA:
+    case TLS_DH_DSS_WITH_AES_128_CBC_SHA:
+    case TLS_DH_DSS_WITH_AES_256_CBC_SHA:
         huge_load(&Yc, read_pos + 2, pdu_length - 2);
         huge_mod_pow(&Yc, &dh_priv_key.Y, &dh_priv_key.p);
         premaster_secret_length = huge_bytes(&Yc);
