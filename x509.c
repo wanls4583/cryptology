@@ -848,7 +848,7 @@ int main() {
 
     unsigned char* pem_buffer = buffer;
     buffer = (unsigned char*)malloc(buffer_size);
-    buffer_size = pem_decode(pem_buffer, buffer);
+    buffer_size = pem_decode(pem_buffer, buffer, NULL, NULL);
     free(pem_buffer);
 
     // now parse it

@@ -198,14 +198,22 @@ void asn1show(int depth, struct asn1struct* certificate) {
     }
 }
 
-int pem_decode(unsigned char* pem_buffer, unsigned char* der_buffer) {
+int pem_decode(unsigned char* pem_buffer, unsigned char* der_buffer, char* start_label, char* end_label) {
     int size = 0;
-    if (strncmp((const char*)pem_buffer, "-----BEGIN", 10)) {
+    char start_tag[100] = { 0 };
+    char end_tag[100] = { 0 };
+
+    strcpy(start_tag, start_label ? start_label : "-----BEGIN");
+    strcpy(end_tag, end_label ? end_label : "-----END");
+
+    pem_buffer = (unsigned char*)strstr((char*)pem_buffer, start_tag);
+    if (!pem_buffer || strncmp((const char*)pem_buffer, start_tag, strlen(start_tag))) {
         printf("pem_decode fail\n"); //不是PEM格式文件
         return 0;
     }
-    pem_buffer = (unsigned char*)strchr((const char*)pem_buffer, '\n') + 1;
-    while (strncmp((const char*)pem_buffer, "-----END", 8)) {
+
+    pem_buffer = (unsigned char*)strchr((char*)pem_buffer, '\n') + 1;
+    while (strncmp((const char*)pem_buffer, end_tag, strlen(end_tag))) {
         unsigned char* end = (unsigned char*)strchr((const char*)pem_buffer, '\n');
         int len = end - pem_buffer;
         if (*(end - 1) == '\r') { //兼容\r\n

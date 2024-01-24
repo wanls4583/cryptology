@@ -93,6 +93,48 @@ int parse_private_dh_key(
     return 0;
 }
 
+/*
+version
+p
+q
+g
+pub
+priv
+*/
+int parse_private_dsa_key(
+    dsa_key* privkey,
+    unsigned char* buffer,
+    int buffer_length
+) {
+    struct asn1struct private_key;
+    struct asn1struct* version;
+    struct asn1struct* p;
+    struct asn1struct* q;
+    struct asn1struct* g;
+    struct asn1struct* pub;
+    struct asn1struct* priv;
+
+    asn1parse(buffer, buffer_length, &private_key);
+
+    version = (struct asn1struct*)private_key.children;
+    p = (struct asn1struct*)version->next;
+    huge_load(&privkey->params.p, p->data, p->length);
+
+    q = (struct asn1struct*)p->next;
+    huge_load(&privkey->params.q, q->data, q->length);
+
+    g = (struct asn1struct*)q->next;
+    huge_load(&privkey->params.g, g->data, g->length);
+
+    pub = (struct asn1struct*)g->next;
+    priv = (struct asn1struct*)pub->next;
+    huge_load(&privkey->key, priv->data, priv->length);
+
+    asn1free(&private_key);
+
+    return 0;
+}
+
 // #define TEST_PRIVKEY
 #ifdef TEST_PRIVKEY
 #include "file.h"
@@ -105,17 +147,17 @@ int main() {
     unsigned char* buffer;
     unsigned char* pem_buffer;
 
-    // pem_buffer = load_file("./res/rootCA.key", &pem_buffer_length);
-    // buffer = (unsigned char*)malloc(pem_buffer_length);
-    // buffer_length = pem_decode(pem_buffer, buffer);
-
-    buffer = load_file("./res/rsakey.der", &buffer_length);
+    pem_buffer = load_file("./res/rsa_key.pem", &pem_buffer_length);
+    buffer = (unsigned char*)malloc(pem_buffer_length);
+    buffer_length = pem_decode(pem_buffer, buffer, NULL, NULL);
     parse_private_key(&privkey, buffer, buffer_length);
 
     printf("Modulus:");
     show_hex(privkey.p->rep, privkey.p->size, HUGE_WORD_BYTES);
     printf("Private Exponent:");
     show_hex(privkey.key->rep, privkey.key->size, HUGE_WORD_BYTES);
+
+    printf("------------------------\n");
 
     dh_key dh_privkey;
     buffer = load_file("./res/dhkey.der", &buffer_length);
@@ -126,6 +168,22 @@ int main() {
     show_hex(dh_privkey.p.rep, dh_privkey.p.size, HUGE_WORD_BYTES);
     printf("dh_Y:");
     show_hex(dh_privkey.Y.rep, dh_privkey.Y.size, HUGE_WORD_BYTES);
+
+    printf("------------------------\n");
+
+    dsa_key dsa_privkey;
+    pem_buffer = load_file("./res/dsa_key.pem", &pem_buffer_length);
+    buffer = (unsigned char*)malloc(pem_buffer_length);
+    buffer_length = pem_decode(pem_buffer, buffer, "-----BEGIN DSA PRIVATE KEY-----", "-----END DSA PRIVATE KEY-----");
+    parse_private_dsa_key(&dsa_privkey, buffer, buffer_length);
+    printf("dsa_p:");
+    show_hex(dsa_privkey.params.p.rep, dsa_privkey.params.p.size, HUGE_WORD_BYTES);
+    printf("dsa_q:");
+    show_hex(dsa_privkey.params.q.rep, dsa_privkey.params.q.size, HUGE_WORD_BYTES);
+    printf("dsa_g:");
+    show_hex(dsa_privkey.params.g.rep, dsa_privkey.params.g.size, HUGE_WORD_BYTES);
+    printf("dsa_key:");
+    show_hex(dsa_privkey.key.rep, dsa_privkey.key.size, HUGE_WORD_BYTES);
 
     return 0;
 }

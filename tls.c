@@ -96,7 +96,8 @@ CipherSuite suites[] =
     { TLS_DH_anon_WITH_AES_256_CBC_SHA, 16, 16, 32, SHA1_BYTE_SIZE, (encrypt_func)aes_256_encrypt, (decrypt_func)aes_256_decrypt, new_sha1_digest },
 };
 
-rsa_key private_key;
+rsa_key private_rsa_key;
+dsa_key private_dsa_key;
 dh_key dh_priv_key;
 dh_key dh_tmp_key;
 huge dh_priv;
@@ -151,24 +152,6 @@ void init_dh_tmp_key() {
     huge_copy(&dh_tmp_key.Y, &pub);
 }
 
-int init_rsa_key() {
-    unsigned char* pem_buffer;
-    unsigned char* buffer;
-    int buffer_length;
-
-    if (!(pem_buffer = load_file("./res/rsa_key.pem", &buffer_length))) {
-        perror("Unable to load file");
-        return 0;
-    }
-    buffer = (unsigned char*)malloc(buffer_length);
-    buffer_length = pem_decode(pem_buffer, buffer);
-
-    parse_private_key(&private_key, buffer, buffer_length);
-    free(buffer);
-
-    return 1;
-}
-
 int init_dh_key() {
     unsigned char* buffer;
     int buffer_length;
@@ -179,6 +162,42 @@ int init_dh_key() {
     }
 
     parse_private_dh_key(&dh_priv_key, buffer, buffer_length);
+    free(buffer);
+
+    return 1;
+}
+
+int init_rsa_key() {
+    unsigned char* pem_buffer;
+    unsigned char* buffer;
+    int buffer_length;
+
+    if (!(pem_buffer = load_file("./res/rsa_key.pem", &buffer_length))) {
+        perror("Unable to load file");
+        return 0;
+    }
+    buffer = (unsigned char*)malloc(buffer_length);
+    buffer_length = pem_decode(pem_buffer, buffer, NULL, NULL);
+
+    parse_private_key(&private_rsa_key, buffer, buffer_length);
+    free(buffer);
+
+    return 1;
+}
+
+int init_dsa_key() {
+    unsigned char* pem_buffer;
+    unsigned char* buffer;
+    int buffer_length;
+
+    if (!(pem_buffer = load_file("./res/dsa_key.pem", &buffer_length))) {
+        perror("Unable to load file");
+        return 0;
+    }
+    buffer = (unsigned char*)malloc(buffer_length);
+    buffer_length = pem_decode(pem_buffer, buffer, NULL, NULL);
+
+    parse_private_dsa_key(&private_dsa_key, buffer, buffer_length);
     free(buffer);
 
     return 1;
@@ -200,6 +219,7 @@ void init_parameters(TLSParameters* parameters) {
     init_dh_tmp_key();
     init_dh_key();
     init_rsa_key();
+    init_dsa_key();
 
     memset(parameters->master_secret, '\0', MASTER_SECRET_LENGTH);
     memset(parameters->client_random, '\0', RANDOM_LENGTH);
@@ -997,7 +1017,7 @@ unsigned char* parse_client_key_exchange(
     case TLS_RSA_WITH_AES_128_CBC_SHA:
     case TLS_RSA_WITH_AES_256_CBC_SHA:
         // Skip over the two length bytes, since length is already known anyway
-        premaster_secret_length = rsa_decrypt(&private_key, read_pos + 2, pdu_length - 2, &premaster_secret, RSA_PKCS1_PADDING);
+        premaster_secret_length = rsa_decrypt(&private_rsa_key, read_pos + 2, pdu_length - 2, &premaster_secret, RSA_PKCS1_PADDING);
 
         printf("premaster_secret:");
         show_hex(premaster_secret, premaster_secret_length, 1);
@@ -1140,7 +1160,7 @@ int send_server_key_exchange(int connection, TLSParameters* parameters) {
     // };
     memcpy(sign_input, md5.hash, md5.result_size);
     memcpy(sign_input + md5.result_size, sha1.hash, sha1.result_size);
-    sign_out_len = rsa_sign(&private_key, sign_input, 36, &sign_out, RSA_PKCS1_PADDING);
+    sign_out_len = rsa_sign(&private_rsa_key, sign_input, 36, &sign_out, RSA_PKCS1_PADDING);
     // digitally-signed-end
 
     key_exchange_message_len = dh_len + sign_out_len + 2;

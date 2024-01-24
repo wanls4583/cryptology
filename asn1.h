@@ -55,6 +55,6 @@ int asn1parse(
 	struct asn1struct* top_level_token
 );
 void asn1free(struct asn1struct* node);
-int pem_decode(unsigned char* pem_buffer, unsigned char* der_buffer);
+int pem_decode(unsigned char* pem_buffer, unsigned char* der_buffer, char* start_label, char* end_label);
 
 #endif

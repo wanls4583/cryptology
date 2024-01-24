@@ -12,6 +12,12 @@ typedef struct {
 dsa_params;
 
 typedef struct {
+	dsa_params params;
+	huge key;
+}
+dsa_key;
+
+typedef struct {
 	huge r;
 	huge s;
 }
