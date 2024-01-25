@@ -51,7 +51,7 @@ void base64_encode(unsigned char* input, int len, unsigned char* output) {
 
 int base64_decode(unsigned char* input, int len, unsigned char* output) {
 	int i = 0, j = 0;
-	while (i <= len - 4) {
+	while (i < len - 4) {
 		output[j++] = unbase64[input[i]] << 2 | (unbase64[input[i + 1]] & 0xf0) >> 4;
 		output[j++] = (unbase64[input[i + 1]] & 0x0f) << 4 | (unbase64[input[i + 2]] & 0xfc) >> 2;
 		output[j++] = (unbase64[input[i + 2]] & 0x03) << 6 | unbase64[input[i + 3]];
@@ -64,6 +64,10 @@ int base64_decode(unsigned char* input, int len, unsigned char* output) {
 			output[j++] = unbase64[input[i]] << 2 | (unbase64[input[i + 1]] & 0xf0) >> 4;
 			output[j++] = (unbase64[input[i + 1]] & 0x0f) << 4 | (unbase64[input[i + 2]] & 0xfc) >> 2;
 		}
+	} else {
+		output[j++] = unbase64[input[i]] << 2 | (unbase64[input[i + 1]] & 0xf0) >> 4;
+		output[j++] = (unbase64[input[i + 1]] & 0x0f) << 4 | (unbase64[input[i + 2]] & 0xfc) >> 2;
+		output[j++] = (unbase64[input[i + 2]] & 0x03) << 6 | unbase64[input[i + 3]];
 	}
 	output[j] = 0;
 

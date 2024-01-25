@@ -32,6 +32,7 @@ struct asn1struct {
 #define ASN1_RELATIVE_OID 13
 // 14 & 15 undefined
 #define ASN1_SEQUENCE 16
+#define ASN1_SEQUENCE_OF 0x30
 #define ASN1_SET 17
 #define ASN1_NUMERIC_STRING 18
 #define ASN1_PRINTABLE_STRING 19

@@ -2,6 +2,7 @@
 #include "huge.h"
 #include "asn1.h"
 #include "privkey.h"
+#include "hex.h"
 
 /**
  * Parse the modulus and private exponent from the buffer, which

@@ -202,6 +202,8 @@ int pem_decode(unsigned char* pem_buffer, unsigned char* der_buffer, char* start
     int size = 0;
     char start_tag[100] = { 0 };
     char end_tag[100] = { 0 };
+    unsigned char* str_buffer = (unsigned char*)malloc(10000);
+    unsigned char* buffer = str_buffer;
 
     strcpy(start_tag, start_label ? start_label : "-----BEGIN");
     strcpy(end_tag, end_label ? end_label : "-----END");
@@ -219,13 +221,14 @@ int pem_decode(unsigned char* pem_buffer, unsigned char* der_buffer, char* start
         if (*(end - 1) == '\r') { //兼容\r\n
             len--;
         }
-        // show_hex(pem_buffer, len, 1);
-        len = base64_decode(pem_buffer, len, der_buffer);
-        // show_hex(der_buffer, len, 1);
+        memcpy(buffer, pem_buffer, len);
+        buffer += len;
         pem_buffer = end + 1;
-        der_buffer += len;
         size += len;
     }
+    // str_buffer[size] = 0;
+    // printf("%s", str_buffer);
+    size = base64_decode(str_buffer, size, der_buffer);
 
     return size;
 }
@@ -237,14 +240,14 @@ int pem_decode(unsigned char* pem_buffer, unsigned char* der_buffer, char* start
 #include <fcntl.h>
 int main() {
     struct stat certificate_file_stat;
-    int certificate_file = open("/Users/lisong/Downloads/rootCA.crt", O_RDONLY);
+    int certificate_file = open("./res/rsa_dhcert.pem", O_RDONLY);
     fstat(certificate_file, &certificate_file_stat);
 
     unsigned char* pem_buffer = (unsigned char*)malloc(certificate_file_stat.st_size);
     read(certificate_file, (void*)pem_buffer, certificate_file_stat.st_size);
 
     unsigned char* buffer = (unsigned char*)malloc(certificate_file_stat.st_size);
-    int buffer_size = pem_decode(pem_buffer, buffer);
+    int buffer_size = pem_decode(pem_buffer, buffer, NULL, NULL);
     // show_hex(pem_buffer, certificate_file_stat.st_size, 1);
     // show_hex(buffer, buffer_size, 1);
 

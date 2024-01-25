@@ -153,13 +153,17 @@ void init_dh_tmp_key() {
 }
 
 int init_dh_key() {
+    unsigned char* pem_buffer;
     unsigned char* buffer;
     int buffer_length;
 
-    if (!(buffer = load_file("./res/dhkey.der", &buffer_length))) {
+    if (!(pem_buffer = load_file("./res/dh_key.pem", &buffer_length))) {
         perror("Unable to load file");
         return 0;
     }
+
+    buffer = (unsigned char*)malloc(buffer_length);
+    buffer_length = pem_decode(pem_buffer, buffer, NULL, NULL);
 
     parse_private_dh_key(&dh_priv_key, buffer, buffer_length);
     free(buffer);
@@ -613,8 +617,8 @@ unsigned char* parse_client_hello(
     printf("\n");
 
     // 0039 0038 0037 0036 0035 0033 0032 0031 0030 002f 0007 0005 0004 0016 0013 0010 000d 000a
-    parameters->pending_recv_parameters.suite = TLS_DHE_RSA_WITH_AES_256_CBC_SHA;
-    parameters->pending_send_parameters.suite = TLS_DHE_RSA_WITH_AES_256_CBC_SHA;
+    parameters->pending_recv_parameters.suite = TLS_DHE_DSS_WITH_AES_256_CBC_SHA;
+    parameters->pending_send_parameters.suite = TLS_DHE_DSS_WITH_AES_256_CBC_SHA;
 
     if (i == MAX_SUPPORTED_CIPHER_SUITE) {
         return NULL;
@@ -751,21 +755,28 @@ int send_certificate(int connection, TLSParameters* parameters) {
     case TLS_DH_RSA_WITH_3DES_EDE_CBC_SHA:
     case TLS_DH_RSA_WITH_AES_128_CBC_SHA:
     case TLS_DH_RSA_WITH_AES_256_CBC_SHA:
-        strcpy(cert_url, "./res/rsa_dhcert.der");
+        strcpy(cert_url, "./res/rsa_dhcert.pem");
         break;
     case TLS_DH_DSS_EXPORT_WITH_DES40_CBC_SHA:
     case TLS_DH_DSS_WITH_DES_CBC_SHA:
     case TLS_DH_DSS_WITH_3DES_EDE_CBC_SHA:
     case TLS_DH_DSS_WITH_AES_128_CBC_SHA:
     case TLS_DH_DSS_WITH_AES_256_CBC_SHA:
-        strcpy(cert_url, "./res/dsa_dhcert.der");
+        strcpy(cert_url, "./res/dsa_dhcert.pem");
         break;
     case TLS_DHE_RSA_EXPORT_WITH_DES40_CBC_SHA:
     case TLS_DHE_RSA_WITH_DES_CBC_SHA:
     case TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA:
     case TLS_DHE_RSA_WITH_AES_128_CBC_SHA:
     case TLS_DHE_RSA_WITH_AES_256_CBC_SHA:
-        strcpy(cert_url, "./res/rsa_cert.der");
+        strcpy(cert_url, "./res/rsa_cert.pem");
+        break;
+    case TLS_DHE_DSS_EXPORT_WITH_DES40_CBC_SHA:
+    case TLS_DHE_DSS_WITH_DES_CBC_SHA:
+    case TLS_DHE_DSS_WITH_3DES_EDE_CBC_SHA:
+    case TLS_DHE_DSS_WITH_AES_128_CBC_SHA:
+    case TLS_DHE_DSS_WITH_AES_256_CBC_SHA:
+        strcpy(cert_url, "./res/dsa_cert.pem");
         break;
     case TLS_RSA_WITH_NULL_MD5:
     case TLS_RSA_WITH_NULL_SHA:
@@ -776,7 +787,7 @@ int send_certificate(int connection, TLSParameters* parameters) {
     case TLS_RSA_WITH_3DES_EDE_CBC_SHA:
     case TLS_RSA_WITH_AES_128_CBC_SHA:
     case TLS_RSA_WITH_AES_256_CBC_SHA:
-        strcpy(cert_url, "./res/rsa_cert.der");
+        strcpy(cert_url, "./res/rsa_cert.pem");
         break;
     default:
         return 0;
@@ -792,33 +803,32 @@ int send_certificate(int connection, TLSParameters* parameters) {
         return 1;
     }
 
+    unsigned char* pem_buffer;
+    unsigned char* buffer;
+    int buffer_size;
+
+    if (!(pem_buffer = load_file(cert_url, &buffer_size))) {
+        perror("Unable to load file");
+        return 0;
+    }
+
+    buffer = (unsigned char*)malloc(buffer_size);
+    buffer_size = pem_decode(pem_buffer, buffer, NULL, NULL);
     // Allocate enough space for the certificate file, plus 2 3-byte length
     // entries.
-    send_buffer_size = certificate_stat.st_size + 6;
+    send_buffer_size = buffer_size + 6;
     send_buffer = (unsigned char*)malloc(send_buffer_size);
     memset(send_buffer, '\0', send_buffer_size);
-    cert_len = certificate_stat.st_size + 3;
+
+    cert_len = buffer_size + 3;
     cert_len = htons(cert_len);
     memcpy((void*)(send_buffer + 1), &cert_len, 2);
 
-    cert_len = certificate_stat.st_size;
+    cert_len = buffer_size;
     cert_len = htons(cert_len);
     memcpy((void*)(send_buffer + 4), &cert_len, 2);
 
-    read_buffer = send_buffer + 6;
-    cert_len = certificate_stat.st_size;
-
-    while ((read_buffer - send_buffer) < send_buffer_size) {
-        int read_size;
-        read_size = read(certificate_file, read_buffer, cert_len);
-        read_buffer += read_size;
-        cert_len -= read_size;
-    }
-
-    if (close(certificate_file) == -1) {
-        perror("unable to close certificate file");
-        return 1;
-    }
+    memcpy(send_buffer + 6, buffer, buffer_size);
 
     send_handshake_message(connection, certificate, send_buffer, send_buffer_size, parameters);
 
@@ -1078,23 +1088,11 @@ unsigned char* parse_client_key_exchange(
     return read_pos + pdu_length;
 }
 
-// tls1.0: 7.4.3. Server key exchange message
-int send_server_key_exchange(int connection, TLSParameters* parameters) {
+int send_server_key_exchange_with_sign(int connection, TLSParameters* parameters, signatureAlgorithmIdentifier sign_algorithm) {
     unsigned char* key_exchange_message;
     unsigned char* buffer;
     short key_exchange_message_len;
-
-    switch (parameters->pending_send_parameters.suite) {
-    case TLS_DHE_RSA_WITH_DES_CBC_SHA:
-    case TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA:
-    case TLS_DHE_RSA_WITH_AES_128_CBC_SHA:
-    case TLS_DHE_DSS_WITH_AES_256_CBC_SHA:
-    case TLS_DHE_RSA_WITH_AES_256_CBC_SHA:
-        break;
-    default:
-        return 0;
-    }
-
+    short length = 0;
     int sign_out_len = 0;
     int p_size = huge_bytes(&dh_tmp_key.p);
     int g_size = huge_bytes(&dh_tmp_key.g);
@@ -1158,15 +1156,53 @@ int send_server_key_exchange(int connection, TLSParameters* parameters) {
     //     opaque md5_hash[16];
     //     opaque sha_hash[20];
     // };
-    memcpy(sign_input, md5.hash, md5.result_size);
-    memcpy(sign_input + md5.result_size, sha1.hash, sha1.result_size);
-    sign_out_len = rsa_sign(&private_rsa_key, sign_input, 36, &sign_out, RSA_PKCS1_PADDING);
+    if (sign_algorithm == shaWithRSAEncryption) {
+        memcpy(sign_input, md5.hash, md5.result_size);
+        memcpy(sign_input + md5.result_size, sha1.hash, sha1.result_size);
+        sign_out_len = rsa_sign(&private_rsa_key, sign_input, 36, &sign_out, RSA_PKCS1_PADDING);
+    } else {
+        int r_len = 0, s_len = 0;
+        dsa_signature signature;
+        huge_set(&signature.r, 0);
+        huge_set(&signature.s, 0);
+
+        memcpy(sign_input, sha1.hash, sha1.result_size);
+        dsa_sign(&private_dsa_key.params, &private_dsa_key.key, &sha1, &signature);
+
+        r_len = huge_bytes(&signature.r);
+        s_len = huge_bytes(&signature.s);
+        
+        /*
+        tls1.0-4.7:
+        Dss-Sig-Value  ::=  SEQUENCE  {
+            r       INTEGER,
+            s       INTEGER
+        }
+        */
+        sign_out_len = r_len + s_len + 6;
+        sign_out = (unsigned char*)malloc(sign_out_len);
+        buffer = sign_out;
+
+        buffer[0] = ASN1_SEQUENCE_OF;
+        buffer[1] = r_len + s_len + 4;
+        buffer += 2;
+
+        buffer[0] = ASN1_INTEGER;
+        buffer[1] = r_len;
+        buffer += 2;
+        huge_unload(&signature.r, buffer, r_len);
+        buffer += r_len;
+
+        buffer[0] = ASN1_INTEGER;
+        buffer[1] = s_len;
+        buffer += 2;
+        huge_unload(&signature.s, buffer, s_len);
+    }
     // digitally-signed-end
 
     key_exchange_message_len = dh_len + sign_out_len + 2;
     key_exchange_message = (unsigned char*)malloc(key_exchange_message_len);
 
-    short length;
     buffer = key_exchange_message;
     memcpy(buffer, dh_input, dh_len);
     buffer += dh_len;
@@ -1184,6 +1220,27 @@ int send_server_key_exchange(int connection, TLSParameters* parameters) {
     free(key_exchange_message);
 
     return 0;
+}
+
+// tls1.0: 7.4.3. Server key exchange message
+int send_server_key_exchange(int connection, TLSParameters* parameters) {
+
+    switch (parameters->pending_send_parameters.suite) {
+    case TLS_DHE_RSA_EXPORT_WITH_DES40_CBC_SHA:
+    case TLS_DHE_RSA_WITH_DES_CBC_SHA:
+    case TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA:
+    case TLS_DHE_RSA_WITH_AES_128_CBC_SHA:
+    case TLS_DHE_RSA_WITH_AES_256_CBC_SHA:
+        return send_server_key_exchange_with_sign(connection, parameters, shaWithRSAEncryption);
+    case TLS_DHE_DSS_EXPORT_WITH_DES40_CBC_SHA:
+    case TLS_DHE_DSS_WITH_DES_CBC_SHA:
+    case TLS_DHE_DSS_WITH_3DES_EDE_CBC_SHA:
+    case TLS_DHE_DSS_WITH_AES_128_CBC_SHA:
+    case TLS_DHE_DSS_WITH_AES_256_CBC_SHA:
+        return send_server_key_exchange_with_sign(connection, parameters, shaWithDSA);
+    default:
+        return 0;
+    }
 }
 
 void compute_handshake_hash(TLSParameters* parameters, unsigned char* handshake_hash) {
