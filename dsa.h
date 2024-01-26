@@ -13,6 +13,7 @@ dsa_params;
 
 typedef struct {
 	dsa_params params;
+	huge pub;
 	huge key;
 }
 dsa_key;

@@ -29,7 +29,7 @@ void dsa_sign(
     dsa_signature* signature
 ) {
     unsigned char* hash;
-    int hash_size = 0;
+    int hash_byte_size = 0;
     huge r, s, k, m;
     r.rep = NULL;
     s.rep = NULL;
@@ -43,9 +43,9 @@ void dsa_sign(
 
     // s = (inv(k)*(h(m)+xr)) mod q
     hash = (unsigned char*)ctx->hash;
-    hash_size = ctx->result_size;
-    hash_size = hash_size > huge_bytes(&params->q) ? huge_bytes(&params->q) : hash_size;
-    huge_load(&m, hash, hash_size);
+    hash_byte_size = ctx->result_size;
+    hash_byte_size = hash_byte_size > huge_bytes(&params->q) ? huge_bytes(&params->q) : hash_byte_size;
+    huge_load(&m, hash, hash_byte_size);
     huge_inverse_mul(&k, &params->q);
     huge_copy(&s, private_key);
     huge_multiply(&s, &r);
@@ -69,7 +69,7 @@ int dsa_verify(
     dsa_signature* signature
 ) {
     unsigned char* hash;
-    int hash_size = 0, result = -1;
+    int hash_byte_size = 0, result = -1;
     huge w, u1, u2, v, m, g, y;
     w.rep = NULL;
     u1.rep = NULL;
@@ -84,9 +84,9 @@ int dsa_verify(
 
     // u1 = (h(m) * w) % q
     hash = (unsigned char*)ctx->hash;
-    hash_size = ctx->result_size;
-    hash_size = hash_size > huge_bytes(&params->q) ? huge_bytes(&params->q) : hash_size;
-    huge_load(&m, ctx->hash, hash_size);
+    hash_byte_size = ctx->result_size;
+    hash_byte_size = hash_byte_size > huge_bytes(&params->q) ? huge_bytes(&params->q) : hash_byte_size;
+    huge_load(&m, ctx->hash, hash_byte_size);
     huge_copy(&u1, &w);
     huge_multiply(&u1, &m);
     huge_divide(&u1, &params->q, NULL);
@@ -121,7 +121,7 @@ int dsa_verify(
 // #define TEST_DSA
 #ifdef TEST_DSA
 #include <string.h>
-int main() {
+void test1() {
     unsigned char priv[] = {
         0x53, 0x61, 0xae, 0x4f, 0x6f, 0x25, 0x98, 0xde, 0xc4, 0xbf, 0x0b, 0xbe, 0x09,
         0x5f, 0xdf, 0x90, 0x2f, 0x4c, 0x8e, 0x09
@@ -164,10 +164,10 @@ int main() {
     huge_load(&x, priv, sizeof(priv));
     huge_load(&y, pub, sizeof(pub));
 
-    huge g;
-    huge_load(&g, G, sizeof(G));
-    huge_mod_pow(&g, &x, &params.p);
-    show_hex(g.rep, g.size, HUGE_WORD_BYTES);
+    // huge g;
+    // huge_load(&g, G, sizeof(G));
+    // huge_mod_pow(&g, &x, &params.p);
+    // show_hex(g.rep, g.size, HUGE_WORD_BYTES);
 
     new_sha1_digest(&ctx);
     update_digest(&ctx, msg, strlen((char*)msg));
@@ -181,5 +181,54 @@ int main() {
 
     int result = dsa_verify(&params, &y, &ctx, &signature);
     printf("dsa_verify: %s\n", result == 0 ? "success" : "failed");
+}
+
+#include "file.h"
+#include "asn1.h"
+#include "privkey.h"
+void test2() {
+    dsa_signature signature;
+    dsa_key private_dsa_key;
+    digest_ctx ctx;
+    unsigned char* pem_buffer;
+    unsigned char* buffer;
+    unsigned char* msg;
+    int buffer_length;
+
+    huge_set(&signature.r, 0);
+    huge_set(&signature.s, 0);
+
+    if (!(pem_buffer = load_file("./res/dsa_key.pem", &buffer_length))) {
+        perror("Unable to load file");
+        return;
+    }
+    buffer = (unsigned char*)malloc(buffer_length);
+    buffer_length = pem_decode(pem_buffer, buffer, NULL, NULL);
+
+    parse_private_dsa_key(&private_dsa_key, buffer, buffer_length);
+    free(buffer);
+
+    int len = hex_decode((unsigned char*)"0x7b90f26a4b8f717a62a2434cb3c8e04dd0728ba8872784abea2435c0854fbb0f9571ab650000000000000000000000000000000000000000000000000000000000809c4caa76312e714d31d6e4d7e9a7297b7f05eefdca35141e9fe5c02ae012d9c4c0decc66962ff18f1ae1e8bfc2290d270748b97104ecc7f4162e508d6714847b9c4caa76312e714d31d6e4d7e9a7297b7f05eefdca35141e9fe5c02ae012d9c4c0decc66962ff18f1ae1e8bfc2290d270748b97104ecc7f4162e508d6714847b00807dcd668161522110f7a0834c5fc884cae88a9b9f19148c7dd0ee33ceb4572d5e783f06d7b3d640702eb6123f4a6138ae7212fb77de53b3a199d8a81996f77f997dcd668161522110f7a0834c5fc884cae88a9b9f19148c7dd0ee33ceb4572d5e783f06d7b3d640702eb6123f4a6138ae7212fb77de53b3a199d8a81996f77f9900804093f447fbba760dffddf29ce864027192b3b950b4087f220b849a06de105c02f56e59f0830e2109e0d0eb7c873db6aff8555a2c517217ef44f387ab1846c2a34093f447fbba760dffddf29ce864027192b3b950b4087f220b849a06de105c02f56e59f0830e2109e0d0eb7c873db6aff8555a2c517217ef44f387ab1846c2a3", &msg);
+    // int len = hex_decode((unsigned char*)"0xe2ab0af912826f0833d2e7499e52cfe9fb6577ef7c02e139e1bc9efd26035b669571ab650000000000000000000000000000000000000000000000000000000000809c4caa76312e714d31d6e4d7e9a7297b7f05eefdca35141e9fe5c02ae012d9c4c0decc66962ff18f1ae1e8bfc2290d270748b97104ecc7f4162e508d6714847b9c4caa76312e714d31d6e4d7e9a7297b7f05eefdca35141e9fe5c02ae012d9c4c0decc66962ff18f1ae1e8bfc2290d270748b97104ecc7f4162e508d6714847b00807dcd668161522110f7a0834c5fc884cae88a9b9f19148c7dd0ee33ceb4572d5e783f06d7b3d640702eb6123f4a6138ae7212fb77de53b3a199d8a81996f77f997dcd668161522110f7a0834c5fc884cae88a9b9f19148c7dd0ee33ceb4572d5e783f06d7b3d640702eb6123f4a6138ae7212fb77de53b3a199d8a81996f77f9900804093f447fbba760dffddf29ce864027192b3b950b4087f220b849a06de105c02f56e59f0830e2109e0d0eb7c873db6aff8555a2c517217ef44f387ab1846c2a34093f447fbba760dffddf29ce864027192b3b950b4087f220b849a06de105c02f56e59f0830e2109e0d0eb7c873db6aff8555a2c517217ef44f387ab1846c2a3", &msg);
+
+    new_sha1_digest(&ctx);
+    update_digest(&ctx, msg, len);
+    finalize_digest(&ctx);
+
+    dsa_sign(&private_dsa_key.params, &private_dsa_key.key, &ctx, &signature);
+    printf("r:");
+    show_hex(signature.r.rep, signature.r.size, HUGE_WORD_BYTES);
+    printf("s:");
+    show_hex(signature.s.rep, signature.s.size, HUGE_WORD_BYTES);
+
+    int result = dsa_verify(&private_dsa_key.params, &private_dsa_key.pub, &ctx, &signature);
+    printf("dsa_verify: %s\n", result == 0 ? "success" : "failed");
+}
+
+int main() {
+    // test1();
+    test2();
+
+    return 0;
 }
 #endif

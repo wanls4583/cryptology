@@ -128,6 +128,8 @@ int parse_private_dsa_key(
     huge_load(&privkey->params.g, g->data, g->length);
 
     pub = (struct asn1struct*)g->next;
+    huge_load(&privkey->pub, pub->data, pub->length);
+
     priv = (struct asn1struct*)pub->next;
     huge_load(&privkey->key, priv->data, priv->length);
 

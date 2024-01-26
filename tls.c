@@ -658,6 +658,9 @@ int send_server_hello(int connection, TLSParameters* parameters) {
     // This is 28 bytes, but client random is 32 - the first four bytes of
     // "client random" are the GMT unix time computed above.
     memcpy(parameters->server_random, &package.random.gmt_unix_time, 4);
+    for (int i = 0; i < 28; i++) {
+        parameters->server_random[4 + i] = i + 1;
+    }
     memcpy(package.random.random_bytes, parameters->server_random + 4, 28);
     package.session_id_length = 0;
     package.cipher_suite = htons(parameters->pending_send_parameters.suite);
@@ -1162,16 +1165,22 @@ int send_server_key_exchange_with_sign(int connection, TLSParameters* parameters
         sign_out_len = rsa_sign(&private_rsa_key, sign_input, 36, &sign_out, RSA_PKCS1_PADDING);
     } else {
         int r_len = 0, s_len = 0;
+        unsigned char* r;
+        unsigned char* s;
         dsa_signature signature;
         huge_set(&signature.r, 0);
         huge_set(&signature.s, 0);
 
-        memcpy(sign_input, sha1.hash, sha1.result_size);
+        // printf("hash_input:");
+        // show_hex(hash_input, hash_input_len, 1);
         dsa_sign(&private_dsa_key.params, &private_dsa_key.key, &sha1, &signature);
 
         r_len = huge_bytes(&signature.r);
         s_len = huge_bytes(&signature.s);
-        
+        r = (unsigned char*)malloc(r_len);
+        s = (unsigned char*)malloc(s_len);
+        huge_unload(&signature.r, r, r_len);
+        huge_unload(&signature.s, s, s_len);
         /*
         tls1.0-4.7:
         Dss-Sig-Value  ::=  SEQUENCE  {
@@ -1179,24 +1188,28 @@ int send_server_key_exchange_with_sign(int connection, TLSParameters* parameters
             s       INTEGER
         }
         */
-        sign_out_len = r_len + s_len + 6;
+        //ASN.1整数编码有符号位，最高位为符号位
+        int r_sign = (r[0] & 0x80 ? 1 : 0);
+        int s_sign = (s[0] & 0x80 ? 1 : 0);
+        sign_out_len = r_len + s_len + 6 + r_sign + s_sign;
         sign_out = (unsigned char*)malloc(sign_out_len);
+        memset(sign_out, 0, sign_out_len);
         buffer = sign_out;
 
         buffer[0] = ASN1_SEQUENCE_OF;
-        buffer[1] = r_len + s_len + 4;
+        buffer[1] = sign_out_len - 2;
         buffer += 2;
 
         buffer[0] = ASN1_INTEGER;
-        buffer[1] = r_len;
-        buffer += 2;
-        huge_unload(&signature.r, buffer, r_len);
+        buffer[1] = r_len + r_sign;
+        buffer += 2 + r_sign;
+        memcpy(buffer, r, r_len);
         buffer += r_len;
 
         buffer[0] = ASN1_INTEGER;
-        buffer[1] = s_len;
-        buffer += 2;
-        huge_unload(&signature.s, buffer, s_len);
+        buffer[1] = s_len + s_sign;
+        buffer += 2 + s_sign;
+        memcpy(buffer, s, s_len);
     }
     // digitally-signed-end
 
