@@ -83,6 +83,24 @@ void PRF(
     }
 }
 
+void PRF2(
+    unsigned char* secret,
+    int secret_len,
+    unsigned char* label,
+    int label_len,
+    unsigned char* seed,
+    int seed_len,
+    unsigned char* output,
+    int out_len
+) {
+    unsigned char concat[label_len + seed_len];
+
+    memcpy(concat, label, label_len);
+    memcpy(concat + label_len, seed, seed_len);
+
+    P_hash(secret, secret_len, concat, label_len + seed_len, output, out_len, new_sha256_digest);
+}
+
 // #define TEST_PRF
 #ifdef TEST_PRF
 int main() {
@@ -90,6 +108,11 @@ int main() {
     unsigned char output[out_len];
 
     PRF((unsigned char*)"secret", 6, (unsigned char*)"label", 5, (unsigned char*)"seed", 4, output, out_len);
+    // b5baf4722b91851a8816d22ebd8c1d8cc2e94d55
+    show_hex(output, out_len, 1);
+    
+    PRF2((unsigned char*)"secret", 6, (unsigned char*)"label", 5, (unsigned char*)"seed", 4, output, out_len);
+    // 7ed42a23a133ad379b99196a86db887cf595d9ad
     show_hex(output, out_len, 1);
 }
 #endif

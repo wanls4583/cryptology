@@ -70,17 +70,24 @@ typedef enum {
 	TLS_DHE_RSA_WITH_AES_256_CBC_SHA = 0x0039,
 	TLS_DH_anon_WITH_AES_256_CBC_SHA = 0x003A,
 
-	MAX_SUPPORTED_CIPHER_SUITE = 0x003B
+	// tls1.2
+	TLS_RSA_WITH_AES_128_GCM_SHA256 = 0x009C,
+	TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA = 0xC009,
+
+	MAX_SUPPORTED_CIPHER_SUITE = 0xC00A
 } CipherSuiteIdentifier;
 
 
 typedef	void (*encrypt_func)(unsigned char* plaintext, int plaintext_len, unsigned char ciphertext[], void* iv, unsigned char* key);
 typedef	void (*decrypt_func)(unsigned char* ciphertext, int ciphertext_len, unsigned char plaintext[], void* iv, unsigned char* key);
+typedef	void (*aead_encrypt_func)(unsigned char* plaintext, int plaintext_len, unsigned char ciphertext[], void* iv, unsigned char* add, int addLen, unsigned char* key);
+typedef	void (*aead_decrypt_func)(unsigned char* ciphertext, int ciphertext_len, unsigned char plaintext[], void* iv, unsigned char* add, int addLen, unsigned char* key);
 
 
 typedef struct {
 	CipherSuiteIdentifier id;
 
+	int    min_version;
 	int    block_size;
 	int    IV_size;
 	int    key_size;
@@ -89,6 +96,10 @@ typedef struct {
 	encrypt_func bulk_encrypt;
 	decrypt_func bulk_decrypt;
 	void (*new_digest)(digest_ctx* context);
+
+	aead_encrypt_func aead_encrypt;
+	aead_decrypt_func aead_decrypt;
+
 }
 CipherSuite;
 

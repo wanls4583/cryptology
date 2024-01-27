@@ -61,67 +61,67 @@ RSA                                  RSA key exchange                        Non
 
 RSA_EXPORT                           RSA key exchange                        RSA = 512 bits
  */
-CipherSuite suites[] =
+CipherSuite suites[MAX_SUPPORTED_CIPHER_SUITE] =
 {
-    { TLS_NULL_WITH_NULL_NULL, 0, 0, 0, 0, NULL, NULL, NULL },
-    { TLS_RSA_WITH_NULL_MD5, 0, 0, 0, MD5_BYTE_SIZE, NULL, NULL, new_md5_digest },
-    { TLS_RSA_WITH_NULL_SHA, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
-    { TLS_RSA_EXPORT_WITH_RC4_40_MD5, 0, 0, 5, MD5_BYTE_SIZE, rc4_40_encrypt, rc4_40_decrypt, new_md5_digest },
-    { TLS_RSA_WITH_RC4_128_MD5, 0, 0, 16, MD5_BYTE_SIZE, rc4_128_encrypt, rc4_128_decrypt, new_md5_digest },
-    { TLS_RSA_WITH_RC4_128_SHA, 0, 0, 16, SHA1_BYTE_SIZE, rc4_128_encrypt, rc4_128_decrypt, new_sha1_digest },
-    { TLS_RSA_EXPORT_WITH_RC2_CBC_40_MD5, 0, 0, 0, MD5_BYTE_SIZE, NULL, NULL, new_md5_digest },
-    { TLS_RSA_WITH_IDEA_CBC_SHA, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
-    { TLS_RSA_EXPORT_WITH_DES40_CBC_SHA, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
-    { TLS_RSA_WITH_DES_CBC_SHA, 8, 8, 8, SHA1_BYTE_SIZE, (encrypt_func)des_encrypt, (decrypt_func)des_decrypt, new_sha1_digest },
-    { TLS_RSA_WITH_3DES_EDE_CBC_SHA, 8, 8, 24, SHA1_BYTE_SIZE, (encrypt_func)des3_encrypt, (decrypt_func)des3_decrypt, new_sha1_digest },
-    { TLS_DH_DSS_EXPORT_WITH_DES40_CBC_SHA, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
-    { TLS_DH_DSS_WITH_DES_CBC_SHA, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
-    { TLS_DH_DSS_WITH_3DES_EDE_CBC_SHA, 8, 8, 24, SHA1_BYTE_SIZE, (encrypt_func)des3_encrypt, (decrypt_func)des3_decrypt, new_sha1_digest },
-    { TLS_DH_RSA_EXPORT_WITH_DES40_CBC_SHA, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
-    { TLS_DH_RSA_WITH_DES_CBC_SHA, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
-    { TLS_DH_RSA_WITH_3DES_EDE_CBC_SHA, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
-    { TLS_DHE_DSS_EXPORT_WITH_DES40_CBC_SHA, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
-    { TLS_DHE_DSS_WITH_DES_CBC_SHA, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
-    { TLS_DHE_DSS_WITH_3DES_EDE_CBC_SHA, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
-    { TLS_DHE_RSA_EXPORT_WITH_DES40_CBC_SHA, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
-    { TLS_DHE_RSA_WITH_DES_CBC_SHA, 8, 8, 8, SHA1_BYTE_SIZE, (encrypt_func)des_encrypt, (decrypt_func)des_decrypt, new_sha1_digest },
-    { TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA, 8, 8, 24, SHA1_BYTE_SIZE, (encrypt_func)des3_encrypt, (decrypt_func)des3_decrypt, new_sha1_digest },
-    { TLS_DH_anon_EXPORT_WITH_RC4_40_MD5, 0, 0, 0, MD5_BYTE_SIZE, NULL, NULL, new_md5_digest },
-    { TLS_DH_anon_WITH_RC4_128_MD5, 0, 0, 0, MD5_BYTE_SIZE, NULL, NULL, new_md5_digest },
-    { TLS_DH_anon_EXPORT_WITH_DES40_CBC_SHA, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
-    { TLS_DH_anon_WITH_DES_CBC_SHA, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
-    { TLS_DH_anon_WITH_3DES_EDE_CBC_SHA, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
-    { 0x001C, 0, 0, 0, 0, NULL, NULL, NULL },
-    { 0x001D, 0, 0, 0, 0, NULL, NULL, NULL },
-    { TLS_KRB5_WITH_DES_CBC_SHA, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
-    { TLS_KRB5_WITH_3DES_EDE_CBC_SHA, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
-    { TLS_KRB5_WITH_RC4_128_SHA, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
-    { TLS_KRB5_WITH_IDEA_CBC_SHA, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
-    { TLS_KRB5_WITH_DES_CBC_MD5, 0, 0, 0, MD5_BYTE_SIZE, NULL, NULL, new_md5_digest },
-    { TLS_KRB5_WITH_3DES_EDE_CBC_MD5, 0, 0, 0, MD5_BYTE_SIZE, NULL, NULL, new_md5_digest },
-    { TLS_KRB5_WITH_RC4_128_MD5, 0, 0, 0, MD5_BYTE_SIZE, NULL, NULL, new_md5_digest },
-    { TLS_KRB5_WITH_IDEA_CBC_MD5, 0, 0, 0, MD5_BYTE_SIZE, NULL, NULL, new_md5_digest },
-    { TLS_KRB5_EXPORT_WITH_DES_CBC_40_SHA, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
-    { TLS_KRB5_EXPORT_WITH_RC2_CBC_40_SHA, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
-    { TLS_KRB5_EXPORT_WITH_RC4_40_SHA, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
-    { TLS_KRB5_EXPORT_WITH_DES_CBC_40_MD5, 0, 0, 0, MD5_BYTE_SIZE, NULL, NULL, new_md5_digest },
-    { TLS_KRB5_EXPORT_WITH_RC2_CBC_40_MD5, 0, 0, 0, MD5_BYTE_SIZE, NULL, NULL, new_md5_digest },
-    { TLS_KRB5_EXPORT_WITH_RC4_40_MD5, 0, 0, 0, MD5_BYTE_SIZE, NULL, NULL, new_md5_digest },
-    { 0x002C, 0, 0, 0, 0, NULL, NULL, NULL },
-    { 0x002D, 0, 0, 0, 0, NULL, NULL, NULL },
-    { 0x002E, 0, 0, 0, 0, NULL, NULL, NULL },
-    { TLS_RSA_WITH_AES_128_CBC_SHA, 16, 16, 16, SHA1_BYTE_SIZE, (encrypt_func)aes_128_encrypt, (decrypt_func)aes_128_decrypt, new_sha1_digest },
-    { TLS_DH_DSS_WITH_AES_128_CBC_SHA, 16, 16, 16, SHA1_BYTE_SIZE, (encrypt_func)aes_128_encrypt, (decrypt_func)aes_128_decrypt, new_sha1_digest },
-    { TLS_DH_RSA_WITH_AES_128_CBC_SHA, 16, 16, 16, SHA1_BYTE_SIZE, (encrypt_func)aes_128_encrypt, (decrypt_func)aes_128_decrypt, new_sha1_digest },
-    { TLS_DHE_DSS_WITH_AES_128_CBC_SHA, 16, 16, 16, SHA1_BYTE_SIZE, (encrypt_func)aes_128_encrypt, (decrypt_func)aes_128_decrypt, new_sha1_digest },
-    { TLS_DHE_RSA_WITH_AES_128_CBC_SHA, 16, 16, 16, SHA1_BYTE_SIZE, (encrypt_func)aes_128_encrypt, (decrypt_func)aes_128_decrypt, new_sha1_digest },
-    { TLS_DH_anon_WITH_AES_128_CBC_SHA, 16, 16, 16, SHA1_BYTE_SIZE, (encrypt_func)aes_128_encrypt, (decrypt_func)aes_128_decrypt, new_sha1_digest },
-    { TLS_RSA_WITH_AES_256_CBC_SHA, 16, 16, 32, SHA1_BYTE_SIZE, (encrypt_func)aes_256_encrypt, (decrypt_func)aes_256_decrypt, new_sha1_digest },
-    { TLS_DH_DSS_WITH_AES_256_CBC_SHA, 16, 16, 32, SHA1_BYTE_SIZE, (encrypt_func)aes_256_encrypt, (decrypt_func)aes_256_decrypt, new_sha1_digest },
-    { TLS_DH_RSA_WITH_AES_256_CBC_SHA, 16, 16, 32, SHA1_BYTE_SIZE, (encrypt_func)aes_256_encrypt, (decrypt_func)aes_256_decrypt, new_sha1_digest },
-    { TLS_DHE_DSS_WITH_AES_256_CBC_SHA, 16, 16, 32, SHA1_BYTE_SIZE, (encrypt_func)aes_256_encrypt, (decrypt_func)aes_256_decrypt, new_sha1_digest },
-    { TLS_DHE_RSA_WITH_AES_256_CBC_SHA, 16, 16, 32, SHA1_BYTE_SIZE, (encrypt_func)aes_256_encrypt, (decrypt_func)aes_256_decrypt, new_sha1_digest },
-    { TLS_DH_anon_WITH_AES_256_CBC_SHA, 16, 16, 32, SHA1_BYTE_SIZE, (encrypt_func)aes_256_encrypt, (decrypt_func)aes_256_decrypt, new_sha1_digest },
+    { TLS_NULL_WITH_NULL_NULL, 2, 0, 0, 0, 0, NULL, NULL, NULL },
+    { TLS_RSA_WITH_NULL_MD5, 2, 0, 0, 0, MD5_BYTE_SIZE, NULL, NULL, new_md5_digest },
+    { TLS_RSA_WITH_NULL_SHA, 2, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
+    { TLS_RSA_EXPORT_WITH_RC4_40_MD5, 2, 0, 0, 5, MD5_BYTE_SIZE, rc4_40_encrypt, rc4_40_decrypt, new_md5_digest },
+    { TLS_RSA_WITH_RC4_128_MD5, 2, 0, 0, 16, MD5_BYTE_SIZE, rc4_128_encrypt, rc4_128_decrypt, new_md5_digest },
+    { TLS_RSA_WITH_RC4_128_SHA, 2, 0, 0, 16, SHA1_BYTE_SIZE, rc4_128_encrypt, rc4_128_decrypt, new_sha1_digest },
+    { TLS_RSA_EXPORT_WITH_RC2_CBC_40_MD5, 2, 0, 0, 0, MD5_BYTE_SIZE, NULL, NULL, new_md5_digest },
+    { TLS_RSA_WITH_IDEA_CBC_SHA, 2, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
+    { TLS_RSA_EXPORT_WITH_DES40_CBC_SHA, 2, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
+    { TLS_RSA_WITH_DES_CBC_SHA, 2, 8, 8, 8, SHA1_BYTE_SIZE, (encrypt_func)des_encrypt, (decrypt_func)des_decrypt, new_sha1_digest },
+    { TLS_RSA_WITH_3DES_EDE_CBC_SHA, 2, 8, 8, 24, SHA1_BYTE_SIZE, (encrypt_func)des3_encrypt, (decrypt_func)des3_decrypt, new_sha1_digest },
+    { TLS_DH_DSS_EXPORT_WITH_DES40_CBC_SHA, 2, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
+    { TLS_DH_DSS_WITH_DES_CBC_SHA, 2, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
+    { TLS_DH_DSS_WITH_3DES_EDE_CBC_SHA, 2, 8, 8, 24, SHA1_BYTE_SIZE, (encrypt_func)des3_encrypt, (decrypt_func)des3_decrypt, new_sha1_digest },
+    { TLS_DH_RSA_EXPORT_WITH_DES40_CBC_SHA, 2, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
+    { TLS_DH_RSA_WITH_DES_CBC_SHA, 2, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
+    { TLS_DH_RSA_WITH_3DES_EDE_CBC_SHA, 2, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
+    { TLS_DHE_DSS_EXPORT_WITH_DES40_CBC_SHA, 2, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
+    { TLS_DHE_DSS_WITH_DES_CBC_SHA, 2, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
+    { TLS_DHE_DSS_WITH_3DES_EDE_CBC_SHA, 2, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
+    { TLS_DHE_RSA_EXPORT_WITH_DES40_CBC_SHA, 2, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
+    { TLS_DHE_RSA_WITH_DES_CBC_SHA, 2, 8, 8, 8, SHA1_BYTE_SIZE, (encrypt_func)des_encrypt, (decrypt_func)des_decrypt, new_sha1_digest },
+    { TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA, 2, 8, 8, 24, SHA1_BYTE_SIZE, (encrypt_func)des3_encrypt, (decrypt_func)des3_decrypt, new_sha1_digest },
+    { TLS_DH_anon_EXPORT_WITH_RC4_40_MD5, 2, 0, 0, 0, MD5_BYTE_SIZE, NULL, NULL, new_md5_digest },
+    { TLS_DH_anon_WITH_RC4_128_MD5, 2, 0, 0, 0, MD5_BYTE_SIZE, NULL, NULL, new_md5_digest },
+    { TLS_DH_anon_EXPORT_WITH_DES40_CBC_SHA, 2, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
+    { TLS_DH_anon_WITH_DES_CBC_SHA, 2, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
+    { TLS_DH_anon_WITH_3DES_EDE_CBC_SHA, 2, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
+    { 0x001C, 2, 0, 0, 0, 0, NULL, NULL, NULL },
+    { 0x001D, 2, 0, 0, 0, 0, NULL, NULL, NULL },
+    { TLS_KRB5_WITH_DES_CBC_SHA, 2, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
+    { TLS_KRB5_WITH_3DES_EDE_CBC_SHA, 2, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
+    { TLS_KRB5_WITH_RC4_128_SHA, 2, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
+    { TLS_KRB5_WITH_IDEA_CBC_SHA, 2, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
+    { TLS_KRB5_WITH_DES_CBC_MD5, 2, 0, 0, 0, MD5_BYTE_SIZE, NULL, NULL, new_md5_digest },
+    { TLS_KRB5_WITH_3DES_EDE_CBC_MD5, 2, 0, 0, 0, MD5_BYTE_SIZE, NULL, NULL, new_md5_digest },
+    { TLS_KRB5_WITH_RC4_128_MD5, 2, 0, 0, 0, MD5_BYTE_SIZE, NULL, NULL, new_md5_digest },
+    { TLS_KRB5_WITH_IDEA_CBC_MD5, 2, 0, 0, 0, MD5_BYTE_SIZE, NULL, NULL, new_md5_digest },
+    { TLS_KRB5_EXPORT_WITH_DES_CBC_40_SHA, 2, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
+    { TLS_KRB5_EXPORT_WITH_RC2_CBC_40_SHA, 2, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
+    { TLS_KRB5_EXPORT_WITH_RC4_40_SHA, 2, 0, 0, 0, SHA1_BYTE_SIZE, NULL, NULL, new_sha1_digest },
+    { TLS_KRB5_EXPORT_WITH_DES_CBC_40_MD5, 2, 0, 0, 0, MD5_BYTE_SIZE, NULL, NULL, new_md5_digest },
+    { TLS_KRB5_EXPORT_WITH_RC2_CBC_40_MD5, 2, 0, 0, 0, MD5_BYTE_SIZE, NULL, NULL, new_md5_digest },
+    { TLS_KRB5_EXPORT_WITH_RC4_40_MD5, 2, 0, 0, 0, MD5_BYTE_SIZE, NULL, NULL, new_md5_digest },
+    { 0x002C, 2, 0, 0, 0, 0, NULL, NULL, NULL },
+    { 0x002D, 2, 0, 0, 0, 0, NULL, NULL, NULL },
+    { 0x002E, 2, 0, 0, 0, 0, NULL, NULL, NULL },
+    { TLS_RSA_WITH_AES_128_CBC_SHA, 2, 16, 16, 16, SHA1_BYTE_SIZE, (encrypt_func)aes_128_encrypt, (decrypt_func)aes_128_decrypt, new_sha1_digest },
+    { TLS_DH_DSS_WITH_AES_128_CBC_SHA, 2, 16, 16, 16, SHA1_BYTE_SIZE, (encrypt_func)aes_128_encrypt, (decrypt_func)aes_128_decrypt, new_sha1_digest },
+    { TLS_DH_RSA_WITH_AES_128_CBC_SHA, 2, 16, 16, 16, SHA1_BYTE_SIZE, (encrypt_func)aes_128_encrypt, (decrypt_func)aes_128_decrypt, new_sha1_digest },
+    { TLS_DHE_DSS_WITH_AES_128_CBC_SHA, 2, 16, 16, 16, SHA1_BYTE_SIZE, (encrypt_func)aes_128_encrypt, (decrypt_func)aes_128_decrypt, new_sha1_digest },
+    { TLS_DHE_RSA_WITH_AES_128_CBC_SHA, 2, 16, 16, 16, SHA1_BYTE_SIZE, (encrypt_func)aes_128_encrypt, (decrypt_func)aes_128_decrypt, new_sha1_digest },
+    { TLS_DH_anon_WITH_AES_128_CBC_SHA, 2, 16, 16, 16, SHA1_BYTE_SIZE, (encrypt_func)aes_128_encrypt, (decrypt_func)aes_128_decrypt, new_sha1_digest },
+    { TLS_RSA_WITH_AES_256_CBC_SHA, 2, 16, 16, 32, SHA1_BYTE_SIZE, (encrypt_func)aes_256_encrypt, (decrypt_func)aes_256_decrypt, new_sha1_digest },
+    { TLS_DH_DSS_WITH_AES_256_CBC_SHA, 2, 16, 16, 32, SHA1_BYTE_SIZE, (encrypt_func)aes_256_encrypt, (decrypt_func)aes_256_decrypt, new_sha1_digest },
+    { TLS_DH_RSA_WITH_AES_256_CBC_SHA, 2, 16, 16, 32, SHA1_BYTE_SIZE, (encrypt_func)aes_256_encrypt, (decrypt_func)aes_256_decrypt, new_sha1_digest },
+    { TLS_DHE_DSS_WITH_AES_256_CBC_SHA, 2, 16, 16, 32, SHA1_BYTE_SIZE, (encrypt_func)aes_256_encrypt, (decrypt_func)aes_256_decrypt, new_sha1_digest },
+    { TLS_DHE_RSA_WITH_AES_256_CBC_SHA, 2, 16, 16, 32, SHA1_BYTE_SIZE, (encrypt_func)aes_256_encrypt, (decrypt_func)aes_256_decrypt, new_sha1_digest },
+    { TLS_DH_anon_WITH_AES_256_CBC_SHA, 2, 16, 16, 32, SHA1_BYTE_SIZE, (encrypt_func)aes_256_encrypt, (decrypt_func)aes_256_decrypt, new_sha1_digest },
 };
 
 rsa_key private_rsa_key;
@@ -247,6 +247,32 @@ int init_dsa_key() {
     return 1;
 }
 
+void init_ciphers() {
+    suites[TLS_RSA_WITH_AES_128_GCM_SHA256].id = TLS_RSA_WITH_AES_128_GCM_SHA256;
+    suites[TLS_RSA_WITH_AES_128_GCM_SHA256].min_version = 3;
+    suites[TLS_RSA_WITH_AES_128_GCM_SHA256].block_size = 0;
+    suites[TLS_RSA_WITH_AES_128_GCM_SHA256].IV_size = 12;
+    suites[TLS_RSA_WITH_AES_128_GCM_SHA256].key_size = 16;
+    suites[TLS_RSA_WITH_AES_128_GCM_SHA256].hash_size = 16; //AES_BLOCK_SIZE
+    suites[TLS_RSA_WITH_AES_128_GCM_SHA256].bulk_encrypt = NULL;
+    suites[TLS_RSA_WITH_AES_128_GCM_SHA256].bulk_decrypt = NULL;
+    suites[TLS_RSA_WITH_AES_128_GCM_SHA256].new_digest = NULL;
+    suites[TLS_RSA_WITH_AES_128_GCM_SHA256].aead_encrypt = (aead_encrypt_func)aes_128_gcm_encrypt;
+    suites[TLS_RSA_WITH_AES_128_GCM_SHA256].aead_decrypt = (aead_decrypt_func)aes_128_gcm_decrypt;
+
+    suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].id = TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA;
+    suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].min_version = 3;
+    suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].block_size = 16;
+    suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].IV_size = 16;
+    suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].key_size = 16;
+    suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].hash_size = SHA1_BYTE_SIZE;
+    suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].bulk_encrypt = (encrypt_func)aes_128_encrypt;
+    suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].bulk_decrypt = (decrypt_func)aes_128_decrypt;
+    suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].new_digest = new_sha1_digest;
+    suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].aead_encrypt = NULL;
+    suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].aead_decrypt = NULL;
+}
+
 void init_protection_parameters(ProtectionParameters* parameters) {
     parameters->MAC_secret = NULL;
     parameters->key = NULL;
@@ -265,6 +291,7 @@ void init_parameters(TLSParameters* parameters) {
     init_rsa_key();
     init_rsa_export_key();
     init_dsa_key();
+    init_ciphers();
 
     memset(parameters->master_secret, '\0', MASTER_SECRET_LENGTH);
     memset(parameters->client_random, '\0', RANDOM_LENGTH);
@@ -287,6 +314,23 @@ unsigned char* read_buffer(unsigned char* dest, unsigned char* src, size_t n) {
     return src + n;
 }
 
+void tls_prf(
+    unsigned char* secret,
+    int secret_len,
+    unsigned char* label,
+    int label_len,
+    unsigned char* seed,
+    int seed_len,
+    unsigned char* output,
+    int out_len
+) {
+    if (TLS_VERSION_MINOR <= 2) {
+        PRF(secret, secret_len, label, label_len, seed, seed_len, output, out_len);
+    } else {
+        PRF2(secret, secret_len, label, label_len, seed, seed_len, output, out_len);
+    }
+}
+
 int send_message(
     int connection,
     int content_type,
@@ -299,31 +343,34 @@ int send_message(
     int send_buffer_size;
     int padding_length = 0;
     unsigned char* mac = NULL;
+    unsigned char mac_header[13];
     digest_ctx digest;
     CipherSuite* active_suite;
     active_suite = &suites[parameters->suite];
 
+    if (active_suite->hash_size) {
+        int sequence_num;
+        memset(mac_header, '\0', 8);
+        sequence_num = htonl(parameters->seq_num);
+        memcpy(mac_header + 4, &sequence_num, sizeof(int));
+
+        header.type = content_type;
+        header.version.major = TLS_VERSION_MAJOR;
+        header.version.minor = TLS_VERSION_MINOR;
+        header.length = htons(content_len);
+        mac_header[8] = header.type;
+        mac_header[9] = header.version.major;
+        mac_header[10] = header.version.minor;
+        memcpy(mac_header + 11, &header.length, sizeof(short));
+    }
+
     if (active_suite->new_digest) {
         // Allocate enough space for the 8-byte sequence number, the 5-byte pseudo header, and the content.
         unsigned char* mac_buffer = malloc(13 + content_len);
-        int sequence_num;
+        memcpy(mac_buffer, mac_header, 13);
 
         mac = (unsigned char*)malloc(active_suite->hash_size);
         active_suite->new_digest(&digest);
-
-        memset(mac_buffer, 0x0, 8);
-        sequence_num = htonl(parameters->seq_num);
-        memcpy(mac_buffer + 4, &sequence_num, sizeof(int));
-
-        // These will be overwritten below
-        header.type = content_type;
-        header.version.major = 3;
-        header.version.minor = 1;
-        header.length = htons(content_len);
-        mac_buffer[8] = header.type;
-        mac_buffer[9] = header.version.major;
-        mac_buffer[10] = header.version.minor;
-        memcpy(mac_buffer + 11, &header.length, sizeof(short));
 
         memcpy(mac_buffer + 13, content, content_len);
         hmac(&digest, parameters->MAC_secret, active_suite->hash_size, mac_buffer, 13 + content_len);
@@ -458,7 +505,7 @@ void calculate_keys(TLSParameters* parameters) {
     memcpy(seed, parameters->server_random, RANDOM_LENGTH);
     memcpy(seed + RANDOM_LENGTH, parameters->client_random, RANDOM_LENGTH);
 
-    PRF(parameters->master_secret, MASTER_SECRET_LENGTH, label, strlen((const char*)label), seed, RANDOM_LENGTH * 2, key_block, key_block_length);
+    tls_prf(parameters->master_secret, MASTER_SECRET_LENGTH, label, strlen((const char*)label), seed, RANDOM_LENGTH * 2, key_block, key_block_length);
     send_parameters->MAC_secret = (unsigned char*)malloc(suite->hash_size);
     recv_parameters->MAC_secret = (unsigned char*)malloc(suite->hash_size);
     send_parameters->key = (unsigned char*)malloc(suite->key_size);
@@ -522,7 +569,7 @@ void compute_master_secret(
 ) {
     unsigned char label[] = "master secret";
 
-    PRF(
+    tls_prf(
         premaster_secret,
         premaster_secret_len,
         label, strlen((char*)label),
@@ -658,8 +705,8 @@ unsigned char* parse_client_hello(
     printf("\n");
 
     // 0039 0038 0037 0036 0035 0033 0032 0031 0030 002f 0007 0005 0004 0016 0013 0010 000d 000a
-    parameters->pending_recv_parameters.suite = TLS_DHE_DSS_WITH_AES_256_CBC_SHA;
-    parameters->pending_send_parameters.suite = TLS_DHE_DSS_WITH_AES_256_CBC_SHA;
+    parameters->pending_recv_parameters.suite = TLS_RSA_WITH_AES_256_CBC_SHA;
+    parameters->pending_send_parameters.suite = TLS_RSA_WITH_AES_256_CBC_SHA;
 
     if (i == MAX_SUPPORTED_CIPHER_SUITE) {
         return NULL;
@@ -1459,7 +1506,7 @@ void compute_verify_data(
     unsigned char handshake_hash[(MD5_RESULT_SIZE * sizeof(int)) + (SHA1_RESULT_SIZE * sizeof(int))];
 
     compute_handshake_hash(parameters, handshake_hash);
-    PRF(
+    tls_prf(
         parameters->master_secret, MASTER_SECRET_LENGTH,
         finished_label, strlen((char*)finished_label),
         handshake_hash, MD5_RESULT_SIZE * sizeof(int) + SHA1_RESULT_SIZE * sizeof(int),
