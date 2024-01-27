@@ -32,7 +32,35 @@ void set_data(unsigned char* target, unsigned char* str) {
     length = hex_decode(str, &data);
     memcpy(target, data, length);
 }
+/*
+Key Exchange Algorithm               Description                             Key size limit
+------------------------------------------------------------------------------------------------------
+DHE_DSS                              Ephemeral DH with DSS signatures        None
 
+DHE_DSS_EXPORT                       Ephemeral DH with DSS signatures        DH = 512 bits
+
+DHE_RSA                              Ephemeral DH with RSA signatures        None
+
+DHE_RSA_EXPORT                       Ephemeral DH with RSA signatures        DH = 512 bits, RSA = none
+
+DH_anon                              Anonymous DH, no signatures             None
+
+DH_anon_EXPORT                       Anonymous DH, no signatures             DH = 512 bits
+
+DH_DSS                               DH with DSS-based certificates          None
+
+DH_DSS_EXPORT                        DH with DSS-based certificates          DH = 512 bits
+
+DH_RSA                               DH with RSA-based certificates          None
+
+DH_RSA_EXPORT                        DH with RSA-based certificates          DH = 512 bits,RSA = none
+
+NULL                                 No key exchange                         N/A
+
+RSA                                  RSA key exchange                        None
+
+RSA_EXPORT                           RSA key exchange                        RSA = 512 bits
+ */
 CipherSuite suites[] =
 {
     { TLS_NULL_WITH_NULL_NULL, 0, 0, 0, 0, NULL, NULL, NULL },
@@ -97,6 +125,7 @@ CipherSuite suites[] =
 };
 
 rsa_key private_rsa_key;
+rsa_key private_rsa_export_key;
 dsa_key private_dsa_key;
 dh_key dh_priv_key;
 dh_key dh_tmp_key;
@@ -107,13 +136,6 @@ void init_dh_tmp_key() {
         0x53, 0x61, 0xae, 0x4f, 0x6f, 0x25, 0x98, 0xde, 0xc4, 0xbf, 0x0b, 0xbe, 0x09,
         0x5f, 0xdf, 0x90, 0x2f, 0x4c, 0x8e, 0x09
     };
-    // unsigned char pub[] = {
-    //     0x1b, 0x91, 0x4c, 0xa9, 0x73, 0xdc, 0x06, 0x0d, 0x21, 0xc6, 0xff, 0xab, 0xf6,
-    //     0xad, 0xf4, 0x11, 0x97, 0xaf, 0x23, 0x48, 0x50, 0xa8, 0xf3, 0xdb, 0x2e, 0xe6,
-    //     0x27, 0x8c, 0x40, 0x4c, 0xb3, 0xc8, 0xfe, 0x79, 0x7e, 0x89, 0x48, 0x90, 0x27,
-    //     0x92, 0x6f, 0x5b, 0xc5, 0xe6, 0x8f, 0x91, 0x4c, 0xe9, 0x4f, 0xed, 0x0d, 0x3c,
-    //     0x17, 0x09, 0xeb, 0x97, 0xac, 0x29, 0x77, 0xd5, 0x19, 0xe7, 0x4d, 0x17
-    // };
     unsigned char P[] = {
         0x9c, 0x4c, 0xaa, 0x76, 0x31, 0x2e, 0x71, 0x4d, 0x31, 0xd6, 0xe4, 0xd7, 0xe9,
         0xa7, 0x29, 0x7b, 0x7f, 0x05, 0xee, 0xfd, 0xca, 0x35, 0x14, 0x1e, 0x9f, 0xe5,
@@ -189,6 +211,24 @@ int init_rsa_key() {
     return 1;
 }
 
+int init_rsa_export_key() {
+    unsigned char* pem_buffer;
+    unsigned char* buffer;
+    int buffer_length;
+
+    if (!(pem_buffer = load_file("./res/rsa_export_key.pem", &buffer_length))) {
+        perror("Unable to load file");
+        return 0;
+    }
+    buffer = (unsigned char*)malloc(buffer_length);
+    buffer_length = pem_decode(pem_buffer, buffer, NULL, NULL);
+
+    parse_private_key(&private_rsa_export_key, buffer, buffer_length);
+    free(buffer);
+
+    return 1;
+}
+
 int init_dsa_key() {
     unsigned char* pem_buffer;
     unsigned char* buffer;
@@ -223,6 +263,7 @@ void init_parameters(TLSParameters* parameters) {
     init_dh_tmp_key();
     init_dh_key();
     init_rsa_key();
+    init_rsa_export_key();
     init_dsa_key();
 
     memset(parameters->master_secret, '\0', MASTER_SECRET_LENGTH);
@@ -1029,8 +1070,17 @@ unsigned char* parse_client_key_exchange(
     case TLS_RSA_WITH_3DES_EDE_CBC_SHA:
     case TLS_RSA_WITH_AES_128_CBC_SHA:
     case TLS_RSA_WITH_AES_256_CBC_SHA:
-        // Skip over the two length bytes, since length is already known anyway
-        premaster_secret_length = rsa_decrypt(&private_rsa_key, read_pos + 2, pdu_length - 2, &premaster_secret, RSA_PKCS1_PADDING);
+        switch (parameters->pending_send_parameters.suite) {
+        case TLS_RSA_EXPORT_WITH_RC4_40_MD5:
+        case TLS_RSA_EXPORT_WITH_RC2_CBC_40_MD5:
+        case TLS_RSA_EXPORT_WITH_DES40_CBC_SHA:
+            // Skip over the two length bytes, since length is already known anyway
+            premaster_secret_length = rsa_decrypt(&private_rsa_export_key, read_pos + 2, pdu_length - 2, &premaster_secret, RSA_PKCS1_PADDING);
+        default:
+            // Skip over the two length bytes, since length is already known anyway
+            premaster_secret_length = rsa_decrypt(&private_rsa_key, read_pos + 2, pdu_length - 2, &premaster_secret, RSA_PKCS1_PADDING);
+            break;
+        }
 
         printf("premaster_secret:");
         show_hex(premaster_secret, premaster_secret_length, 1);
@@ -1066,11 +1116,23 @@ unsigned char* parse_client_key_exchange(
 
         compute_master_secret(premaster_secret, premaster_secret_length, parameters);
         break;
-    case TLS_DHE_RSA_WITH_DES_CBC_SHA: //动态DH密钥交换
+    case TLS_DHE_RSA_EXPORT_WITH_DES40_CBC_SHA: //动态DH密钥交换
+    case TLS_DHE_RSA_WITH_DES_CBC_SHA:
     case TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA:
     case TLS_DHE_RSA_WITH_AES_128_CBC_SHA:
-    case TLS_DHE_DSS_WITH_AES_256_CBC_SHA:
     case TLS_DHE_RSA_WITH_AES_256_CBC_SHA:
+    case TLS_DHE_DSS_EXPORT_WITH_DES40_CBC_SHA:
+    case TLS_DHE_DSS_WITH_DES_CBC_SHA:
+    case TLS_DHE_DSS_WITH_3DES_EDE_CBC_SHA:
+    case TLS_DHE_DSS_WITH_AES_128_CBC_SHA:
+    case TLS_DHE_DSS_WITH_AES_256_CBC_SHA:
+    case TLS_DH_anon_EXPORT_WITH_RC4_40_MD5:
+    case TLS_DH_anon_WITH_RC4_128_MD5:
+    case TLS_DH_anon_EXPORT_WITH_DES40_CBC_SHA:
+    case TLS_DH_anon_WITH_DES_CBC_SHA:
+    case TLS_DH_anon_WITH_3DES_EDE_CBC_SHA:
+    case TLS_DH_anon_WITH_AES_128_CBC_SHA:
+    case TLS_DH_anon_WITH_AES_256_CBC_SHA:
         huge_load(&Yc, read_pos + 2, pdu_length - 2);
         huge_mod_pow(&Yc, &dh_priv, &dh_tmp_key.p);
         premaster_secret_length = huge_bytes(&Yc);
@@ -1091,7 +1153,7 @@ unsigned char* parse_client_key_exchange(
     return read_pos + pdu_length;
 }
 
-int send_server_key_exchange_with_sign(int connection, TLSParameters* parameters, signatureAlgorithmIdentifier sign_algorithm) {
+int send_server_key_exchange_with_sign(int connection, TLSParameters* parameters, int sign_algorithm) {
     unsigned char* key_exchange_message;
     unsigned char* buffer;
     short key_exchange_message_len;
@@ -1155,15 +1217,15 @@ int send_server_key_exchange_with_sign(int connection, TLSParameters* parameters
     // hash-end
 
     // digitally-signed-begin
-    // digitally-signed struct {
-    //     opaque md5_hash[16];
-    //     opaque sha_hash[20];
-    // };
-    if (sign_algorithm == shaWithRSAEncryption) {
+    if (sign_algorithm == 1) { //rsa_sign
+        // digitally-signed struct {
+        //     opaque md5_hash[16];
+        //     opaque sha_hash[20];
+        // };
         memcpy(sign_input, md5.hash, md5.result_size);
         memcpy(sign_input + md5.result_size, sha1.hash, sha1.result_size);
         sign_out_len = rsa_sign(&private_rsa_key, sign_input, 36, &sign_out, RSA_PKCS1_PADDING);
-    } else {
+    } else if (sign_algorithm == 2) { //dsa_sign
         int r_len = 0, s_len = 0;
         unsigned char* r;
         unsigned char* s;
@@ -1171,8 +1233,9 @@ int send_server_key_exchange_with_sign(int connection, TLSParameters* parameters
         huge_set(&signature.r, 0);
         huge_set(&signature.s, 0);
 
-        // printf("hash_input:");
-        // show_hex(hash_input, hash_input_len, 1);
+        // digitally-signed struct {
+        //     opaque sha_hash[20];
+        // };
         dsa_sign(&private_dsa_key.params, &private_dsa_key.key, &sha1, &signature);
 
         r_len = huge_bytes(&signature.r);
@@ -1220,6 +1283,97 @@ int send_server_key_exchange_with_sign(int connection, TLSParameters* parameters
     memcpy(buffer, dh_input, dh_len);
     buffer += dh_len;
 
+    if (sign_out_len) {
+        length = htons(sign_out_len);
+        memcpy(buffer, &length, 2);
+        buffer += 2;
+        memcpy(buffer, sign_out, sign_out_len);
+    }
+
+    if (send_handshake_message(connection, server_key_exchange, key_exchange_message, key_exchange_message_len, parameters)) {
+        free(key_exchange_message);
+        return 1;
+    }
+
+    free(key_exchange_message);
+
+    return 0;
+}
+
+int send_server_key_exchange_with_sign_rsa(int connection, TLSParameters* parameters) {
+    if (huge_bytes(private_rsa_key.p) <= EXPORT_RSA_BITS / 8) {
+        return 0;
+    }
+    unsigned char* key_exchange_message;
+    unsigned char* buffer;
+    short key_exchange_message_len;
+    short length = 0;
+    int sign_out_len = 0;
+    int p_size = huge_bytes(private_rsa_export_key.p);
+    int pub_size = huge_bytes(private_rsa_export_key.pub);
+    int rsa_len = p_size + pub_size + 4;
+    int hash_input_len = RANDOM_LENGTH * 2 + rsa_len;
+
+    unsigned char rsa_input[rsa_len];
+    unsigned char hash_input[hash_input_len];
+    unsigned char sign_input[36];
+    unsigned char* sign_out;
+
+    memset(rsa_input, 0, rsa_len);
+    memset(hash_input, 0, hash_input_len);
+    memset(sign_input, 0, 36);
+
+    digest_ctx md5, sha1;
+    new_md5_digest(&md5);
+    new_sha1_digest(&sha1);
+
+    // ServerRSAParams-begin
+    // struct {
+    //     opaque rsa_modulus<1..2^16-1>;
+    //     opaque rsa_exponent<1..2^16-1>;
+    // } ServerRSAParams
+    buffer = rsa_input;
+    buffer[1] = p_size;
+    buffer += 2;
+    huge_unload(private_rsa_export_key.p, buffer, p_size);
+    buffer += p_size;
+
+    buffer[1] = pub_size;
+    buffer += 2;
+    huge_unload(private_rsa_export_key.pub, buffer, pub_size);
+    // ServerRSAParams-end
+
+    // hash-begin
+    // MD5(ClientHello.random + ServerHello.random + ServerParams)
+    // SHA(ClientHello.random + ServerHello.random + ServerParams)
+    buffer = hash_input;
+    memcpy(buffer, parameters->client_random, RANDOM_LENGTH);
+    buffer += RANDOM_LENGTH;
+
+    memcpy(buffer, parameters->server_random, RANDOM_LENGTH);
+    buffer += RANDOM_LENGTH;
+
+    memcpy(buffer, rsa_input, rsa_len);
+
+    digest_hash(&md5, hash_input, hash_input_len);
+    digest_hash(&sha1, hash_input, hash_input_len);
+    // hash-end
+
+    // digitally-signed struct {
+    //     opaque md5_hash[16];
+    //     opaque sha_hash[20];
+    // };
+    memcpy(sign_input, md5.hash, md5.result_size);
+    memcpy(sign_input + md5.result_size, sha1.hash, sha1.result_size);
+    sign_out_len = rsa_sign(&private_rsa_key, sign_input, 36, &sign_out, RSA_PKCS1_PADDING);
+
+    key_exchange_message_len = rsa_len + sign_out_len + 2;
+    key_exchange_message = (unsigned char*)malloc(key_exchange_message_len);
+
+    buffer = key_exchange_message;
+    memcpy(buffer, rsa_input, rsa_len);
+    buffer += rsa_len;
+
     length = htons(sign_out_len);
     memcpy(buffer, &length, 2);
     buffer += 2;
@@ -1237,20 +1391,31 @@ int send_server_key_exchange_with_sign(int connection, TLSParameters* parameters
 
 // tls1.0: 7.4.3. Server key exchange message
 int send_server_key_exchange(int connection, TLSParameters* parameters) {
-
     switch (parameters->pending_send_parameters.suite) {
     case TLS_DHE_RSA_EXPORT_WITH_DES40_CBC_SHA:
     case TLS_DHE_RSA_WITH_DES_CBC_SHA:
     case TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA:
     case TLS_DHE_RSA_WITH_AES_128_CBC_SHA:
     case TLS_DHE_RSA_WITH_AES_256_CBC_SHA:
-        return send_server_key_exchange_with_sign(connection, parameters, shaWithRSAEncryption);
+        return send_server_key_exchange_with_sign(connection, parameters, 1);
     case TLS_DHE_DSS_EXPORT_WITH_DES40_CBC_SHA:
     case TLS_DHE_DSS_WITH_DES_CBC_SHA:
     case TLS_DHE_DSS_WITH_3DES_EDE_CBC_SHA:
     case TLS_DHE_DSS_WITH_AES_128_CBC_SHA:
     case TLS_DHE_DSS_WITH_AES_256_CBC_SHA:
-        return send_server_key_exchange_with_sign(connection, parameters, shaWithDSA);
+        return send_server_key_exchange_with_sign(connection, parameters, 2);
+    case TLS_DH_anon_EXPORT_WITH_RC4_40_MD5:
+    case TLS_DH_anon_WITH_RC4_128_MD5:
+    case TLS_DH_anon_EXPORT_WITH_DES40_CBC_SHA:
+    case TLS_DH_anon_WITH_DES_CBC_SHA:
+    case TLS_DH_anon_WITH_3DES_EDE_CBC_SHA:
+    case TLS_DH_anon_WITH_AES_128_CBC_SHA:
+    case TLS_DH_anon_WITH_AES_256_CBC_SHA:
+        return send_server_key_exchange_with_sign(connection, parameters, 0);
+    case TLS_RSA_EXPORT_WITH_RC4_40_MD5:
+    case TLS_RSA_EXPORT_WITH_RC2_CBC_40_MD5:
+    case TLS_RSA_EXPORT_WITH_DES40_CBC_SHA:
+        return send_server_key_exchange_with_sign_rsa(connection, parameters);
     default:
         return 0;
     }

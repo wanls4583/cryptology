@@ -5,6 +5,8 @@
 #include "x509.h"
 #include "dh.h"
 
+#define EXPORT_RSA_BITS 512
+
 typedef enum {
 	TLS_NULL_WITH_NULL_NULL = 0x0000,
 	TLS_RSA_WITH_NULL_MD5 = 0x0001,

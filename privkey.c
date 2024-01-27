@@ -48,8 +48,10 @@ int parse_private_key(
     private_exponent = (struct asn1struct*)public_exponent->next;
 
     privkey->p = (huge*)malloc(sizeof(huge));
+    privkey->pub = (huge*)malloc(sizeof(huge));
     privkey->key = (huge*)malloc(sizeof(huge));
     huge_load(privkey->p, p->data, p->length);
+    huge_load(privkey->pub, public_exponent->data, public_exponent->length);
     huge_load(privkey->key, private_exponent->data, private_exponent->length);
 
     asn1free(&private_key);

@@ -10,6 +10,7 @@
 typedef struct {
 	huge* p; //模数
 	huge* key; //公钥/私钥
+	huge* pub; //公钥
 }
 rsa_key;
 

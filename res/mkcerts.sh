@@ -5,6 +5,9 @@ touch rsa_ca.pem
 cat rsa_key.pem >> rsa_ca.pem
 cat rsa_cert.pem >> rsa_ca.pem
 
+# 生成512位的rsa密钥对
+openssl genrsa -out rsa_export_key.pem 512 
+
 # 生成dh密钥对
 [ -f dhp.pem ] || openssl genpkey -genparam -algorithm DH -pkeyopt dh_paramgen_prime_len:1024 -out dhp.pem
 # Now a DH private key
