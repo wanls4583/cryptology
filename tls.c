@@ -324,10 +324,10 @@ void tls_prf(
     unsigned char* output,
     int out_len
 ) {
-    if (TLS_VERSION_MINOR <= 2) {
-        PRF(secret, secret_len, label, label_len, seed, seed_len, output, out_len);
-    } else {
+    if (TLS_VERSION_MINOR >= 3) {
         PRF2(secret, secret_len, label, label_len, seed, seed_len, output, out_len);
+    } else {
+        PRF(secret, secret_len, label, label_len, seed, seed_len, output, out_len);
     }
 }
 
@@ -475,8 +475,12 @@ int send_handshake_message(
     memcpy(send_buffer + 1, &record.length, 3);
     memcpy(send_buffer + 4, message, message_len);
 
-    update_digest(&parameters->md5_handshake_digest, send_buffer, send_buffer_size);
-    update_digest(&parameters->sha1_handshake_digest, send_buffer, send_buffer_size);
+    if (TLS_VERSION_MINOR >= 3) {
+        update_digest(&parameters->sha256_handshake_digest, send_buffer, send_buffer_size);
+    } else {
+        update_digest(&parameters->md5_handshake_digest, send_buffer, send_buffer_size);
+        update_digest(&parameters->sha1_handshake_digest, send_buffer, send_buffer_size);
+    }
 
     response = send_message(connection, content_handshake, send_buffer, send_buffer_size, &parameters->active_send_parameters);
 
@@ -737,8 +741,8 @@ int send_server_hello(int connection, TLSParameters* parameters) {
     void* write_buffer;
     time_t            local_time;
 
-    package.server_version.major = 3;
-    package.server_version.minor = 1;
+    package.server_version.major = TLS_VERSION_MAJOR;
+    package.server_version.minor = TLS_VERSION_MINOR;
     time(&local_time);
     package.random.gmt_unix_time = htonl(local_time);
     package.random.gmt_unix_time = 1705734549;
@@ -1471,20 +1475,27 @@ int send_server_key_exchange(int connection, TLSParameters* parameters) {
 void compute_handshake_hash(TLSParameters* parameters, unsigned char* handshake_hash) {
     digest_ctx tmp_md5_handshake_digest;
     digest_ctx tmp_sha1_handshake_digest;
+    digest_ctx tmp_sha256_handshake_digest;
 
-    // "cheating".  Copy the handshake digests into local memory (and change
-    // the hash pointer) so that we can finalize twice (again in "recv")
-    copy_digest(&tmp_md5_handshake_digest, &parameters->md5_handshake_digest);
-    copy_digest(&tmp_sha1_handshake_digest, &parameters->sha1_handshake_digest);
+    if (TLS_VERSION_MINOR >= 3) {
+        copy_digest(&tmp_sha256_handshake_digest, &parameters->sha256_handshake_digest);
+        memcpy(handshake_hash, tmp_sha256_handshake_digest.hash, SHA256_BYTE_SIZE);
+        free(tmp_sha256_handshake_digest.hash);
+    } else {
+        // "cheating".  Copy the handshake digests into local memory (and change
+        // the hash pointer) so that we can finalize twice (
+        copy_digest(&tmp_md5_handshake_digest, &parameters->md5_handshake_digest);
+        copy_digest(&tmp_sha1_handshake_digest, &parameters->sha1_handshake_digest);
 
-    finalize_digest(&tmp_md5_handshake_digest);
-    finalize_digest(&tmp_sha1_handshake_digest);
+        finalize_digest(&tmp_md5_handshake_digest);
+        finalize_digest(&tmp_sha1_handshake_digest);
 
-    memcpy(handshake_hash, tmp_md5_handshake_digest.hash, MD5_BYTE_SIZE);
-    memcpy(handshake_hash + MD5_BYTE_SIZE, tmp_sha1_handshake_digest.hash, SHA1_BYTE_SIZE);
+        memcpy(handshake_hash, tmp_md5_handshake_digest.hash, MD5_BYTE_SIZE);
+        memcpy(handshake_hash + MD5_BYTE_SIZE, tmp_sha1_handshake_digest.hash, SHA1_BYTE_SIZE);
 
-    free(tmp_md5_handshake_digest.hash);
-    free(tmp_sha1_handshake_digest.hash);
+        free(tmp_md5_handshake_digest.hash);
+        free(tmp_sha1_handshake_digest.hash);
+    }
 }
 
 /**
@@ -1888,8 +1899,12 @@ int receive_tls_msg(
                 read_pos += handshake.length;
                 break;
             }
-            update_digest(&parameters->md5_handshake_digest, handshake_msg_start, handshake.length + 4);
-            update_digest(&parameters->sha1_handshake_digest, handshake_msg_start, handshake.length + 4);
+            if (TLS_VERSION_MINOR >= 3) {
+                update_digest(&parameters->sha256_handshake_digest, handshake_msg_start, handshake.length + 4);
+            } else {
+                update_digest(&parameters->md5_handshake_digest, handshake_msg_start, handshake.length + 4);
+                update_digest(&parameters->sha1_handshake_digest, handshake_msg_start, handshake.length + 4);
+            }
         }
     } else if (message.type == content_alert) {
         while ((read_pos - decrypted_message) < decrypted_length) {
@@ -1947,6 +1962,7 @@ int tls_connect(int connection, TLSParameters* parameters) {
     parameters->connection_end = connection_end_client;
     new_md5_digest(&parameters->md5_handshake_digest);
     new_sha1_digest(&parameters->sha1_handshake_digest);
+    new_sha256_digest(&parameters->sha256_handshake_digest);
 
     // Step 1. Send the TLS handshake "client hello" message
     if (send_client_hello(connection, parameters) < 0) {
@@ -1998,6 +2014,7 @@ int tls_accept(int connection, TLSParameters* parameters) {
 
     new_md5_digest(&parameters->md5_handshake_digest);
     new_sha1_digest(&parameters->sha1_handshake_digest);
+    new_sha256_digest(&parameters->sha256_handshake_digest);
 
     // The client sends the first message
     parameters->got_client_hello = 0;

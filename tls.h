@@ -147,6 +147,7 @@ typedef struct {
 	int                   peer_finished;
 	digest_ctx            md5_handshake_digest;
 	digest_ctx            sha1_handshake_digest;
+	digest_ctx            sha256_handshake_digest;
 
 	unsigned char* unread_buffer;
 	int                   unread_length;
