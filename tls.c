@@ -421,6 +421,8 @@ int send_message(
         int un_enc_size = 5;
         memcpy(encrypted_buffer, send_buffer, 5);
 
+        // tls1.1-1.1:
+        // The implicit Initialization Vector (IV) is replaced with an explicit IV to protect against CBC attacks
         if (TLS_VERSION_MINOR >= 2) {
             // 生成随机数，用于IV向量
             memset(parameters->IV, 0, active_suite->IV_size);
@@ -1491,6 +1493,8 @@ void compute_handshake_hash(TLSParameters* parameters, unsigned char* handshake_
 
     if (TLS_VERSION_MINOR >= 3) {
         copy_digest(&tmp_sha256_handshake_digest, &parameters->sha256_handshake_digest);
+        finalize_digest(&tmp_sha256_handshake_digest);
+
         memcpy(handshake_hash, tmp_sha256_handshake_digest.hash, SHA256_BYTE_SIZE);
         free(tmp_sha256_handshake_digest.hash);
     } else {
@@ -1707,6 +1711,8 @@ int tls_decrypt(
     *decrypted_message = (unsigned char*)malloc(encrypted_length);
 
     if (active_suite->bulk_decrypt) {
+        // tls1.1-1.1:
+        // The implicit Initialization Vector (IV) is replaced with an explicit IV to protect against CBC attacks
         if (TLS_VERSION_MINOR >= 2) {
             memcpy(parameters->IV, encrypted_message, active_suite->IV_size);
             encrypted_message += active_suite->IV_size;

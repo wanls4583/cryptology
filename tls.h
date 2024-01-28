@@ -113,7 +113,7 @@ typedef struct {
 ProtectionParameters;
 
 #define TLS_VERSION_MAJOR 3
-#define TLS_VERSION_MINOR 2
+#define TLS_VERSION_MINOR 3
 
 #define MASTER_SECRET_LENGTH  48
 typedef unsigned char master_secret_type[MASTER_SECRET_LENGTH];
