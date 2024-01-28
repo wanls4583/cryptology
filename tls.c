@@ -348,7 +348,7 @@ int send_message(
     CipherSuite* active_suite;
     active_suite = &suites[parameters->suite];
 
-    if (active_suite->hash_size) {
+    if (active_suite->new_digest || active_suite->aead_encrypt) {
         int sequence_num;
         memset(mac_header, '\0', 8);
         sequence_num = htonl(parameters->seq_num);
@@ -402,10 +402,14 @@ int send_message(
         }
     }
 
+    if (active_suite->bulk_encrypt || active_suite->aead_encrypt) {
+        send_buffer_size += TLS_VERSION_MINOR >= 2 ? active_suite->IV_size : 0;
+    }
+
     header.type = content_type;
     header.version.major = TLS_VERSION_MAJOR;
     header.version.minor = TLS_VERSION_MINOR;
-    header.length = htons(content_len + active_suite->hash_size + padding_length);
+    header.length = htons(send_buffer_size - 5);
     send_buffer[0] = header.type;
     send_buffer[1] = header.version.major;
     send_buffer[2] = header.version.minor;
@@ -413,10 +417,18 @@ int send_message(
     memcpy(send_buffer + 5, content, content_len);
 
     if (active_suite->bulk_encrypt) {
-        unsigned char* encrypted_buffer = malloc(send_buffer_size);
-        // The first 5 bytes (the header) aren't encrypted
+        unsigned char* encrypted_buffer = (unsigned char*)malloc(send_buffer_size);
+        int un_enc_size = 5;
         memcpy(encrypted_buffer, send_buffer, 5);
-        active_suite->bulk_encrypt(send_buffer + 5, send_buffer_size - 5, encrypted_buffer + 5, parameters->IV, parameters->key);
+
+        if (TLS_VERSION_MINOR >= 2) {
+            // 生成随机数，用于IV向量
+            memset(parameters->IV, 0, active_suite->IV_size);
+            memcpy(encrypted_buffer + un_enc_size, parameters->IV, active_suite->IV_size);
+            un_enc_size += active_suite->IV_size;
+        }
+
+        active_suite->bulk_encrypt(send_buffer + 5, send_buffer_size - un_enc_size, encrypted_buffer + un_enc_size, parameters->IV, parameters->key);
         free(send_buffer);
         send_buffer = encrypted_buffer;
     }
@@ -1514,13 +1526,14 @@ void compute_verify_data(
     TLSParameters* parameters,
     unsigned char* verify_data
 ) {
-    unsigned char handshake_hash[(MD5_RESULT_SIZE * sizeof(int)) + (SHA1_RESULT_SIZE * sizeof(int))];
+    int hash_bytes = TLS_VERSION_MINOR >= 3 ? SHA256_BYTE_SIZE : MD5_BYTE_SIZE + SHA1_BYTE_SIZE;
+    unsigned char handshake_hash[hash_bytes];
 
     compute_handshake_hash(parameters, handshake_hash);
     tls_prf(
         parameters->master_secret, MASTER_SECRET_LENGTH,
         finished_label, strlen((char*)finished_label),
-        handshake_hash, MD5_RESULT_SIZE * sizeof(int) + SHA1_RESULT_SIZE * sizeof(int),
+        handshake_hash, hash_bytes,
         verify_data, VERIFY_DATA_LEN
     );
 }
@@ -1694,6 +1707,11 @@ int tls_decrypt(
     *decrypted_message = (unsigned char*)malloc(encrypted_length);
 
     if (active_suite->bulk_decrypt) {
+        if (TLS_VERSION_MINOR >= 2) {
+            memcpy(parameters->IV, encrypted_message, active_suite->IV_size);
+            encrypted_message += active_suite->IV_size;
+            encrypted_length -= active_suite->IV_size;
+        }
         active_suite->bulk_decrypt(encrypted_message, encrypted_length, *decrypted_message, parameters->IV, parameters->key);
         decrypted_length = encrypted_length;
         // Strip off padding
