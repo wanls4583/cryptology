@@ -388,10 +388,15 @@ int send_message(
 
     // Add space for the header, but only after computing padding
     send_buffer_size += 5;
+
+    if (active_suite->bulk_encrypt || active_suite->aead_encrypt) {
+        send_buffer_size += TLS_VERSION_MINOR >= 2 ? active_suite->IV_size : 0;
+    }
+
     send_buffer = (unsigned char*)malloc(send_buffer_size);
 
     if (mac) {
-        memcpy(send_buffer + content_len + 5, mac, active_suite->hash_size + padding_length);
+        memcpy(send_buffer + content_len + active_suite->IV_size + 5, mac, active_suite->hash_size + padding_length);
         free(mac);
     }
 
@@ -402,10 +407,6 @@ int send_message(
         }
     }
 
-    if (active_suite->bulk_encrypt || active_suite->aead_encrypt) {
-        send_buffer_size += TLS_VERSION_MINOR >= 2 ? active_suite->IV_size : 0;
-    }
-
     header.type = content_type;
     header.version.major = TLS_VERSION_MAJOR;
     header.version.minor = TLS_VERSION_MINOR;
@@ -414,25 +415,37 @@ int send_message(
     send_buffer[1] = header.version.major;
     send_buffer[2] = header.version.minor;
     memcpy(send_buffer + 3, &header.length, sizeof(short));
-    memcpy(send_buffer + 5, content, content_len);
 
     if (active_suite->bulk_encrypt) {
+        unsigned char *buffer = send_buffer + 5;
         unsigned char* encrypted_buffer = (unsigned char*)malloc(send_buffer_size);
         int un_enc_size = 5;
         memcpy(encrypted_buffer, send_buffer, 5);
 
-        // tls1.1-1.1:
-        // The implicit Initialization Vector (IV) is replaced with an explicit IV to protect against CBC attacks
-        if (TLS_VERSION_MINOR >= 2) {
-            // 生成随机数，用于IV向量
-            memset(parameters->IV, 0, active_suite->IV_size);
-            memcpy(encrypted_buffer + un_enc_size, parameters->IV, active_suite->IV_size);
-            un_enc_size += active_suite->IV_size;
-        }
+        /* 
+        tls1.1-1.1:
+        The implicit Initialization Vector (IV) is replaced with an explicit IV to protect against CBC attacks
+        对于tls1.1以上的版本，CBC模式下第一个分组可以加密也可以不加密，不加密时其存储的是IV向量，直接明文传输 
+        */
+        // if (TLS_VERSION_MINOR >= 2) { //不加密第一个数据分组，用来传输IV向量，供对方解密使用
+        //     // 生成随机数，用于IV向量
+        //     memset(parameters->IV, 0, active_suite->IV_size);
+        //     memcpy(encrypted_buffer + un_enc_size, parameters->IV, active_suite->IV_size);
+        //     un_enc_size += active_suite->IV_size;
+        // }
 
+        if (TLS_VERSION_MINOR >= 2) { //加密第一个随机分组数据
+            // 填充随机数
+            memset(buffer, 0, active_suite->IV_size);
+            buffer += active_suite->IV_size;
+        }
+        memcpy(buffer, content, content_len);
+        
         active_suite->bulk_encrypt(send_buffer + 5, send_buffer_size - un_enc_size, encrypted_buffer + un_enc_size, parameters->IV, parameters->key);
         free(send_buffer);
         send_buffer = encrypted_buffer;
+    } else {
+        memcpy(send_buffer + 5, content, content_len);
     }
 
     if (send(connection, (void*)send_buffer, send_buffer_size, 0) < send_buffer_size) {
@@ -1707,27 +1720,35 @@ int tls_decrypt(
     int sequence_number;
     short length;
     CipherSuite* active_suite = &(suites[parameters->suite]);
-
-    *decrypted_message = (unsigned char*)malloc(encrypted_length);
+    unsigned char dec_msg[encrypted_length];
+    unsigned char* buffer = dec_msg;
 
     if (active_suite->bulk_decrypt) {
         // tls1.1-1.1:
         // The implicit Initialization Vector (IV) is replaced with an explicit IV to protect against CBC attacks
-        if (TLS_VERSION_MINOR >= 2) {
+        // 对于tls1.1以上的版本来说，CBC模式下第一个分组块可以当作秘文来解码，也可以当作明文来存储IV向量
+        if (TLS_VERSION_MINOR >= 2) { //第一额分组块当作明文，存储了IV向量
             memcpy(parameters->IV, encrypted_message, active_suite->IV_size);
             encrypted_message += active_suite->IV_size;
             encrypted_length -= active_suite->IV_size;
         }
-        active_suite->bulk_decrypt(encrypted_message, encrypted_length, *decrypted_message, parameters->IV, parameters->key);
+        active_suite->bulk_decrypt(encrypted_message, encrypted_length, dec_msg, parameters->IV, parameters->key);
         decrypted_length = encrypted_length;
         // Strip off padding
         if (active_suite->block_size) {
-            decrypted_length -= ((*decrypted_message)[encrypted_length - 1] + 1);
+            decrypted_length -= dec_msg[encrypted_length - 1] + 1;
         }
+        // if (TLS_VERSION_MINOR >= 2) { //第一个分组快当作秘文解码后需要被丢弃
+        //     decrypted_length -= active_suite->IV_size;
+        //     buffer += active_suite->IV_size;
+        // }
+        *decrypted_message = malloc(decrypted_length);
+        memcpy(*decrypted_message, buffer, decrypted_length);
     } else {
         // Do nothing, no bulk cipher algorithm chosen.
         // Still have to memcpy so that "free" in caller is consistent
         decrypted_length = encrypted_length;
+        *decrypted_message = malloc(decrypted_length);
         memcpy(*decrypted_message, encrypted_message, encrypted_length);
     }
 
