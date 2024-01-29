@@ -799,7 +799,8 @@ int validate_certificate_dsa(signed_x509_certificate* certificate) {
     return dsa_verify(
         &certificate->tbsCertificate.subjectPublicKeyInfo.dsa_parameters,
         &certificate->tbsCertificate.subjectPublicKeyInfo.dsa_public_key,
-        certificate->digest,
+        (unsigned char*)certificate->digest->hash,
+        certificate->digest->result_size,
         &certificate->dsa_signature_value);
 }
 

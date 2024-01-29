@@ -25,7 +25,8 @@ static void generate_message_secret(dsa_params* params, huge* k) {
 void dsa_sign(
     dsa_params* params,
     huge* private_key,
-    digest_ctx* ctx,
+    unsigned char* sign_input,
+    int sign_input_len,
     dsa_signature* signature
 ) {
     unsigned char* hash;
@@ -42,10 +43,8 @@ void dsa_sign(
     huge_divide(&r, &params->q, NULL);
 
     // s = (inv(k)*(h(m)+xr)) mod q
-    hash = (unsigned char*)ctx->hash;
-    hash_byte_size = ctx->result_size;
-    hash_byte_size = hash_byte_size > huge_bytes(&params->q) ? huge_bytes(&params->q) : hash_byte_size;
-    huge_load(&m, hash, hash_byte_size);
+    hash_byte_size = sign_input_len > huge_bytes(&params->q) ? huge_bytes(&params->q) : sign_input_len;
+    huge_load(&m, sign_input, hash_byte_size);
     huge_inverse_mul(&k, &params->q);
     huge_copy(&s, private_key);
     huge_multiply(&s, &r);
@@ -65,7 +64,8 @@ void dsa_sign(
 int dsa_verify(
     dsa_params* params,
     huge* public_key,
-    digest_ctx* ctx,
+    unsigned char* sign_input,
+    int sign_input_len,
     dsa_signature* signature
 ) {
     unsigned char* hash;
@@ -83,10 +83,8 @@ int dsa_verify(
     huge_inverse_mul(&w, &params->q);
 
     // u1 = (h(m) * w) % q
-    hash = (unsigned char*)ctx->hash;
-    hash_byte_size = ctx->result_size;
-    hash_byte_size = hash_byte_size > huge_bytes(&params->q) ? huge_bytes(&params->q) : hash_byte_size;
-    huge_load(&m, ctx->hash, hash_byte_size);
+    hash_byte_size = sign_input_len > huge_bytes(&params->q) ? huge_bytes(&params->q) : sign_input_len;
+    huge_load(&m, sign_input, hash_byte_size);
     huge_copy(&u1, &w);
     huge_multiply(&u1, &m);
     huge_divide(&u1, &params->q, NULL);
@@ -173,13 +171,13 @@ void test1() {
     update_digest(&ctx, msg, strlen((char*)msg));
     finalize_digest(&ctx);
 
-    dsa_sign(&params, &x, &ctx, &signature);
+    dsa_sign(&params, &x, (unsigned char*)ctx.hash, ctx.result_size & signature);
     printf("r:");
     show_hex(signature.r.rep, signature.r.size, HUGE_WORD_BYTES);
     printf("s:");
     show_hex(signature.s.rep, signature.s.size, HUGE_WORD_BYTES);
 
-    int result = dsa_verify(&params, &y, &ctx, &signature);
+    int result = dsa_verify(&params, &y, (unsigned char*)ctx.hash, ctx.result_size, &signature);
     printf("dsa_verify: %s\n", result == 0 ? "success" : "failed");
 }
 
@@ -215,13 +213,13 @@ void test2() {
     update_digest(&ctx, msg, len);
     finalize_digest(&ctx);
 
-    dsa_sign(&private_dsa_key.params, &private_dsa_key.key, &ctx, &signature);
+    dsa_sign(&private_dsa_key.params, &private_dsa_key.key, (unsigned char*)ctx.hash, ctx.result_size, &signature);
     printf("r:");
     show_hex(signature.r.rep, signature.r.size, HUGE_WORD_BYTES);
     printf("s:");
     show_hex(signature.s.rep, signature.s.size, HUGE_WORD_BYTES);
 
-    int result = dsa_verify(&private_dsa_key.params, &private_dsa_key.pub, &ctx, &signature);
+    int result = dsa_verify(&private_dsa_key.params, &private_dsa_key.pub, (unsigned char*)ctx.hash, ctx.result_size, &signature);
     printf("dsa_verify: %s\n", result == 0 ? "success" : "failed");
 }
 

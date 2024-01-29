@@ -27,15 +27,17 @@ dsa_signature;
 void dsa_sign(
 	dsa_params* params,
 	huge* private_key,
-	digest_ctx* ctx,
+	unsigned char* sign_input,
+	int sign_input_len,
 	dsa_signature* signature
 );
 
 int dsa_verify(
 	dsa_params* params,
-    huge* public_key,
-    digest_ctx* ctx,
-    dsa_signature* signature
+	huge* public_key,
+	unsigned char* sign_input,
+	int sign_input_len,
+	dsa_signature* signature
 );
 
 #endif
