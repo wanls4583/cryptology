@@ -344,9 +344,14 @@ int send_message(
     int padding_length = 0;
     unsigned char* mac = NULL;
     unsigned char mac_header[13];
+    int cbc_attack_mode = 0;
     digest_ctx digest;
     CipherSuite* active_suite;
     active_suite = &suites[parameters->suite];
+
+    if (TLS_VERSION_MINOR >= 2 && (active_suite->bulk_encrypt || active_suite->aead_encrypt)) {
+        cbc_attack_mode = 1;
+    }
 
     if (active_suite->new_digest || active_suite->aead_encrypt) {
         int sequence_num;
@@ -388,21 +393,17 @@ int send_message(
 
     // Add space for the header, but only after computing padding
     send_buffer_size += 5;
-
-    if (active_suite->bulk_encrypt || active_suite->aead_encrypt) {
-        send_buffer_size += TLS_VERSION_MINOR >= 2 ? active_suite->IV_size : 0;
-    }
-
+    send_buffer_size += cbc_attack_mode ? active_suite->IV_size : 0;
     send_buffer = (unsigned char*)malloc(send_buffer_size);
 
     if (mac) {
-        memcpy(send_buffer + content_len + active_suite->IV_size + 5, mac, active_suite->hash_size + padding_length);
+        memcpy(send_buffer + send_buffer_size - (active_suite->hash_size + padding_length), mac, active_suite->hash_size);
         free(mac);
     }
 
     if (padding_length > 0) {
         unsigned char* padding;
-        for (padding = send_buffer + send_buffer_size - 1; padding > (send_buffer + (send_buffer_size - padding_length - 1)); padding--) {
+        for (padding = send_buffer + send_buffer_size - 1; padding >= send_buffer + send_buffer_size - padding_length; padding--) {
             *padding = (padding_length - 1);
         }
     }
@@ -415,17 +416,23 @@ int send_message(
     send_buffer[1] = header.version.major;
     send_buffer[2] = header.version.minor;
     memcpy(send_buffer + 3, &header.length, sizeof(short));
+    if (cbc_attack_mode) {
+        memset(send_buffer + 5, 0, active_suite->IV_size); //第一个随机明文分组
+        memcpy(send_buffer + 5 + active_suite->IV_size, content, content_len);
+    } else {
+        memcpy(send_buffer + 5, content, content_len);
+    }
 
     if (active_suite->bulk_encrypt) {
-        unsigned char *buffer = send_buffer + 5;
+        unsigned char* buffer = send_buffer + 5;
         unsigned char* encrypted_buffer = (unsigned char*)malloc(send_buffer_size);
         int un_enc_size = 5;
         memcpy(encrypted_buffer, send_buffer, 5);
 
-        /* 
+        /*
         tls1.1-1.1:
         The implicit Initialization Vector (IV) is replaced with an explicit IV to protect against CBC attacks
-        对于tls1.1以上的版本，CBC模式下第一个分组可以加密也可以不加密，不加密时其存储的是IV向量，直接明文传输 
+        对于tls1.1以上的版本，CBC模式下第一个分组可以加密也可以不加密，不加密时其存储的是IV向量，直接明文传输
         */
         // if (TLS_VERSION_MINOR >= 2) { //不加密第一个数据分组，用来传输IV向量，供对方解密使用
         //     // 生成随机数，用于IV向量
@@ -434,18 +441,9 @@ int send_message(
         //     un_enc_size += active_suite->IV_size;
         // }
 
-        if (TLS_VERSION_MINOR >= 2) { //加密第一个随机分组数据
-            // 填充随机数
-            memset(buffer, 0, active_suite->IV_size);
-            buffer += active_suite->IV_size;
-        }
-        memcpy(buffer, content, content_len);
-        
-        active_suite->bulk_encrypt(send_buffer + 5, send_buffer_size - un_enc_size, encrypted_buffer + un_enc_size, parameters->IV, parameters->key);
+        active_suite->bulk_encrypt(send_buffer + un_enc_size, send_buffer_size - un_enc_size, encrypted_buffer + un_enc_size, parameters->IV, parameters->key);
         free(send_buffer);
         send_buffer = encrypted_buffer;
-    } else {
-        memcpy(send_buffer + 5, content, content_len);
     }
 
     if (send(connection, (void*)send_buffer, send_buffer_size, 0) < send_buffer_size) {
