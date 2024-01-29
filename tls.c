@@ -1229,6 +1229,17 @@ unsigned char* parse_client_key_exchange(
     return read_pos + pdu_length;
 }
 
+//RFC 3447-9.2 EMSA-PKCS1-v1_5
+// DigestInfo ::= SEQUENCE {
+//     digestAlgorithm AlgorithmIdentifier,
+//     digest OCTET STRING
+// }
+const static unsigned char MD5_DER_PRE[] = { 0x30, 0x20, 0x30, 0x0c, 0x06, 0x08, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x02, 0x05, 0x05, 0x00, 0x04, 0x10 };
+const static unsigned char SHA_1_DER_PRE[] = { 0x30, 0x21, 0x30, 0x09, 0x06, 0x05, 0x2b, 0x0e, 0x03, 0x02, 0x1a, 0x05, 0x00, 0x04, 0x14 };
+const static unsigned char SHA_256_DER_PRE[] = { 0x30, 0x31, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01, 0x05, 0x00, 0x04, 0x20 };
+const static unsigned char SHA_384_DER_PRE[] = { 0x30, 0x41, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x02, 0x05, 0x00, 0x04, 0x30 };
+const static unsigned char sha_512_DER_PRE[] = { 0x30, 0x51, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03, 0x05, 0x00, 0x04, 0x40 };
+
 int send_server_key_exchange_with_dh(int connection, TLSParameters* parameters, int sign_algorithm) {
     unsigned char* key_exchange_message;
     unsigned char* buffer;
@@ -1318,7 +1329,11 @@ int send_server_key_exchange_with_dh(int connection, TLSParameters* parameters, 
 
     // digitally-signed-begin
     if (sign_algorithm == 1) { //rsa_sign
-        sign_out_len = rsa_sign(&private_rsa_key, sign_input, sign_in_len, &sign_out, RSA_PKCS1_PADDING);
+        int pre_len = sizeof(SHA_256_DER_PRE);
+        unsigned char* input = malloc(pre_len + sign_in_len);
+        memcpy(input, SHA_256_DER_PRE, pre_len);
+        memcpy(input + pre_len, sign_input, sign_in_len);
+        sign_out_len = rsa_sign(&private_rsa_key, input, pre_len + sign_in_len, &sign_out, RSA_PKCS1_PADDING);
     } else if (sign_algorithm == 2) { //dsa_sign
         int r_len = 0, s_len = 0;
         unsigned char* r;
