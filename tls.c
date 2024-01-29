@@ -1291,9 +1291,8 @@ int send_server_key_exchange_with_dh(int connection, TLSParameters* parameters, 
 
         memcpy(buffer, dh_input, dh_len);
 
-        
         // hash-end
-        if (TLS_VERSION_MINOR) {
+        if (TLS_VERSION_MINOR >= 3) {
             digest_hash(&sha256, hash_input, hash_input_len);
             memcpy(sign_input, sha256.hash, sha256.result_size);
             sign_in_len = 32;
