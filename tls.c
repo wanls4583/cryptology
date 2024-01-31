@@ -250,10 +250,10 @@ int init_dsa_key() {
 void init_ciphers() {
     suites[TLS_RSA_WITH_AES_128_GCM_SHA256].id = TLS_RSA_WITH_AES_128_GCM_SHA256;
     suites[TLS_RSA_WITH_AES_128_GCM_SHA256].min_version = 3;
-    suites[TLS_RSA_WITH_AES_128_GCM_SHA256].block_size = 0;
+    suites[TLS_RSA_WITH_AES_128_GCM_SHA256].block_size = 16;
     suites[TLS_RSA_WITH_AES_128_GCM_SHA256].IV_size = 12;
     suites[TLS_RSA_WITH_AES_128_GCM_SHA256].key_size = 16;
-    suites[TLS_RSA_WITH_AES_128_GCM_SHA256].hash_size = 16; //AES_BLOCK_SIZE
+    suites[TLS_RSA_WITH_AES_128_GCM_SHA256].hash_size = 0;
     suites[TLS_RSA_WITH_AES_128_GCM_SHA256].bulk_encrypt = NULL;
     suites[TLS_RSA_WITH_AES_128_GCM_SHA256].bulk_decrypt = NULL;
     suites[TLS_RSA_WITH_AES_128_GCM_SHA256].new_digest = NULL;
@@ -387,11 +387,14 @@ int send_message(
         free(mac_buffer);
     }
 
-    send_buffer_size = content_len + active_suite->hash_size;
-
-    if (active_suite->block_size) {
-        padding_length = active_suite->block_size - (send_buffer_size % active_suite->block_size);
-        send_buffer_size += padding_length;
+    if (active_suite->aead_encrypt) {
+        send_buffer_size = content_len + active_suite->block_size;
+    } else {
+        send_buffer_size = content_len + active_suite->hash_size;
+        if (active_suite->block_size) {
+            padding_length = active_suite->block_size - (send_buffer_size % active_suite->block_size);
+            send_buffer_size += padding_length;
+        }
     }
 
     // Add space for the header, but only after computing padding
@@ -459,7 +462,7 @@ int send_message(
         } else {
             active_suite->aead_encrypt(
                 send_buffer + un_enc_size,
-                send_buffer_size - un_enc_size - active_suite->hash_size,
+                send_buffer_size - un_enc_size - active_suite->block_size,
                 encrypted_buffer + un_enc_size,
                 parameters->IV,
                 mac_header, 13,
@@ -548,6 +551,7 @@ void calculate_keys(TLSParameters* parameters) {
     CipherSuite* suite = &(suites[parameters->pending_send_parameters.suite]);
     unsigned char label[] = "key expansion";
     int key_block_length = suite->hash_size * 2 + suite->key_size * 2 + suite->IV_size * 2;
+    int iv_fixed_len = suite->aead_encrypt ? 4 : suite->IV_size;
     unsigned char seed[RANDOM_LENGTH * 2];
     unsigned char* key_block = (unsigned char*)malloc(key_block_length);
     unsigned char* key_block_ptr;
@@ -571,16 +575,16 @@ void calculate_keys(TLSParameters* parameters) {
         key_block_ptr = read_buffer(recv_parameters->MAC_secret, key_block_ptr, suite->hash_size);
         key_block_ptr = read_buffer(send_parameters->key, key_block_ptr, suite->key_size);
         key_block_ptr = read_buffer(recv_parameters->key, key_block_ptr, suite->key_size);
-        key_block_ptr = read_buffer(send_parameters->IV, key_block_ptr, suite->IV_size);
-        key_block_ptr = read_buffer(recv_parameters->IV, key_block_ptr, suite->IV_size);
+        key_block_ptr = read_buffer(send_parameters->IV, key_block_ptr, iv_fixed_len);
+        key_block_ptr = read_buffer(recv_parameters->IV, key_block_ptr, iv_fixed_len);
     } else  // I'm the server
     {
         key_block_ptr = read_buffer(recv_parameters->MAC_secret, key_block, suite->hash_size);
         key_block_ptr = read_buffer(send_parameters->MAC_secret, key_block_ptr, suite->hash_size);
         key_block_ptr = read_buffer(recv_parameters->key, key_block_ptr, suite->key_size);
         key_block_ptr = read_buffer(send_parameters->key, key_block_ptr, suite->key_size);
-        key_block_ptr = read_buffer(recv_parameters->IV, key_block_ptr, suite->IV_size);
-        key_block_ptr = read_buffer(send_parameters->IV, key_block_ptr, suite->IV_size);
+        key_block_ptr = read_buffer(recv_parameters->IV, key_block_ptr, iv_fixed_len);
+        key_block_ptr = read_buffer(send_parameters->IV, key_block_ptr, iv_fixed_len);
     }
 
     switch (suite->id) {
@@ -1814,7 +1818,7 @@ int tls_decrypt(
     } else if (active_suite->aead_decrypt) {
         int nonce_size = active_suite->IV_size - 4;
         unsigned char mac_header[13];
-        decrypted_length = encrypted_length - active_suite->hash_size;
+        decrypted_length = encrypted_length - active_suite->block_size;
 
         if (TLS_VERSION_MINOR >= 2) { //第一块分组块当作明文，存储了8个byte的IV向量
             memcpy(parameters->IV + 4, encrypted_message, nonce_size);
