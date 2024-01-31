@@ -80,8 +80,8 @@ typedef enum {
 
 typedef	void (*encrypt_func)(unsigned char* plaintext, int plaintext_len, unsigned char ciphertext[], void* iv, unsigned char* key);
 typedef	void (*decrypt_func)(unsigned char* ciphertext, int ciphertext_len, unsigned char plaintext[], void* iv, unsigned char* key);
-typedef	void (*aead_encrypt_func)(unsigned char* plaintext, int plaintext_len, unsigned char ciphertext[], void* iv, unsigned char* add, int addLen, unsigned char* key);
-typedef	void (*aead_decrypt_func)(unsigned char* ciphertext, int ciphertext_len, unsigned char plaintext[], void* iv, unsigned char* add, int addLen, unsigned char* key);
+typedef	int  (*aead_encrypt_func)(unsigned char* plaintext, int plaintext_len, unsigned char ciphertext[], void* iv, unsigned char* add, int addLen, unsigned char* key);
+typedef	int  (*aead_decrypt_func)(unsigned char* ciphertext, int ciphertext_len, unsigned char plaintext[], void* iv, unsigned char* add, int addLen, unsigned char* key);
 
 
 typedef struct {
