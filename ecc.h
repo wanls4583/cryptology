@@ -20,6 +20,7 @@ typedef struct {
 elliptic_curve;
 
 typedef struct {
+	elliptic_curve curve;
 	huge d;  // random integer < n; this is the private key
 	point Q; // Q = d * G; this is the public key
 }
@@ -27,5 +28,6 @@ ecc_key;
 
 void add_points(point* p1, point* p2, huge* p);
 void multiply_point(point* p1, huge* k, huge* a, huge* p);
+int get_named_curve(const char* curve_name, elliptic_curve* target);
 
 #endif

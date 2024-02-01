@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <string.h>
 #include "huge.h"
 #include "asn1.h"
 #include "privkey.h"
@@ -98,11 +99,15 @@ int parse_private_dh_key(
 
 /*
 version
-p
-q
-g
-pub
-priv
+privateKeyAlgorithm: {
+    algorithm
+    params: {
+        p,
+        q,
+        g
+    }
+}
+privateKey
 */
 int parse_private_dsa_key(
     dsa_key* privkey,
@@ -111,16 +116,22 @@ int parse_private_dsa_key(
 ) {
     struct asn1struct private_key;
     struct asn1struct* version;
+    struct asn1struct* private_key_algorithm;
+    struct asn1struct* algorithm;
+    struct asn1struct* params;
     struct asn1struct* p;
     struct asn1struct* q;
     struct asn1struct* g;
-    struct asn1struct* pub;
     struct asn1struct* priv;
 
     asn1parse(buffer, buffer_length, &private_key);
 
     version = (struct asn1struct*)private_key.children;
-    p = (struct asn1struct*)version->next;
+    private_key_algorithm = (struct asn1struct*)version->next;
+    algorithm = (struct asn1struct*)private_key_algorithm->children;
+    params = (struct asn1struct*)algorithm->next;
+
+    p = (struct asn1struct*)params->children;
     huge_load(&privkey->params.p, p->data, p->length);
 
     q = (struct asn1struct*)p->next;
@@ -129,13 +140,56 @@ int parse_private_dsa_key(
     g = (struct asn1struct*)q->next;
     huge_load(&privkey->params.g, g->data, g->length);
 
-    pub = (struct asn1struct*)g->next;
-    huge_load(&privkey->pub, pub->data, pub->length);
-
-    priv = (struct asn1struct*)pub->next;
+    priv = (struct asn1struct*)private_key_algorithm->next;
+    if (priv->tag == ASN1_OCTET_STRING) {
+        asn1parse(priv->data, priv->length, priv);
+    }
     huge_load(&privkey->key, priv->data, priv->length);
 
     asn1free(&private_key);
+
+    return 0;
+}
+
+const static unsigned char SECP256R1_OID[] = { 0x2A, 0x86, 0x48, 0xCE, 0x3D, 0x03, 0x01, 0x07 };
+/*
+version
+priv
+pri_obj->curve_oid
+pri_obj->pub
+*/
+int parse_private_ecdsa_key(
+    ecc_key* privkey,
+    unsigned char* buffer,
+    int buffer_length
+) {
+    struct asn1struct private_key;
+    struct asn1struct* version;
+    struct asn1struct* d;
+    struct asn1struct* pri_obj;
+    struct asn1struct* curve_oid;
+    struct asn1struct* pub;
+
+    asn1parse(buffer, buffer_length, &private_key);
+
+    version = (struct asn1struct*)private_key.children;
+    d = (struct asn1struct*)version->next;
+    huge_load(&privkey->d, d->data, d->length);
+
+    pri_obj = (struct asn1struct*)d->next;
+    curve_oid = pri_obj->children;
+
+    if (!memcmp(curve_oid->data, SECP256R1_OID, curve_oid->length)) {
+        get_named_curve("secp256r1", &privkey->curve);
+    }
+
+    pri_obj = (struct asn1struct*)pri_obj->next;
+    pub = (struct asn1struct*)pri_obj->children;
+
+    unsigned char *data = pub->data + 2;
+    int length = pub->length - 2;
+    huge_load(&privkey->Q.x, data, length / 2);
+    huge_load(&privkey->Q.y, data + length / 2, length / 2);
 
     return 0;
 }
@@ -165,7 +219,9 @@ int main() {
     printf("------------------------\n");
 
     dh_key dh_privkey;
-    buffer = load_file("./res/dhkey.der", &buffer_length);
+    pem_buffer = load_file("./res/dh_key.pem", &pem_buffer_length);
+    buffer = (unsigned char*)malloc(pem_buffer_length);
+    buffer_length = pem_decode(pem_buffer, buffer, NULL, NULL);
     parse_private_dh_key(&dh_privkey, buffer, buffer_length);
     printf("dh_g:");
     show_hex(dh_privkey.g.rep, dh_privkey.g.size, HUGE_WORD_BYTES);
@@ -179,7 +235,7 @@ int main() {
     dsa_key dsa_privkey;
     pem_buffer = load_file("./res/dsa_key.pem", &pem_buffer_length);
     buffer = (unsigned char*)malloc(pem_buffer_length);
-    buffer_length = pem_decode(pem_buffer, buffer, "-----BEGIN DSA PRIVATE KEY-----", "-----END DSA PRIVATE KEY-----");
+    buffer_length = pem_decode(pem_buffer, buffer, NULL, NULL);
     parse_private_dsa_key(&dsa_privkey, buffer, buffer_length);
     printf("dsa_p:");
     show_hex(dsa_privkey.params.p.rep, dsa_privkey.params.p.size, HUGE_WORD_BYTES);
@@ -189,6 +245,18 @@ int main() {
     show_hex(dsa_privkey.params.g.rep, dsa_privkey.params.g.size, HUGE_WORD_BYTES);
     printf("dsa_key:");
     show_hex(dsa_privkey.key.rep, dsa_privkey.key.size, HUGE_WORD_BYTES);
+
+    ecc_key ecc_privkey;
+    pem_buffer = load_file("./res/ecdh_key.pem", &pem_buffer_length);
+    buffer = (unsigned char*)malloc(pem_buffer_length);
+    buffer_length = pem_decode(pem_buffer, buffer, NULL, NULL);
+    parse_private_ecdsa_key(&ecc_privkey, buffer, buffer_length);
+    printf("ecc_Q.x:");
+    show_hex(ecc_privkey.Q.x.rep, ecc_privkey.Q.x.size, HUGE_WORD_BYTES);
+    printf("ecc_Q.y:");
+    show_hex(ecc_privkey.Q.y.rep, ecc_privkey.Q.y.size, HUGE_WORD_BYTES);
+    printf("ecc_d:");
+    show_hex(ecc_privkey.d.rep, ecc_privkey.d.size, HUGE_WORD_BYTES);
 
     return 0;
 }
