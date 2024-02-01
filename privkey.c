@@ -152,6 +152,7 @@ int parse_private_dsa_key(
 }
 
 const static unsigned char SECP256R1_OID[] = { 0x2A, 0x86, 0x48, 0xCE, 0x3D, 0x03, 0x01, 0x07 };
+const static unsigned char SECP192R1_OID[] = { 0x2A, 0x86, 0x48, 0xCE, 0x3D, 0x03, 0x01, 0x01 };
 /*
 version
 priv
@@ -179,7 +180,9 @@ int parse_private_ecdsa_key(
     pri_obj = (struct asn1struct*)d->next;
     curve_oid = pri_obj->children;
 
-    if (!memcmp(curve_oid->data, SECP256R1_OID, curve_oid->length)) {
+    if (!memcmp(curve_oid->data, SECP192R1_OID, curve_oid->length)) {
+        get_named_curve("secp192r1", &privkey->curve);
+    } else if (!memcmp(curve_oid->data, SECP256R1_OID, curve_oid->length)) {
         get_named_curve("secp256r1", &privkey->curve);
     }
 

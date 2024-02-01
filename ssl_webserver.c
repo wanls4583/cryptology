@@ -105,7 +105,7 @@ static void process_https_request(int connection) {
   }
 }
 
-int main_(int argc, char* argv[]) {
+int main(int argc, char* argv[]) {
   int listen_sock;
   int connect_sock;
   int on = 1;

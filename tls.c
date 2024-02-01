@@ -127,6 +127,8 @@ CipherSuite suites[MAX_SUPPORTED_CIPHER_SUITE] =
 rsa_key private_rsa_key;
 rsa_key private_rsa_export_key;
 dsa_key private_dsa_key;
+ecc_key private_ecc_key;
+ecc_key private_ecdsa_key;
 dh_key dh_priv_key;
 dh_key dh_tmp_key;
 huge dh_priv;
@@ -247,6 +249,42 @@ int init_dsa_key() {
     return 1;
 }
 
+int init_ecc_key() {
+    unsigned char* pem_buffer;
+    unsigned char* buffer;
+    int buffer_length;
+
+    if (!(pem_buffer = load_file("./res/ecdh_key.pem", &buffer_length))) {
+        perror("Unable to load file");
+        return 0;
+    }
+    buffer = (unsigned char*)malloc(buffer_length);
+    buffer_length = pem_decode(pem_buffer, buffer, NULL, NULL);
+
+    parse_private_ecdsa_key(&private_ecc_key, buffer, buffer_length);
+    free(buffer);
+
+    return 1;
+}
+
+int init_ecdsa_key() {
+    unsigned char* pem_buffer;
+    unsigned char* buffer;
+    int buffer_length;
+
+    if (!(pem_buffer = load_file("./res/ecdsa_key.pem", &buffer_length))) {
+        perror("Unable to load file");
+        return 0;
+    }
+    buffer = (unsigned char*)malloc(buffer_length);
+    buffer_length = pem_decode(pem_buffer, buffer, NULL, NULL);
+
+    parse_private_ecdsa_key(&private_ecdsa_key, buffer, buffer_length);
+    free(buffer);
+
+    return 1;
+}
+
 void init_ciphers() {
     suites[TLS_RSA_WITH_AES_128_GCM_SHA256].id = TLS_RSA_WITH_AES_128_GCM_SHA256;
     suites[TLS_RSA_WITH_AES_128_GCM_SHA256].min_version = 3;
@@ -271,6 +309,54 @@ void init_ciphers() {
     suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].new_digest = new_sha1_digest;
     suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].aead_encrypt = NULL;
     suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].aead_decrypt = NULL;
+
+    suites[TLS_ECDH_RSA_WITH_AES_128_CBC_SHA].id = TLS_ECDH_RSA_WITH_AES_128_CBC_SHA;
+    suites[TLS_ECDH_RSA_WITH_AES_128_CBC_SHA].min_version = 3;
+    suites[TLS_ECDH_RSA_WITH_AES_128_CBC_SHA].block_size = 16;
+    suites[TLS_ECDH_RSA_WITH_AES_128_CBC_SHA].IV_size = 16;
+    suites[TLS_ECDH_RSA_WITH_AES_128_CBC_SHA].key_size = 16;
+    suites[TLS_ECDH_RSA_WITH_AES_128_CBC_SHA].hash_size = SHA1_BYTE_SIZE;
+    suites[TLS_ECDH_RSA_WITH_AES_128_CBC_SHA].bulk_encrypt = (encrypt_func)aes_128_encrypt;
+    suites[TLS_ECDH_RSA_WITH_AES_128_CBC_SHA].bulk_decrypt = (decrypt_func)aes_128_decrypt;
+    suites[TLS_ECDH_RSA_WITH_AES_128_CBC_SHA].new_digest = new_sha1_digest;
+    suites[TLS_ECDH_RSA_WITH_AES_128_CBC_SHA].aead_encrypt = NULL;
+    suites[TLS_ECDH_RSA_WITH_AES_128_CBC_SHA].aead_decrypt = NULL;
+
+    suites[TLS_ECDH_RSA_WITH_AES_256_CBC_SHA].id = TLS_ECDH_RSA_WITH_AES_256_CBC_SHA;
+    suites[TLS_ECDH_RSA_WITH_AES_256_CBC_SHA].min_version = 3;
+    suites[TLS_ECDH_RSA_WITH_AES_256_CBC_SHA].block_size = 16;
+    suites[TLS_ECDH_RSA_WITH_AES_256_CBC_SHA].IV_size = 16;
+    suites[TLS_ECDH_RSA_WITH_AES_256_CBC_SHA].key_size = 32;
+    suites[TLS_ECDH_RSA_WITH_AES_256_CBC_SHA].hash_size = SHA1_BYTE_SIZE;
+    suites[TLS_ECDH_RSA_WITH_AES_256_CBC_SHA].bulk_encrypt = (encrypt_func)aes_128_encrypt;
+    suites[TLS_ECDH_RSA_WITH_AES_256_CBC_SHA].bulk_decrypt = (decrypt_func)aes_128_decrypt;
+    suites[TLS_ECDH_RSA_WITH_AES_256_CBC_SHA].new_digest = new_sha1_digest;
+    suites[TLS_ECDH_RSA_WITH_AES_256_CBC_SHA].aead_encrypt = NULL;
+    suites[TLS_ECDH_RSA_WITH_AES_256_CBC_SHA].aead_decrypt = NULL;
+
+    suites[TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA].id = TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA;
+    suites[TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA].min_version = 3;
+    suites[TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA].block_size = 16;
+    suites[TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA].IV_size = 16;
+    suites[TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA].key_size = 16;
+    suites[TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA].hash_size = SHA1_BYTE_SIZE;
+    suites[TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA].bulk_encrypt = (encrypt_func)aes_128_encrypt;
+    suites[TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA].bulk_decrypt = (decrypt_func)aes_128_decrypt;
+    suites[TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA].new_digest = new_sha1_digest;
+    suites[TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA].aead_encrypt = NULL;
+    suites[TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA].aead_decrypt = NULL;
+
+    suites[TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA].id = TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA;
+    suites[TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA].min_version = 3;
+    suites[TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA].block_size = 16;
+    suites[TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA].IV_size = 16;
+    suites[TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA].key_size = 32;
+    suites[TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA].hash_size = SHA1_BYTE_SIZE;
+    suites[TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA].bulk_encrypt = (encrypt_func)aes_256_encrypt;
+    suites[TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA].bulk_decrypt = (decrypt_func)aes_256_decrypt;
+    suites[TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA].new_digest = new_sha1_digest;
+    suites[TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA].aead_encrypt = NULL;
+    suites[TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA].aead_decrypt = NULL;
 }
 
 void init_protection_parameters(ProtectionParameters* parameters) {
@@ -290,7 +376,9 @@ void init_parameters(TLSParameters* parameters) {
     init_dh_key();
     init_rsa_key();
     init_rsa_export_key();
-    init_dsa_key();
+    // init_dsa_key();
+    init_ecc_key();
+    init_ecdsa_key();
     init_ciphers();
 
     memset(parameters->master_secret, '\0', MASTER_SECRET_LENGTH);
@@ -762,8 +850,8 @@ unsigned char* parse_client_hello(
     printf("\n");
 
     // 0039 0038 0037 0036 0035 0033 0032 0031 0030 002f 0007 0005 0004 0016 0013 0010 000d 000a
-    parameters->pending_recv_parameters.suite = TLS_RSA_WITH_AES_128_GCM_SHA256;
-    parameters->pending_send_parameters.suite = TLS_RSA_WITH_AES_128_GCM_SHA256;
+    parameters->pending_recv_parameters.suite = TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA;
+    parameters->pending_send_parameters.suite = TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA;
 
     if (i == MAX_SUPPORTED_CIPHER_SUITE) {
         return NULL;
@@ -937,6 +1025,14 @@ int send_certificate(int connection, TLSParameters* parameters) {
     case TLS_RSA_WITH_AES_256_CBC_SHA:
     case TLS_RSA_WITH_AES_128_GCM_SHA256:
         strcpy(cert_url, "./res/rsa_cert.pem");
+        break;
+    case TLS_ECDH_RSA_WITH_AES_128_CBC_SHA:
+    case TLS_ECDH_RSA_WITH_AES_256_CBC_SHA:
+        strcpy(cert_url, "./res/rsa_ecdhcert.pem");
+        break;
+    case TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA:
+    case TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA:
+        strcpy(cert_url, "./res/ecdsa_ecdhcert.pem");
         break;
     default:
         return 0;
@@ -1161,6 +1257,7 @@ unsigned char* parse_client_key_exchange(
     int premaster_secret_length;
     unsigned char* premaster_secret;
     huge Yc;
+    point pt;
 
     switch (parameters->pending_send_parameters.suite) {
     case TLS_RSA_WITH_NULL_MD5: //RSA密钥交换
@@ -1244,6 +1341,22 @@ unsigned char* parse_client_key_exchange(
         premaster_secret_length = huge_bytes(&Yc);
         premaster_secret = (unsigned char*)malloc(premaster_secret_length);
         huge_unload(&Yc, premaster_secret, premaster_secret_length);
+
+        printf("premaster_secret:");
+        show_hex(premaster_secret, premaster_secret_length, 1);
+
+        compute_master_secret(premaster_secret, premaster_secret_length, parameters);
+        break;
+    case TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA:
+    case TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA:
+    case TLS_ECDH_RSA_WITH_AES_128_CBC_SHA:
+    case TLS_ECDH_RSA_WITH_AES_256_CBC_SHA:
+        huge_load(&pt.x, read_pos + 2, (pdu_length - 2) / 2);
+        huge_load(&pt.y, read_pos + 2 + (pdu_length - 2) / 2, (pdu_length - 1) / 2);
+        multiply_point(&pt, &private_ecc_key.d, &private_ecc_key.curve.a, &private_ecc_key.curve.p);
+        premaster_secret_length = huge_bytes(&pt.x);
+        premaster_secret = (unsigned char*)malloc(premaster_secret_length);
+        huge_unload(&pt.x, premaster_secret, premaster_secret_length);
 
         printf("premaster_secret:");
         show_hex(premaster_secret, premaster_secret_length, 1);
