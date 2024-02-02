@@ -25,7 +25,8 @@ static void generate_message_secret(elliptic_curve* params, huge* k) {
 void ecdsa_sign(
     elliptic_curve* params,
     ecc_key* private_key,
-    digest_ctx* ctx,
+    unsigned char* sign_input,
+    int sign_input_len,
     ecdsa_signature* signature
 ) {
     unsigned char* hash;
@@ -54,10 +55,9 @@ void ecdsa_sign(
     huge_divide(&r, &params->n, NULL);
 
     // s = (inv(k)*(z+r*da)) mod n
-    hash = (unsigned char*)ctx->hash;
-    hash_size = ctx->result_size * ctx->word_size;
-    hash_size = hash_size > params->n.size * HUGE_WORD_BYTES ? params->n.size * HUGE_WORD_BYTES : hash_size;
-    huge_load(&z, hash, hash_size);
+    hash_size = sign_input_len;
+    hash_size = hash_size > huge_bytes(&params->n) ? huge_bytes(&params->n) : hash_size;
+    huge_load(&z, sign_input, hash_size);
     huge_inverse_mul(&k, &params->n);
     huge_copy(&s, &private_key->d);
     huge_multiply(&s, &r);
@@ -79,7 +79,8 @@ void ecdsa_sign(
 int ecdsa_verify(
     elliptic_curve* params,
     ecc_key* public_key,
-    digest_ctx* ctx,
+    unsigned char* sign_input,
+    int sign_input_len,
     ecdsa_signature* signature
 ) {
     unsigned char* hash;
@@ -98,10 +99,9 @@ int ecdsa_verify(
     huge_inverse_mul(&invs, &params->n);
 
     // u1 = (z * inv(s)) % n
-    hash = (unsigned char*)ctx->hash;
-    hash_size = ctx->result_size * ctx->word_size;
-    hash_size = hash_size > params->n.size * HUGE_WORD_BYTES ? params->n.size * HUGE_WORD_BYTES : hash_size;
-    huge_load(&z, ctx->hash, hash_size);
+    hash_size = sign_input_len;
+    hash_size = hash_size > huge_bytes(&params->n) ? huge_bytes(&params->n) : hash_size;
+    huge_load(&z, sign_input, hash_size);
     huge_copy(&u1, &invs);
     huge_multiply(&u1, &z);
     huge_divide(&u1, &params->n, NULL);
@@ -197,13 +197,13 @@ int main() {
     update_digest(&ctx, (unsigned char*)"abc", 3);
     finalize_digest(&ctx);
 
-    ecdsa_sign(&curve, &key, &ctx, &signature);
+    ecdsa_sign(&curve, &key, (unsigned char*)ctx.hash, ctx.result_size, &signature);
     printf("r:");
     show_hex(signature.r.rep, signature.r.size, HUGE_WORD_BYTES);
     printf("s:");
     show_hex(signature.s.rep, signature.s.size, HUGE_WORD_BYTES);
 
-    int result = ecdsa_verify(&curve, &key, &ctx, &signature);
+    int result = ecdsa_verify(&curve, &key, (unsigned char*)ctx.hash, ctx.result_size, &signature);
     printf("dsa_verify: %s\n", result == 0 ? "success" : "failed");
 }
 #endif

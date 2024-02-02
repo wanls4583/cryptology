@@ -35,11 +35,11 @@ openssl x509 -req -in dhreq.pem -CA dsa_ca.pem -days 3600 \
 	-force_pubkey dhpub.pem \
 	-extfile ca.cnf -extensions dh_cert -CAcreateserial -out dsa_dhcert.pem
 
-openssl ecparam -genkey -name secp192k1 -noout -out ecdh_key.pem
+openssl ecparam -genkey -name secp256r1 -noout -out ecdh_key.pem
 openssl pkey -in ecdh_key.pem -pubout -out ecdh_pubkey.pem
 
-openssl ecparam -genkey -name secp192k1 -noout -out ecdsa_key.pem
-CN="Test Server ECC Cert" openssl req -config ca.cnf -x509 -new -key ecdsa_key.pem -out ecdsa_cert.pem
+openssl ecparam -genkey -name secp256r1 -noout -out ecdsa_key.pem
+CN="Test Server ECC Cert" openssl req -config ca.cnf -extensions ocsp_cert -x509 -new -key ecdsa_key.pem -out ecdsa_cert.pem
 touch ecdsa_ca.pem
 cat ecdsa_key.pem >> ecdsa_ca.pem
 cat ecdsa_cert.pem >> ecdsa_ca.pem

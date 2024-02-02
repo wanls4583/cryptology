@@ -25,6 +25,11 @@
 #include "tls.h"
 #include "hex.h"
 #include "asn1.h"
+#include "ecdsa.h"
+
+extern unsigned char SECP256R1_OID[8];
+extern unsigned char SECP192R1_OID[8];
+extern unsigned char SECP192K1_OID[5];
 
 void set_data(unsigned char* target, unsigned char* str) {
     int length;
@@ -298,18 +303,6 @@ void init_ciphers() {
     suites[TLS_RSA_WITH_AES_128_GCM_SHA256].aead_encrypt = (aead_encrypt_func)aes_128_gcm_encrypt;
     suites[TLS_RSA_WITH_AES_128_GCM_SHA256].aead_decrypt = (aead_decrypt_func)aes_128_gcm_decrypt;
 
-    suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].id = TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA;
-    suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].min_version = 3;
-    suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].block_size = 16;
-    suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].IV_size = 16;
-    suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].key_size = 16;
-    suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].hash_size = SHA1_BYTE_SIZE;
-    suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].bulk_encrypt = (encrypt_func)aes_128_encrypt;
-    suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].bulk_decrypt = (decrypt_func)aes_128_decrypt;
-    suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].new_digest = new_sha1_digest;
-    suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].aead_encrypt = NULL;
-    suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].aead_decrypt = NULL;
-
     suites[TLS_ECDH_RSA_WITH_AES_128_CBC_SHA].id = TLS_ECDH_RSA_WITH_AES_128_CBC_SHA;
     suites[TLS_ECDH_RSA_WITH_AES_128_CBC_SHA].min_version = 3;
     suites[TLS_ECDH_RSA_WITH_AES_128_CBC_SHA].block_size = 16;
@@ -357,6 +350,54 @@ void init_ciphers() {
     suites[TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA].new_digest = new_sha1_digest;
     suites[TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA].aead_encrypt = NULL;
     suites[TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA].aead_decrypt = NULL;
+
+    suites[TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA].id = TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA;
+    suites[TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA].min_version = 3;
+    suites[TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA].block_size = 16;
+    suites[TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA].IV_size = 16;
+    suites[TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA].key_size = 16;
+    suites[TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA].hash_size = SHA1_BYTE_SIZE;
+    suites[TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA].bulk_encrypt = (encrypt_func)aes_128_encrypt;
+    suites[TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA].bulk_decrypt = (decrypt_func)aes_128_decrypt;
+    suites[TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA].new_digest = new_sha1_digest;
+    suites[TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA].aead_encrypt = NULL;
+    suites[TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA].aead_decrypt = NULL;
+
+    suites[TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA].id = TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA;
+    suites[TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA].min_version = 3;
+    suites[TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA].block_size = 16;
+    suites[TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA].IV_size = 16;
+    suites[TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA].key_size = 32;
+    suites[TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA].hash_size = SHA1_BYTE_SIZE;
+    suites[TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA].bulk_encrypt = (encrypt_func)aes_256_encrypt;
+    suites[TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA].bulk_decrypt = (decrypt_func)aes_256_decrypt;
+    suites[TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA].new_digest = new_sha1_digest;
+    suites[TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA].aead_encrypt = NULL;
+    suites[TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA].aead_decrypt = NULL;
+
+    suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].id = TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA;
+    suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].min_version = 3;
+    suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].block_size = 16;
+    suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].IV_size = 16;
+    suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].key_size = 16;
+    suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].hash_size = SHA1_BYTE_SIZE;
+    suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].bulk_encrypt = (encrypt_func)aes_128_encrypt;
+    suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].bulk_decrypt = (decrypt_func)aes_128_decrypt;
+    suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].new_digest = new_sha1_digest;
+    suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].aead_encrypt = NULL;
+    suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].aead_decrypt = NULL;
+
+    suites[TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA].id = TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA;
+    suites[TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA].min_version = 3;
+    suites[TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA].block_size = 16;
+    suites[TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA].IV_size = 16;
+    suites[TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA].key_size = 32;
+    suites[TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA].hash_size = SHA1_BYTE_SIZE;
+    suites[TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA].bulk_encrypt = (encrypt_func)aes_256_encrypt;
+    suites[TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA].bulk_decrypt = (decrypt_func)aes_256_decrypt;
+    suites[TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA].new_digest = new_sha1_digest;
+    suites[TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA].aead_encrypt = NULL;
+    suites[TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA].aead_decrypt = NULL;
 }
 
 void init_protection_parameters(ProtectionParameters* parameters) {
@@ -850,8 +891,8 @@ unsigned char* parse_client_hello(
     printf("\n");
 
     // 0039 0038 0037 0036 0035 0033 0032 0031 0030 002f 0007 0005 0004 0016 0013 0010 000d 000a
-    parameters->pending_recv_parameters.suite = TLS_ECDH_RSA_WITH_AES_256_CBC_SHA;
-    parameters->pending_send_parameters.suite = TLS_ECDH_RSA_WITH_AES_256_CBC_SHA;
+    parameters->pending_recv_parameters.suite = TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA;
+    parameters->pending_send_parameters.suite = TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA;
 
     if (i == MAX_SUPPORTED_CIPHER_SUITE) {
         return NULL;
@@ -1000,13 +1041,6 @@ int send_certificate(int connection, TLSParameters* parameters) {
     case TLS_DH_DSS_WITH_AES_256_CBC_SHA:
         strcpy(cert_url, "./res/dsa_dhcert.pem");
         break;
-    case TLS_DHE_RSA_EXPORT_WITH_DES40_CBC_SHA:
-    case TLS_DHE_RSA_WITH_DES_CBC_SHA:
-    case TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA:
-    case TLS_DHE_RSA_WITH_AES_128_CBC_SHA:
-    case TLS_DHE_RSA_WITH_AES_256_CBC_SHA:
-        strcpy(cert_url, "./res/rsa_cert.pem");
-        break;
     case TLS_DHE_DSS_EXPORT_WITH_DES40_CBC_SHA:
     case TLS_DHE_DSS_WITH_DES_CBC_SHA:
     case TLS_DHE_DSS_WITH_3DES_EDE_CBC_SHA:
@@ -1024,6 +1058,13 @@ int send_certificate(int connection, TLSParameters* parameters) {
     case TLS_RSA_WITH_AES_128_CBC_SHA:
     case TLS_RSA_WITH_AES_256_CBC_SHA:
     case TLS_RSA_WITH_AES_128_GCM_SHA256:
+    case TLS_DHE_RSA_EXPORT_WITH_DES40_CBC_SHA:
+    case TLS_DHE_RSA_WITH_DES_CBC_SHA:
+    case TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA:
+    case TLS_DHE_RSA_WITH_AES_128_CBC_SHA:
+    case TLS_DHE_RSA_WITH_AES_256_CBC_SHA:
+    case TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA:
+    case TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA:
         strcpy(cert_url, "./res/rsa_cert.pem");
         break;
     case TLS_ECDH_RSA_WITH_AES_128_CBC_SHA:
@@ -1033,6 +1074,10 @@ int send_certificate(int connection, TLSParameters* parameters) {
     case TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA:
     case TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA:
         strcpy(cert_url, "./res/ecdsa_ecdhcert.pem");
+        break;
+    case TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA:
+    case TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA:
+        strcpy(cert_url, "./res/ecdsa_cert.pem");
         break;
     default:
         return 0;
@@ -1351,6 +1396,10 @@ unsigned char* parse_client_key_exchange(
     case TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA:
     case TLS_ECDH_RSA_WITH_AES_128_CBC_SHA:
     case TLS_ECDH_RSA_WITH_AES_256_CBC_SHA:
+    case TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA:
+    case TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA:
+    case TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA:
+    case TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA:
         huge_load(&pt.x, read_pos + 2, (pdu_length - 2) / 2);
         huge_load(&pt.y, read_pos + 2 + (pdu_length - 2) / 2, (pdu_length - 1) / 2);
         multiply_point(&pt, &private_ecc_key.d, &private_ecc_key.curve.a, &private_ecc_key.curve.p);
@@ -1561,7 +1610,7 @@ int send_server_key_exchange_with_dh(int connection, TLSParameters* parameters, 
     return 0;
 }
 
-int send_server_key_exchange_with_sign_rsa(int connection, TLSParameters* parameters) {
+int send_server_key_exchange_with_rsa(int connection, TLSParameters* parameters) {
     if (huge_bytes(private_rsa_key.p) <= EXPORT_RSA_BITS / 8) {
         return 0;
     }
@@ -1650,7 +1699,213 @@ int send_server_key_exchange_with_sign_rsa(int connection, TLSParameters* parame
     return 0;
 }
 
-// tls1.0: 7.4.3. Server key exchange message
+int send_server_key_exchange_with_ecdh(int connection, TLSParameters* parameters, int sign_algorithm) {
+    unsigned char* key_exchange_message;
+    unsigned char* buffer;
+    short key_exchange_message_len;
+    short length = 0;
+    int p_size = huge_bytes(&private_ecc_key.Q.x) + huge_bytes(&private_ecc_key.Q.y) + 1;
+    int ecdh_len = p_size + 4;
+    int hash_input_len = RANDOM_LENGTH * 2 + ecdh_len;
+    int sign_in_len = 36;
+    int sign_out_len = 0;
+
+    unsigned char ecdh_input[ecdh_len];
+    unsigned char hash_input[hash_input_len];
+    unsigned char sign_input[sign_in_len];
+    unsigned char* sign_out;
+
+    memset(ecdh_input, 0, ecdh_len);
+    memset(hash_input, 0, hash_input_len);
+    memset(sign_input, 0, sign_in_len);
+
+    digest_ctx md5, sha1, sha256;
+    new_md5_digest(&md5);
+    new_sha1_digest(&sha1);
+    new_sha256_digest(&sha256);
+
+    // ServerDHParams-begin
+    // enum { explicit_prime (1), explicit_char2 (2), named_curve (3), reserved(248..255) } ECCurveType;
+    // enum {
+    //     sect163k1 (1), sect163r1 (2), sect163r2 (3),
+    //     sect193r1 (4), sect193r2 (5), sect233k1 (6),
+    //     sect233r1 (7), sect239k1 (8), sect283k1 (9),
+    //     sect283r1 (10), sect409k1 (11), sect409r1 (12),
+    //     sect571k1 (13), sect571r1 (14), secp160k1 (15),
+    //     secp160r1 (16), secp160r2 (17), secp192k1 (18),
+    //     secp192r1 (19), secp224k1 (20), secp224r1 (21),
+    //     secp256k1 (22), secp256r1 (23), secp384r1 (24),
+    //     secp521r1 (25),
+    //     reserved (0xFE00..0xFEFF),
+    //     arbitrary_explicit_prime_curves(0xFF01),
+    //     arbitrary_explicit_char2_curves(0xFF02),
+    //     (0xFFFF)
+    // } NamedCurve;
+    // struct {
+    //     ECCurveType    curve_type;
+    //     select (curve_type) {
+    //         case explicit_prime:...
+    //         case explicit_char2:...
+    //         case named_curve:
+    //             NamedCurve namedcurve;
+    //     };
+    // } ECParameters;
+    // struct {
+    //     opaque point <1..2^8-1>;
+    // } ECPoint;
+    // struct {
+    //     ECParameters    curve_params;
+    //     ECPoint         public;
+    // } ServerECDHParams;
+    buffer = ecdh_input;
+    buffer[0] = 3;
+    if (!memcmp(private_ecc_key.curve_oid, SECP192K1_OID, sizeof(SECP192K1_OID))) {
+        buffer[2] = 18;
+    } else if (!memcmp(private_ecc_key.curve_oid, SECP192R1_OID, sizeof(SECP192R1_OID))) {
+        buffer[2] = 19;
+    } else if (!memcmp(private_ecc_key.curve_oid, SECP256R1_OID, sizeof(SECP256R1_OID))) {
+        buffer[2] = 23;
+    }
+    buffer += 3;
+    buffer[0] = p_size;
+    buffer++;
+    buffer[0] = 4;
+    buffer++;
+    huge_unload(&private_ecc_key.Q.x, buffer, huge_bytes(&private_ecc_key.Q.x));
+    buffer += huge_bytes(&private_ecc_key.Q.x);
+    huge_unload(&private_ecc_key.Q.y, buffer, huge_bytes(&private_ecc_key.Q.y));
+    // ServerDHParams-end
+
+    if (sign_algorithm) {
+        // hash-begin
+        // MD5(ClientHello.random + ServerHello.random + ServerParams)
+        // SHA(ClientHello.random + ServerHello.random + ServerParams)
+        buffer = hash_input;
+        memcpy(buffer, parameters->client_random, RANDOM_LENGTH);
+        buffer += RANDOM_LENGTH;
+
+        memcpy(buffer, parameters->server_random, RANDOM_LENGTH);
+        buffer += RANDOM_LENGTH;
+
+        memcpy(buffer, ecdh_input, ecdh_len);
+
+        // hash-end
+        if (TLS_VERSION_MINOR >= 3) {
+            digest_hash(&sha256, hash_input, hash_input_len);
+            memcpy(sign_input, sha256.hash, sha256.result_size);
+            sign_in_len = 32;
+        } else if (sign_algorithm == 1) { //rsa_sign
+            // digitally-signed struct {
+            //     opaque md5_hash[16];
+            //     opaque sha_hash[20];
+            // };
+            digest_hash(&md5, hash_input, hash_input_len);
+            digest_hash(&sha1, hash_input, hash_input_len);
+            memcpy(sign_input, md5.hash, md5.result_size);
+            memcpy(sign_input + md5.result_size, sha1.hash, sha1.result_size);
+            sign_in_len = 36;
+        } else if (sign_algorithm == 3) { //ecdsa_sign
+            // digitally-signed struct {
+            //     opaque sha_hash[20];
+            // };
+            digest_hash(&sha1, hash_input, hash_input_len);
+            memcpy(sign_input, sha1.hash, sha1.result_size);
+            sign_in_len = 20;
+        }
+    }
+
+    // digitally-signed-begin
+    if (sign_algorithm == 1) { //rsa_sign
+        int pre_len = sizeof(SHA_256_DER_PRE);
+        unsigned char* input = malloc(pre_len + sign_in_len);
+        memcpy(input, SHA_256_DER_PRE, pre_len);
+        memcpy(input + pre_len, sign_input, sign_in_len);
+        sign_out_len = rsa_sign(&private_rsa_key, input, pre_len + sign_in_len, &sign_out, RSA_PKCS1_PADDING);
+    } else if (sign_algorithm == 3) { //ecdsa_sign
+        int r_len = 0, s_len = 0;
+        unsigned char* r;
+        unsigned char* s;
+        ecdsa_signature signature;
+        huge_set(&signature.r, 0);
+        huge_set(&signature.s, 0);
+
+        ecdsa_sign(&private_ecdsa_key.curve, &private_ecdsa_key, sign_input, sign_in_len, &signature);
+
+        r_len = huge_bytes(&signature.r);
+        s_len = huge_bytes(&signature.s);
+        r = (unsigned char*)malloc(r_len);
+        s = (unsigned char*)malloc(s_len);
+        huge_unload(&signature.r, r, r_len);
+        huge_unload(&signature.s, s, s_len);
+        /*
+        tls1.0-4.7:
+        Ecdsa-Sig-Value  ::=  SEQUENCE  {
+            r       INTEGER,
+            s       INTEGER
+        }
+        */
+        //ASN.1整数编码有符号位，最高位为符号位
+        int r_sign = (r[0] & 0x80 ? 1 : 0);
+        int s_sign = (s[0] & 0x80 ? 1 : 0);
+        sign_out_len = r_len + s_len + 6 + r_sign + s_sign;
+        sign_out = (unsigned char*)malloc(sign_out_len);
+        memset(sign_out, 0, sign_out_len);
+        buffer = sign_out;
+
+        buffer[0] = ASN1_SEQUENCE_OF;
+        buffer[1] = sign_out_len - 2;
+        buffer += 2;
+
+        buffer[0] = ASN1_INTEGER;
+        buffer[1] = r_len + r_sign;
+        buffer += 2 + r_sign;
+        memcpy(buffer, r, r_len);
+        buffer += r_len;
+
+        buffer[0] = ASN1_INTEGER;
+        buffer[1] = s_len + s_sign;
+        buffer += 2 + s_sign;
+        memcpy(buffer, s, s_len);
+    }
+    // digitally-signed-end
+
+    key_exchange_message_len = ecdh_len + sign_out_len + 2;
+    key_exchange_message_len += TLS_VERSION_MINOR >= 3 && sign_algorithm ? 2 : 0; //SignatureAndHashAlgorithm
+    key_exchange_message = (unsigned char*)malloc(key_exchange_message_len);
+
+    buffer = key_exchange_message;
+    memcpy(buffer, ecdh_input, ecdh_len);
+    buffer += ecdh_len;
+
+    if (sign_out_len) {
+        if (TLS_VERSION_MINOR >= 3) {
+            // enum {
+            //   none(0), md5(1), sha1(2), sha224(3), sha256(4), sha384(5),
+            //   sha512(6), (255)
+            // } HashAlgorithm;
+            memset(buffer, 4, 1);
+            buffer += 1;
+            // enum { anonymous(0), rsa(1), dsa(2), ecdsa(3), (255) } SignatureAlgorithm;
+            memset(buffer, sign_algorithm, 1);
+            buffer += 1;
+        }
+        length = htons(sign_out_len);
+        memcpy(buffer, &length, 2);
+        buffer += 2;
+        memcpy(buffer, sign_out, sign_out_len);
+    }
+
+    if (send_handshake_message(connection, server_key_exchange, key_exchange_message, key_exchange_message_len, parameters)) {
+        free(key_exchange_message);
+        return 1;
+    }
+
+    free(key_exchange_message);
+
+    return 0;
+}
+
+// Server key exchange message
 int send_server_key_exchange(int connection, TLSParameters* parameters) {
     switch (parameters->pending_send_parameters.suite) {
     case TLS_DHE_RSA_EXPORT_WITH_DES40_CBC_SHA:
@@ -1676,7 +1931,13 @@ int send_server_key_exchange(int connection, TLSParameters* parameters) {
     case TLS_RSA_EXPORT_WITH_RC4_40_MD5:
     case TLS_RSA_EXPORT_WITH_RC2_CBC_40_MD5:
     case TLS_RSA_EXPORT_WITH_DES40_CBC_SHA:
-        return send_server_key_exchange_with_sign_rsa(connection, parameters);
+        return send_server_key_exchange_with_rsa(connection, parameters);
+    case TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA:
+    case TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA:
+        return send_server_key_exchange_with_ecdh(connection, parameters, 1);
+    case TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA:
+    case TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA:
+        return send_server_key_exchange_with_ecdh(connection, parameters, 3);
     default:
         return 0;
     }

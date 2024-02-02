@@ -21,6 +21,7 @@ elliptic_curve;
 
 typedef struct {
 	elliptic_curve curve;
+	unsigned char* curve_oid;
 	huge d;  // random integer < n; this is the private key
 	point Q; // Q = d * G; this is the public key
 }
