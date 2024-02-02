@@ -328,8 +328,8 @@ void init_ciphers() {
     suites[TLS_ECDH_RSA_WITH_AES_256_CBC_SHA].IV_size = 16;
     suites[TLS_ECDH_RSA_WITH_AES_256_CBC_SHA].key_size = 32;
     suites[TLS_ECDH_RSA_WITH_AES_256_CBC_SHA].hash_size = SHA1_BYTE_SIZE;
-    suites[TLS_ECDH_RSA_WITH_AES_256_CBC_SHA].bulk_encrypt = (encrypt_func)aes_128_encrypt;
-    suites[TLS_ECDH_RSA_WITH_AES_256_CBC_SHA].bulk_decrypt = (decrypt_func)aes_128_decrypt;
+    suites[TLS_ECDH_RSA_WITH_AES_256_CBC_SHA].bulk_encrypt = (encrypt_func)aes_256_encrypt;
+    suites[TLS_ECDH_RSA_WITH_AES_256_CBC_SHA].bulk_decrypt = (decrypt_func)aes_256_decrypt;
     suites[TLS_ECDH_RSA_WITH_AES_256_CBC_SHA].new_digest = new_sha1_digest;
     suites[TLS_ECDH_RSA_WITH_AES_256_CBC_SHA].aead_encrypt = NULL;
     suites[TLS_ECDH_RSA_WITH_AES_256_CBC_SHA].aead_decrypt = NULL;
@@ -850,8 +850,8 @@ unsigned char* parse_client_hello(
     printf("\n");
 
     // 0039 0038 0037 0036 0035 0033 0032 0031 0030 002f 0007 0005 0004 0016 0013 0010 000d 000a
-    parameters->pending_recv_parameters.suite = TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA;
-    parameters->pending_send_parameters.suite = TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA;
+    parameters->pending_recv_parameters.suite = TLS_ECDH_RSA_WITH_AES_256_CBC_SHA;
+    parameters->pending_send_parameters.suite = TLS_ECDH_RSA_WITH_AES_256_CBC_SHA;
 
     if (i == MAX_SUPPORTED_CIPHER_SUITE) {
         return NULL;

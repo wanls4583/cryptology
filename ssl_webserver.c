@@ -34,7 +34,11 @@ char* read_line(int connection, TLSParameters* tls_context) {
     if (size == 0) {
       continue;
     }
-    if ((c == '\n') && (line[pos - 1] == '\r')) {
+    // if ((c == '\n') && (line[pos - 1] == '\r')) {
+    //   line[pos - 1] = '\0';
+    //   break;
+    // }
+    if (c == '\n') {
       line[pos - 1] = '\0';
       break;
     }

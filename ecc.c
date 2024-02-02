@@ -27,37 +27,38 @@ unsigned char secp192k1_N[] = "0xfffffffffffffffffffffffe26f2fc170f69466a74defd8
 
 int get_named_curve(const char* curve_name, elliptic_curve* target) {
     unsigned char* p, * a, * b, * x, * y, * n = NULL;
+    int p_size, a_size, b_size, x_size, y_size, n_size;
 
     if (!strcmp("prime192v1", curve_name) || !strcmp("secp192r1", curve_name)) {
-        hex_decode(prime192v1_P, &p);
-        hex_decode(prime192v1_A, &a);
-        hex_decode(prime192v1_B, &b);
-        hex_decode(prime192v1_Gx, &x);
-        hex_decode(prime192v1_Gy, &y);
-        hex_decode(prime192v1_N, &n);
+        p_size = hex_decode(prime192v1_P, &p);
+        a_size = hex_decode(prime192v1_A, &a);
+        b_size = hex_decode(prime192v1_B, &b);
+        x_size = hex_decode(prime192v1_Gx, &x);
+        y_size = hex_decode(prime192v1_Gy, &y);
+        n_size = hex_decode(prime192v1_N, &n);
     } else if (!strcmp("prime256v1", curve_name) || !strcmp("secp256r1", curve_name)) {
-        hex_decode(prime256v1_P, &p);
-        hex_decode(prime256v1_A, &a);
-        hex_decode(prime256v1_B, &b);
-        hex_decode(prime256v1_Gx, &x);
-        hex_decode(prime256v1_Gy, &y);
-        hex_decode(prime256v1_N, &n);
+        p_size = hex_decode(prime256v1_P, &p);
+        a_size = hex_decode(prime256v1_A, &a);
+        b_size = hex_decode(prime256v1_B, &b);
+        x_size = hex_decode(prime256v1_Gx, &x);
+        y_size = hex_decode(prime256v1_Gy, &y);
+        n_size = hex_decode(prime256v1_N, &n);
     } else if (!strcmp("secp192k1", curve_name) || !strcmp("ansip192k1", curve_name)) {
-        hex_decode(secp192k1_P, &p);
-        hex_decode(secp192k1_A, &a);
-        hex_decode(secp192k1_B, &b);
-        hex_decode(secp192k1_Gx, &x);
-        hex_decode(secp192k1_Gy, &y);
-        hex_decode(secp192k1_N, &n);
+        p_size = hex_decode(secp192k1_P, &p);
+        a_size = hex_decode(secp192k1_A, &a);
+        b_size = hex_decode(secp192k1_B, &b);
+        x_size = hex_decode(secp192k1_Gx, &x);
+        y_size = hex_decode(secp192k1_Gy, &y);
+        n_size = hex_decode(secp192k1_N, &n);
     }
 
     if (n) {
-        huge_load(&target->p, p, huge_bytes(p));
-        huge_load(&target->a, a, huge_bytes(a));
-        huge_load(&target->b, b, huge_bytes(b));
-        huge_load(&target->G.x, x, huge_bytes(x));
-        huge_load(&target->G.y, y, huge_bytes(y));
-        huge_load(&target->n, n, huge_bytes(n));
+        huge_load(&target->p, p, p_size);
+        huge_load(&target->a, a, a_size);
+        huge_load(&target->b, b, b_size);
+        huge_load(&target->G.x, x, x_size);
+        huge_load(&target->G.y, y, y_size);
+        huge_load(&target->n, n, n_size);
         return 0;
     }
     return 1;
