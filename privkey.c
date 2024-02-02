@@ -98,6 +98,46 @@ int parse_private_dh_key(
 }
 
 /*
+openssl1.0
+version
+p
+q
+g
+pub
+priv
+*/
+int parse_private_dsa_key_1(
+    dsa_key* privkey,
+    struct asn1struct* private_key
+) {
+    struct asn1struct* version;
+    struct asn1struct* p;
+    struct asn1struct* q;
+    struct asn1struct* g;
+    struct asn1struct* pub;
+    struct asn1struct* priv;
+
+    version = (struct asn1struct*)private_key->children;
+    p = (struct asn1struct*)version->next;
+    huge_load(&privkey->params.p, p->data, p->length);
+
+    q = (struct asn1struct*)p->next;
+    huge_load(&privkey->params.q, q->data, q->length);
+
+    g = (struct asn1struct*)q->next;
+    huge_load(&privkey->params.g, g->data, g->length);
+
+    pub = (struct asn1struct*)g->next;
+    huge_load(&privkey->pub, pub->data, pub->length);
+
+    priv = (struct asn1struct*)pub->next;
+    huge_load(&privkey->key, priv->data, priv->length);
+
+    return 0;
+}
+
+/*
+openssl3.1
 version
 privateKeyAlgorithm: {
     algorithm
@@ -109,12 +149,10 @@ privateKeyAlgorithm: {
 }
 privateKey
 */
-int parse_private_dsa_key(
+int parse_private_dsa_key_3(
     dsa_key* privkey,
-    unsigned char* buffer,
-    int buffer_length
+    struct asn1struct* private_key
 ) {
-    struct asn1struct private_key;
     struct asn1struct* version;
     struct asn1struct* private_key_algorithm;
     struct asn1struct* algorithm;
@@ -124,9 +162,7 @@ int parse_private_dsa_key(
     struct asn1struct* g;
     struct asn1struct* priv;
 
-    asn1parse(buffer, buffer_length, &private_key);
-
-    version = (struct asn1struct*)private_key.children;
+    version = (struct asn1struct*)private_key->children;
     private_key_algorithm = (struct asn1struct*)version->next;
     algorithm = (struct asn1struct*)private_key_algorithm->children;
     params = (struct asn1struct*)algorithm->next;
@@ -146,9 +182,32 @@ int parse_private_dsa_key(
     }
     huge_load(&privkey->key, priv->data, priv->length);
 
+    return 0;
+}
+
+int parse_private_dsa_key(
+    dsa_key* privkey,
+    unsigned char* buffer,
+    int buffer_length
+) {
+    struct asn1struct private_key;
+    struct asn1struct* version;
+    struct asn1struct* next;
+    int result = 1;
+    asn1parse(buffer, buffer_length, &private_key);
+
+    version = (struct asn1struct*)private_key.children;
+    next = (struct asn1struct*)version->next;
+
+    if (next->tag == ASN1_INTEGER) {
+        result = parse_private_dsa_key_1(privkey, &private_key);
+    } else {
+        result = parse_private_dsa_key_3(privkey, &private_key);
+    }
+
     asn1free(&private_key);
 
-    return 0;
+    return result;
 }
 
 const static unsigned char SECP256R1_OID[] = { 0x2A, 0x86, 0x48, 0xCE, 0x3D, 0x03, 0x01, 0x07 };
@@ -189,7 +248,7 @@ int parse_private_ecdsa_key(
     pri_obj = (struct asn1struct*)pri_obj->next;
     pub = (struct asn1struct*)pri_obj->children;
 
-    unsigned char *data = pub->data + 2;
+    unsigned char* data = pub->data + 2;
     int length = pub->length - 2;
     huge_load(&privkey->Q.x, data, length / 2);
     huge_load(&privkey->Q.y, data + length / 2, length / 2);
