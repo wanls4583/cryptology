@@ -594,7 +594,7 @@ int aes_gcm_process(unsigned char* input, int inputLen, unsigned char* out, unsi
     nonce[15] = 0x01;
 
     gf_128_mul(inputBlock, H, macBlock);
-    aes_block_encrypt(nonce, inputBlock, key, 16);
+    aes_block_encrypt(nonce, inputBlock, key, keyLen);
     if (!decrypt) {
         xor (inputBlock, macBlock, AES_BLOCK_SIZE);
         memcpy(out, inputBlock, AES_BLOCK_SIZE);
@@ -851,16 +851,40 @@ void test_aes_256_gcm() {
     printf("%s\n", out);
 }
 
+void test_aes_256_gcm_1() {
+    unsigned char key_str[] = "0xa5160aaa88c624506118a91b3767f980bfd0fa49abcf9657924b79813158893a4ea9cb5cf9c86ac6563de48a16236c730a6916dcf1959328f6db385df8a42567afa29ebf3a8c0c204248b71949742657bd2c52d4913c3ae3238552eb6292866185c3f4ad5ca58cff7d78c8a48465f13ae31ceaaa1f71c5ea3171571e1ebcdf006253812b0a55382d3519e3b8bfb19ef7d692568e073554ed4488d48072ba174ecc29f939411dbdc6";
+    unsigned char* key_block;
+    unsigned char key[32] = { 0 };
+    unsigned char iv[12] = { 0 };
+    hex_decode(key_str, &key_block);
+    memcpy(key, key_block, 32);
+    memcpy(iv, key_block + 64, 4);
+
+    unsigned char input_str[] = "0xd3b5b4cab2dc69b4ab656ccd28c176137a1545ca1b05786892be8e4816e2c327";
+    unsigned char add_str[] = "0x00000000000000001603030010";
+    unsigned char* out = (unsigned char*)malloc(16);
+    unsigned char* input;
+    unsigned char* add;
+
+    hex_decode(input_str, &input);
+    hex_decode(add_str, &add);
+
+    aes_256_gcm_decrypt(input, 32, out, iv, add, 13, key);
+    // 1400000c5a16c681b19f44b40fb65f0a
+    show_hex(out, 16, 1);
+}
+
 int main() {
     test_cbc_mac();
     test_aes_128();
     test_aes_256();
     test_aes_128_ctr();
-    test_aes_128_gcm_1();
     test_aes_256_ctr();
     test_aes_128_ccm();
     test_aes_256_ccm();
     test_aes_128_gcm();
+    test_aes_128_gcm_1();
     test_aes_256_gcm();
+    test_aes_256_gcm_1();
 }
 #endif

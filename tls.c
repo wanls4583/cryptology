@@ -299,9 +299,21 @@ void init_ciphers() {
     suites[TLS_RSA_WITH_AES_128_GCM_SHA256].hash_size = 0;
     suites[TLS_RSA_WITH_AES_128_GCM_SHA256].bulk_encrypt = NULL;
     suites[TLS_RSA_WITH_AES_128_GCM_SHA256].bulk_decrypt = NULL;
-    suites[TLS_RSA_WITH_AES_128_GCM_SHA256].new_digest = NULL;
+    suites[TLS_RSA_WITH_AES_128_GCM_SHA256].new_digest = new_sha256_digest;
     suites[TLS_RSA_WITH_AES_128_GCM_SHA256].aead_encrypt = (aead_encrypt_func)aes_128_gcm_encrypt;
     suites[TLS_RSA_WITH_AES_128_GCM_SHA256].aead_decrypt = (aead_decrypt_func)aes_128_gcm_decrypt;
+
+    suites[TLS_RSA_WITH_AES_256_GCM_SHA384].id = TLS_RSA_WITH_AES_256_GCM_SHA384;
+    suites[TLS_RSA_WITH_AES_256_GCM_SHA384].min_version = 3;
+    suites[TLS_RSA_WITH_AES_256_GCM_SHA384].block_size = 16;
+    suites[TLS_RSA_WITH_AES_256_GCM_SHA384].IV_size = 12;
+    suites[TLS_RSA_WITH_AES_256_GCM_SHA384].key_size = 32;
+    suites[TLS_RSA_WITH_AES_256_GCM_SHA384].hash_size = 0;
+    suites[TLS_RSA_WITH_AES_256_GCM_SHA384].bulk_encrypt = NULL;
+    suites[TLS_RSA_WITH_AES_256_GCM_SHA384].bulk_decrypt = NULL;
+    suites[TLS_RSA_WITH_AES_256_GCM_SHA384].new_digest = new_sha384_digest;
+    suites[TLS_RSA_WITH_AES_256_GCM_SHA384].aead_encrypt = (aead_encrypt_func)aes_256_gcm_encrypt;
+    suites[TLS_RSA_WITH_AES_256_GCM_SHA384].aead_decrypt = (aead_decrypt_func)aes_256_gcm_decrypt;
 
     suites[TLS_ECDH_RSA_WITH_AES_128_CBC_SHA].id = TLS_ECDH_RSA_WITH_AES_128_CBC_SHA;
     suites[TLS_ECDH_RSA_WITH_AES_128_CBC_SHA].min_version = 3;
@@ -375,6 +387,18 @@ void init_ciphers() {
     suites[TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA].aead_encrypt = NULL;
     suites[TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA].aead_decrypt = NULL;
 
+    suites[TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384].id = TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384;
+    suites[TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384].min_version = 3;
+    suites[TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384].block_size = 16;
+    suites[TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384].IV_size = 16;
+    suites[TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384].key_size = 32;
+    suites[TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384].hash_size = SHA384_BYTE_SIZE;
+    suites[TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384].bulk_encrypt = (encrypt_func)aes_256_encrypt;
+    suites[TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384].bulk_decrypt = (decrypt_func)aes_256_decrypt;
+    suites[TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384].new_digest = new_sha384_digest;
+    suites[TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384].aead_encrypt = NULL;
+    suites[TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384].aead_decrypt = NULL;
+
     suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].id = TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA;
     suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].min_version = 3;
     suites[TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA].block_size = 16;
@@ -444,6 +468,7 @@ unsigned char* read_buffer(unsigned char* dest, unsigned char* src, size_t n) {
 }
 
 void tls_prf(
+    TLSParameters* parameters,
     unsigned char* secret,
     int secret_len,
     unsigned char* label,
@@ -453,8 +478,14 @@ void tls_prf(
     unsigned char* output,
     int out_len
 ) {
+    CipherSuite* send_suite = &(suites[parameters->pending_send_parameters.suite]);
+
     if (TLS_VERSION_MINOR >= 3) {
-        PRF2(secret, secret_len, label, label_len, seed, seed_len, output, out_len);
+        if (send_suite->new_digest == new_sha384_digest) {
+            PRF_WITH_DIGEST(secret, secret_len, label, label_len, seed, seed_len, output, out_len, new_sha384_digest);
+        } else {
+            PRF_WITH_DIGEST(secret, secret_len, label, label_len, seed, seed_len, output, out_len, new_sha256_digest);
+        }
     } else {
         PRF(secret, secret_len, label, label_len, seed, seed_len, output, out_len);
     }
@@ -483,7 +514,7 @@ int send_message(
         cbc_attack_mode = 1;
     }
 
-    if (active_suite->new_digest || active_suite->aead_encrypt) {
+    if (active_suite->new_digest) {
         int sequence_num;
 
         nonce_size = active_suite->IV_size - (active_suite->aead_encrypt ? 4 : 0);
@@ -501,7 +532,7 @@ int send_message(
         memcpy(mac_header + 11, &header.length, sizeof(short));
     }
 
-    if (active_suite->new_digest) {
+    if (active_suite->new_digest && active_suite->hash_size) {
         // Allocate enough space for the 8-byte sequence number, the 5-byte pseudo header, and the content.
         unsigned char* mac_buffer = malloc(13 + content_len);
         memcpy(mac_buffer, mac_header, 13);
@@ -658,6 +689,7 @@ int send_handshake_message(
 
     if (TLS_VERSION_MINOR >= 3) {
         update_digest(&parameters->sha256_handshake_digest, send_buffer, send_buffer_size);
+        update_digest(&parameters->sha384_handshake_digest, send_buffer, send_buffer_size);
     } else {
         update_digest(&parameters->md5_handshake_digest, send_buffer, send_buffer_size);
         update_digest(&parameters->sha1_handshake_digest, send_buffer, send_buffer_size);
@@ -691,7 +723,7 @@ void calculate_keys(TLSParameters* parameters) {
     memcpy(seed, parameters->server_random, RANDOM_LENGTH);
     memcpy(seed + RANDOM_LENGTH, parameters->client_random, RANDOM_LENGTH);
 
-    tls_prf(parameters->master_secret, MASTER_SECRET_LENGTH, label, strlen((const char*)label), seed, RANDOM_LENGTH * 2, key_block, key_block_length);
+    tls_prf(parameters, parameters->master_secret, MASTER_SECRET_LENGTH, label, strlen((const char*)label), seed, RANDOM_LENGTH * 2, key_block, key_block_length);
     send_parameters->MAC_secret = (unsigned char*)malloc(suite->hash_size);
     recv_parameters->MAC_secret = (unsigned char*)malloc(suite->hash_size);
     send_parameters->key = (unsigned char*)malloc(suite->key_size);
@@ -756,6 +788,7 @@ void compute_master_secret(
     unsigned char label[] = "master secret";
 
     tls_prf(
+        parameters,
         premaster_secret,
         premaster_secret_len,
         label, strlen((char*)label),
@@ -940,8 +973,8 @@ unsigned char* parse_client_hello(
     printf("\n");
 
     // 0039 0038 0037 0036 0035 0033 0032 0031 0030 002f 0007 0005 0004 0016 0013 0010 000d 000a
-    parameters->pending_recv_parameters.suite = TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA;
-    parameters->pending_send_parameters.suite = TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA;
+    parameters->pending_recv_parameters.suite = TLS_RSA_WITH_AES_256_GCM_SHA384;
+    parameters->pending_send_parameters.suite = TLS_RSA_WITH_AES_256_GCM_SHA384;
 
     if (i == MAX_SUPPORTED_CIPHER_SUITE) {
         return NULL;
@@ -1122,6 +1155,8 @@ int send_certificate(int connection, TLSParameters* parameters) {
     case TLS_DHE_RSA_WITH_AES_256_CBC_SHA:
     case TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA:
     case TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA:
+    case TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384:
+    case TLS_RSA_WITH_AES_256_GCM_SHA384:
         strcpy(cert_url, "./res/rsa_cert.pem");
         break;
     case TLS_ECDH_RSA_WITH_AES_128_CBC_SHA:
@@ -1375,6 +1410,7 @@ unsigned char* parse_client_key_exchange(
     case TLS_RSA_WITH_AES_128_CBC_SHA:
     case TLS_RSA_WITH_AES_256_CBC_SHA:
     case TLS_RSA_WITH_AES_128_GCM_SHA256:
+    case TLS_RSA_WITH_AES_256_GCM_SHA384:
         switch (parameters->pending_send_parameters.suite) {
         case TLS_RSA_EXPORT_WITH_RC4_40_MD5:
         case TLS_RSA_EXPORT_WITH_RC2_CBC_40_MD5:
@@ -1455,6 +1491,7 @@ unsigned char* parse_client_key_exchange(
     case TLS_ECDH_RSA_WITH_AES_256_CBC_SHA:
     case TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA:
     case TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA:
+    case TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384:
     case TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA:
     case TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA:
         huge_load(&pt.x, read_pos + 2, (pdu_length - 2) / 2);
@@ -1991,6 +2028,7 @@ int send_server_key_exchange(int connection, TLSParameters* parameters) {
         return send_server_key_exchange_with_rsa(connection, parameters);
     case TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA:
     case TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA:
+    case TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384:
         return send_server_key_exchange_with_ecdh(connection, parameters, 1);
     case TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA:
     case TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA:
@@ -2004,13 +2042,23 @@ void compute_handshake_hash(TLSParameters* parameters, unsigned char* handshake_
     digest_ctx tmp_md5_handshake_digest;
     digest_ctx tmp_sha1_handshake_digest;
     digest_ctx tmp_sha256_handshake_digest;
+    digest_ctx tmp_sha384_handshake_digest;
+    CipherSuite* send_suite = &(suites[parameters->pending_send_parameters.suite]);
 
     if (TLS_VERSION_MINOR >= 3) {
-        copy_digest(&tmp_sha256_handshake_digest, &parameters->sha256_handshake_digest);
-        finalize_digest(&tmp_sha256_handshake_digest);
+        if (send_suite->new_digest == new_sha384_digest) {
+            copy_digest(&tmp_sha384_handshake_digest, &parameters->sha384_handshake_digest);
+            finalize_digest(&tmp_sha384_handshake_digest);
 
-        memcpy(handshake_hash, tmp_sha256_handshake_digest.hash, SHA256_BYTE_SIZE);
-        free(tmp_sha256_handshake_digest.hash);
+            memcpy(handshake_hash, tmp_sha384_handshake_digest.hash, SHA384_BYTE_SIZE);
+            free(tmp_sha384_handshake_digest.hash);
+        } else {
+            copy_digest(&tmp_sha256_handshake_digest, &parameters->sha256_handshake_digest);
+            finalize_digest(&tmp_sha256_handshake_digest);
+
+            memcpy(handshake_hash, tmp_sha256_handshake_digest.hash, SHA256_BYTE_SIZE);
+            free(tmp_sha256_handshake_digest.hash);
+        }
     } else {
         // "cheating".  Copy the handshake digests into local memory (and change
         // the hash pointer) so that we can finalize twice (
@@ -2044,11 +2092,13 @@ void compute_verify_data(
     TLSParameters* parameters,
     unsigned char* verify_data
 ) {
-    int hash_bytes = TLS_VERSION_MINOR >= 3 ? SHA256_BYTE_SIZE : MD5_BYTE_SIZE + SHA1_BYTE_SIZE;
+    CipherSuite* send_suite = &(suites[parameters->pending_send_parameters.suite]);
+    int hash_bytes = TLS_VERSION_MINOR >= 3 ? (send_suite->new_digest == new_sha384_digest ? SHA384_BYTE_SIZE : SHA256_BYTE_SIZE) : MD5_BYTE_SIZE + SHA1_BYTE_SIZE;
     unsigned char handshake_hash[hash_bytes];
 
     compute_handshake_hash(parameters, handshake_hash);
     tls_prf(
+        parameters,
         parameters->master_secret, MASTER_SECRET_LENGTH,
         finished_label, strlen((char*)finished_label),
         handshake_hash, hash_bytes,
@@ -2067,7 +2117,6 @@ int send_change_cipher_spec(int connection, TLSParameters* parameters) {
     // under a particular connection state should use sequence number 0.
     parameters->pending_send_parameters.seq_num = 0;
     memcpy(&parameters->active_send_parameters, &parameters->pending_send_parameters, sizeof(ProtectionParameters));
-    init_protection_parameters(&parameters->pending_send_parameters);
 
     return 1;
 }
@@ -2081,6 +2130,7 @@ int send_finished(int connection, TLSParameters* parameters) {
     );
 
     send_handshake_message(connection, finished, verify_data, VERIFY_DATA_LEN, parameters);
+    init_protection_parameters(&parameters->pending_send_parameters);
 
     return 1;
 }
@@ -2281,7 +2331,7 @@ int tls_decrypt(
     }
 
     // Now, verify the MAC (if the active cipher suite includes one)
-    if (active_suite->new_digest) {
+    if (active_suite->new_digest && active_suite->hash_size) {
         active_suite->new_digest(&digest);
         decrypted_length -= (digest.result_size);
 
@@ -2474,6 +2524,7 @@ int receive_tls_msg(
             }
             if (TLS_VERSION_MINOR >= 3) {
                 update_digest(&parameters->sha256_handshake_digest, handshake_msg_start, handshake.length + 4);
+                update_digest(&parameters->sha384_handshake_digest, handshake_msg_start, handshake.length + 4);
             } else {
                 update_digest(&parameters->md5_handshake_digest, handshake_msg_start, handshake.length + 4);
                 update_digest(&parameters->sha1_handshake_digest, handshake_msg_start, handshake.length + 4);
@@ -2536,6 +2587,7 @@ int tls_connect(int connection, TLSParameters* parameters) {
     new_md5_digest(&parameters->md5_handshake_digest);
     new_sha1_digest(&parameters->sha1_handshake_digest);
     new_sha256_digest(&parameters->sha256_handshake_digest);
+    new_sha384_digest(&parameters->sha384_handshake_digest);
 
     // Step 1. Send the TLS handshake "client hello" message
     if (send_client_hello(connection, parameters) < 0) {
@@ -2588,6 +2640,7 @@ int tls_accept(int connection, TLSParameters* parameters) {
     new_md5_digest(&parameters->md5_handshake_digest);
     new_sha1_digest(&parameters->sha1_handshake_digest);
     new_sha256_digest(&parameters->sha256_handshake_digest);
+    new_sha384_digest(&parameters->sha384_handshake_digest);
 
     // The client sends the first message
     parameters->got_client_hello = 0;

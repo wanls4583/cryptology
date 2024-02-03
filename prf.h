@@ -11,7 +11,7 @@ void PRF(
     unsigned char* output,
     int out_len
 );
-void PRF2(
+void PRF_WITH_DIGEST(
     unsigned char* secret,
     int secret_len,
     unsigned char* label,
@@ -19,7 +19,8 @@ void PRF2(
     unsigned char* seed,
     int seed_len,
     unsigned char* output,
-    int out_len
+    int out_len,
+    void (*new_digest)(digest_ctx* context)
 );
 
 #endif

@@ -72,6 +72,7 @@ typedef enum {
 
 	// tls1.2 - GCM
 	TLS_RSA_WITH_AES_128_GCM_SHA256 = 0x009C,
+	TLS_RSA_WITH_AES_256_GCM_SHA384 = 0x009D,
 
 	// tls1.2 - ECC
 	TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA = 0xC004,
@@ -85,6 +86,8 @@ typedef enum {
 
 	TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA = 0xC013,
 	TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA = 0xC014,
+
+	TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384 = 0xC028,
 
 	MAX_SUPPORTED_CIPHER_SUITE = 0xFFFF
 } CipherSuiteIdentifier;
@@ -160,6 +163,7 @@ typedef struct {
 	digest_ctx            md5_handshake_digest;
 	digest_ctx            sha1_handshake_digest;
 	digest_ctx            sha256_handshake_digest;
+	digest_ctx            sha384_handshake_digest;
 
 	unsigned char* unread_buffer;
 	int                   unread_length;
