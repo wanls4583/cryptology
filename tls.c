@@ -769,6 +769,47 @@ void compute_master_secret(
     show_hex(parameters->master_secret, 48, 1);
 }
 
+unsigned char* set_renegotiat_extension(int* length) {
+    unsigned char* buffer = NULL;
+    *length = 0;
+
+    if (TLS_VERSION_MINOR >= 3) {
+        buffer = (unsigned char*)malloc(5);
+        buffer[0] = 0xff;
+        buffer[1] = 0x01;
+        buffer[3] = 0x01;
+        *length = 5;
+    }
+
+    return buffer;
+}
+
+unsigned char* set_hello_extensions(int* length) {
+    unsigned char* buffer = NULL;
+    unsigned char* ext_buffer = NULL;
+    unsigned char* item_ext_buffer = NULL;
+    int ext_len = 0;
+    int item_ext_len = 0;
+    *length = 0;
+
+    item_ext_buffer = set_renegotiat_extension(&item_ext_len);
+    if (item_ext_buffer) {
+        ext_len += item_ext_len;
+        ext_buffer = (unsigned char*)malloc(ext_len + 2);
+        buffer = ext_buffer + 2;
+        memcpy(buffer, item_ext_buffer, item_ext_len);
+        buffer += item_ext_len;
+    }
+
+    if (ext_len) {
+        *length = ext_len + 2;
+        unsigned short len = htons(ext_len);
+        memcpy(ext_buffer, &len, 2);
+    }
+
+    return ext_buffer;
+}
+
 /**
  * Build and submit a TLS client hello handshake on the active
  * connection.  It is up to the caller of this function to wait
@@ -778,7 +819,9 @@ int send_client_hello(int connection, TLSParameters* parameters) {
     ClientHello       package;
     unsigned short    supported_suites[1];
     unsigned char     supported_compression_methods[1];
+    int               ext_len = 0;
     int               send_buffer_size;
+    unsigned char* ext_buffer;
     unsigned char* send_buffer;
     void* write_buffer;
     time_t            local_time;
@@ -802,6 +845,7 @@ int send_client_hello(int connection, TLSParameters* parameters) {
     package.compression_methods_length = 1;
     supported_compression_methods[0] = 0;
     package.compression_methods = supported_compression_methods;
+    ext_buffer = set_hello_extensions(&ext_len);
 
     // Compute the size of the ClientHello message after flattening.
     send_buffer_size =
@@ -812,7 +856,8 @@ int send_client_hello(int connection, TLSParameters* parameters) {
         sizeof(unsigned short) +
         (sizeof(unsigned short) * 1) +
         sizeof(unsigned char) +
-        sizeof(unsigned char);
+        sizeof(unsigned char) +
+        ext_len;
 
     write_buffer = send_buffer = (unsigned char*)malloc(send_buffer_size);
 
@@ -832,6 +877,10 @@ int send_client_hello(int connection, TLSParameters* parameters) {
 
     if (package.compression_methods_length > 0) {
         write_buffer = append_buffer(write_buffer, (void*)package.compression_methods, 1);
+    }
+
+    if (ext_len > 0) {
+        write_buffer = append_buffer(write_buffer, (void*)ext_buffer, ext_len);
     }
 
     assert(((unsigned char*)write_buffer - send_buffer) == send_buffer_size);
@@ -918,7 +967,9 @@ unsigned char* parse_client_hello(
 
 int send_server_hello(int connection, TLSParameters* parameters) {
     ServerHello       package;
+    int               ext_len = 0;
     int               send_buffer_size;
+    unsigned char* ext_buffer;
     unsigned char* send_buffer;
     void* write_buffer;
     time_t            local_time;
@@ -939,6 +990,7 @@ int send_server_hello(int connection, TLSParameters* parameters) {
     package.session_id_length = 0;
     package.cipher_suite = htons(parameters->pending_send_parameters.suite);
     package.compression_method = 0;
+    ext_buffer = set_hello_extensions(&ext_len);
 
     printf("server_random:");
     show_hex(parameters->server_random, 32, 1);
@@ -949,7 +1001,8 @@ int send_server_hello(int connection, TLSParameters* parameters) {
         sizeof(unsigned char) +
         (sizeof(unsigned char) * package.session_id_length) +
         sizeof(unsigned short) +
-        sizeof(unsigned char);
+        sizeof(unsigned char) +
+        ext_len;
 
     write_buffer = send_buffer = (unsigned char*)malloc(send_buffer_size);
 
@@ -965,6 +1018,10 @@ int send_server_hello(int connection, TLSParameters* parameters) {
 
     write_buffer = append_buffer(write_buffer, (void*)&package.cipher_suite, 2);
     write_buffer = append_buffer(write_buffer, (void*)&package.compression_method, 1);
+
+    if (ext_len > 0) {
+        write_buffer = append_buffer(write_buffer, (void*)ext_buffer, ext_len);
+    }
 
     assert(((unsigned char*)write_buffer - send_buffer) == send_buffer_size);
 
