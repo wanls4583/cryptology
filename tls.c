@@ -31,6 +31,15 @@ extern unsigned char SECP256R1_OID[8];
 extern unsigned char SECP192R1_OID[8];
 extern unsigned char SECP192K1_OID[5];
 
+typedef struct {
+    unsigned char* session_id;
+    unsigned char* master_secret;
+} session_and_master;
+
+static int next_session_id = 1;
+static int session_count = 0;
+static session_and_master stored_sessions[100];
+
 void set_data(unsigned char* target, unsigned char* str) {
     int length;
     unsigned char* data;
@@ -453,6 +462,9 @@ void init_parameters(TLSParameters* parameters) {
     parameters->server_hello_done = 0;
     parameters->peer_finished = 0;
 
+    parameters->session_id = NULL;
+    parameters->session_id_length = 0;
+
     parameters->unread_buffer = NULL;
     parameters->unread_length = 0;
 }
@@ -465,6 +477,45 @@ unsigned char* append_buffer(unsigned char* dest, unsigned char* src, size_t n) 
 unsigned char* read_buffer(unsigned char* dest, unsigned char* src, size_t n) {
     memcpy(dest, src, n);
     return src + n;
+}
+
+unsigned char* create_session_id() {
+    int num = htonl(next_session_id++);
+    unsigned char* session_id = (unsigned char*)malloc(32);
+    memset(session_id, 0, 32);
+    memcpy(session_id, &num, sizeof(int));
+
+    return session_id;
+}
+
+void remember_session(TLSParameters* parameters) {
+    unsigned char* session_id;
+    unsigned char* master_secret = (unsigned char*)malloc(MASTER_SECRET_LENGTH);
+    memcpy(master_secret, parameters->master_secret, MASTER_SECRET_LENGTH);
+
+    session_id = (unsigned char*)malloc(parameters->session_id_length);
+    memcpy(session_id, parameters->session_id, parameters->session_id_length);
+
+    session_count = session_count % sizeof(stored_sessions);
+    stored_sessions[session_count].master_secret = master_secret;
+    stored_sessions[session_count].session_id = session_id;
+    session_count++;
+}
+
+void find_stored_session(TLSParameters* parameters) {
+    if (parameters->session_id_length) {
+        int finded = 0;
+        for (int i = 0; i < session_count; i++) {
+            if (!memcmp(stored_sessions[i].session_id, parameters->session_id, parameters->session_id_length)) {
+                memcpy(parameters->master_secret, stored_sessions[i].master_secret, MASTER_SECRET_LENGTH);
+                finded = 1;
+                break;
+            }
+        }
+        if (!finded) {
+            parameters->session_id_length = 0;
+        }
+    }
 }
 
 void tls_prf(
@@ -945,9 +996,9 @@ unsigned char* parse_client_hello(
     if (hello.session_id_length > 0) {
         hello.session_id = (unsigned char*)malloc(hello.session_id_length);
         read_pos = read_buffer((void*)hello.session_id, (void*)read_pos, hello.session_id_length);
-        // printf("session_id:");
-        // show_hex(hello.session_id, hello.session_id_length, 1);
-        // TODO if this is non-empty, the client is trying to trigger a restart
+        parameters->session_id_length = hello.session_id_length;
+        parameters->session_id = (unsigned char*)malloc(parameters->session_id_length);
+        find_stored_session(parameters);
     }
 
     read_pos = read_buffer((void*)&hello.cipher_suites_length, (void*)read_pos, 2);
@@ -1020,10 +1071,16 @@ int send_server_hello(int connection, TLSParameters* parameters) {
         parameters->server_random[4 + i] = i + 1;
     }
     memcpy(package.random.random_bytes, parameters->server_random + 4, 28);
-    package.session_id_length = 0;
+    package.session_id_length = parameters->session_id_length ? parameters->session_id_length : 32;
     package.cipher_suite = htons(parameters->pending_send_parameters.suite);
     package.compression_method = 0;
     ext_buffer = set_hello_extensions(&ext_len);
+
+    if (!parameters->session_id_length) {
+        parameters->session_id = create_session_id();
+        parameters->session_id_length = 32;
+    }
+    memcpy(package.session_id, parameters->session_id, parameters->session_id_length);
 
     printf("server_random:");
     show_hex(parameters->server_random, 32, 1);
@@ -2634,6 +2691,7 @@ int tls_connect(int connection, TLSParameters* parameters) {
 }
 
 int tls_accept(int connection, TLSParameters* parameters) {
+    int is_resume = 0;
     init_parameters(parameters);
     parameters->connection_end = connection_end_server;
 
@@ -2652,51 +2710,76 @@ int tls_accept(int connection, TLSParameters* parameters) {
         }
     }
 
+    is_resume = parameters->session_id_length > 0 ? 1 : 0;
+
     if (send_server_hello(connection, parameters)) {
         send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
         return 2;
     }
 
-    if (send_certificate(connection, parameters)) {
-        send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
-        return 3;
-    }
+    if (is_resume) {
+        calculate_keys(parameters);
 
-    if (send_server_key_exchange(connection, parameters)) {
-        send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
-        return 2;
-    }
-
-    if (send_server_hello_done(connection, parameters)) {
-        send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
-        return 4;
-    }
-
-    // Now the client should send a client key exchange, change cipher spec, and an
-    // encrypted "finalize" message
-    parameters->peer_finished = 0;
-    while (!parameters->peer_finished) {
-        if (receive_tls_msg(connection, NULL, 0, parameters) < 0) {
-            perror("Unable to receive client finished");
+        if (!(send_change_cipher_spec(connection, parameters))) {
+            perror("Unable to send client change cipher spec");
             send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
-            return 5;
+            return 6;
         }
+
+        if (!(send_finished(connection, parameters))) {
+            perror("Unable to send client finished");
+            send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
+            return 7;
+        }
+
+        parameters->peer_finished = 0;
+        while (!parameters->peer_finished) {
+            if (receive_tls_msg(connection, NULL, 0, parameters) < 0) {
+                perror("Unable to receive client finished");
+                send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
+                return 5;
+            }
+        }
+    } else {
+        if (send_certificate(connection, parameters)) {
+            send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
+            return 3;
+        }
+
+        if (send_server_key_exchange(connection, parameters)) {
+            send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
+            return 2;
+        }
+
+        if (send_server_hello_done(connection, parameters)) {
+            send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
+            return 4;
+        }
+
+        parameters->peer_finished = 0;
+        while (!parameters->peer_finished) {
+            if (receive_tls_msg(connection, NULL, 0, parameters) < 0) {
+                perror("Unable to receive client finished");
+                send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
+                return 5;
+            }
+        }
+
+        if (!(send_change_cipher_spec(connection, parameters))) {
+            perror("Unable to send client change cipher spec");
+            send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
+            return 6;
+        }
+
+        if (!(send_finished(connection, parameters))) {
+            perror("Unable to send client finished");
+            send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
+            return 7;
+        }
+
+        remember_session(parameters);
     }
 
-    // Finally, send server change cipher spec/finished message
-    if (!(send_change_cipher_spec(connection, parameters))) {
-        perror("Unable to send client change cipher spec");
-        send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
-        return 6;
-    }
-
-    // This message will be encrypted using the newly negotiated keys
-    if (!(send_finished(connection, parameters))) {
-        perror("Unable to send client finished");
-        send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
-        return 7;
-    }
-    // exit(0);
     // Handshake is complete; now ready to start sending encrypted data
     return 0;
 }

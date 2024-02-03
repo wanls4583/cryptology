@@ -164,9 +164,10 @@ typedef struct {
 	digest_ctx            sha1_handshake_digest;
 	digest_ctx            sha256_handshake_digest;
 	digest_ctx            sha384_handshake_digest;
-
-	unsigned char* unread_buffer;
+	int					  session_id_length;
 	int                   unread_length;
+	unsigned char* session_id;
+	unsigned char* unread_buffer;
 }
 TLSParameters;
 
