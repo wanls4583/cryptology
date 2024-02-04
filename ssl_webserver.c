@@ -86,7 +86,7 @@ static void process_https_request(int connection) {
 
     if (strncmp(request_line, "GET", 3)) {
       // Only supports "GET" requests
-      build_error_response(connection, 400, &tls_context);
+      // build_error_response(connection, 400, &tls_context);
     } else {
       // Skip over all header lines, don't care
       while (strcmp(read_line(connection, &tls_context), "")) {

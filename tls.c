@@ -495,8 +495,15 @@ void remember_session(TLSParameters* parameters) {
 
     session_id = (unsigned char*)malloc(parameters->session_id_length);
     memcpy(session_id, parameters->session_id, parameters->session_id_length);
+    free(parameters->session_id);
 
-    session_count = session_count % sizeof(stored_sessions);
+    if (session_count >= sizeof(stored_sessions)) {
+        for (int i = 0, size = sizeof(stored_sessions); i < size; i++) {
+            free(stored_sessions[session_count].master_secret);
+            free(stored_sessions[session_count].session_id);
+        }
+        session_count = 0;
+    }
     stored_sessions[session_count].master_secret = master_secret;
     stored_sessions[session_count].session_id = session_id;
     session_count++;
@@ -514,6 +521,7 @@ void find_stored_session(TLSParameters* parameters) {
         }
         if (!finded) {
             parameters->session_id_length = 0;
+            free(parameters->session_id);
         }
     }
 }
@@ -998,6 +1006,7 @@ unsigned char* parse_client_hello(
         read_pos = read_buffer((void*)hello.session_id, (void*)read_pos, hello.session_id_length);
         parameters->session_id_length = hello.session_id_length;
         parameters->session_id = (unsigned char*)malloc(parameters->session_id_length);
+        memcpy(parameters->session_id, hello.session_id, parameters->session_id_length);
         find_stored_session(parameters);
     }
 
@@ -1111,6 +1120,7 @@ int send_server_hello(int connection, TLSParameters* parameters) {
 
     if (ext_len > 0) {
         write_buffer = append_buffer(write_buffer, (void*)ext_buffer, ext_len);
+        free(ext_buffer);
     }
 
     assert(((unsigned char*)write_buffer - send_buffer) == send_buffer_size);

@@ -81,7 +81,11 @@ void finalize_digest(digest_ctx* context) {
 
 void copy_digest(digest_ctx* target, digest_ctx* src) {
     memcpy(target, src, sizeof(digest_ctx));
-    target->hash = (unsigned int*)malloc(src->hash_size);
+    if (src->word_size == 8) {
+        target->hash = (u64*)malloc(src->hash_size * src->word_size);
+    } else {
+        target->hash = (u32*)malloc(src->hash_size * src->word_size);
+    }
     target->block = (unsigned char*)malloc(src->digest_block_size);
     memcpy(target->hash, src->hash, src->hash_size * src->word_size);
     memcpy(target->block, src->block, src->digest_block_size);
