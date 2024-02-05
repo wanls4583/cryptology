@@ -27,6 +27,9 @@
 #include "asn1.h"
 #include "ecdsa.h"
 
+// #define USE_SESSION_TICKET
+#define USE_SESSION_ID
+
 extern unsigned char SECP256R1_OID[8];
 extern unsigned char SECP192R1_OID[8];
 extern unsigned char SECP192K1_OID[5];
@@ -38,6 +41,10 @@ typedef struct {
 
 static int next_session_id = 1;
 static int session_count = 0;
+static unsigned char SESSION_TICKET_EXT[] = { 0x00, 0x23 };
+static unsigned char RENEGOTIATE_INF_EXT[] = { 0xff, 0x01 };
+static unsigned char session_key[] = { 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01 };
+
 static session_and_master stored_sessions[100];
 
 void set_data(unsigned char* target, unsigned char* str) {
@@ -462,6 +469,9 @@ void init_parameters(TLSParameters* parameters) {
     parameters->server_hello_done = 0;
     parameters->peer_finished = 0;
 
+    parameters->session_ticket = NULL;
+    parameters->session_ticket_length = 0;
+
     parameters->session_id = NULL;
     parameters->session_id_length = 0;
 
@@ -520,7 +530,6 @@ void find_stored_session(TLSParameters* parameters) {
         }
         if (!finded) {
             parameters->session_id_length = 0;
-            free(parameters->session_id);
         }
     }
 }
@@ -554,6 +563,7 @@ int send_message(
     int content_type,
     unsigned char* content,
     short content_len,
+    int skip_encrypt,
     ProtectionParameters* parameters
 ) {
     TLSPlaintext header;
@@ -567,6 +577,34 @@ int send_message(
     digest_ctx digest;
     CipherSuite* active_suite;
     active_suite = &suites[parameters->suite];
+
+    header.type = content_type;
+    header.version.major = TLS_VERSION_MAJOR;
+    header.version.minor = TLS_VERSION_MINOR;
+    header.length = htons(content_len);
+
+    if (skip_encrypt == 1) {
+        send_buffer_size = content_len + 5;
+        send_buffer = (unsigned char*)malloc(content_len + 5);
+        send_buffer[0] = header.type;
+        send_buffer[1] = header.version.major;
+        send_buffer[2] = header.version.minor;
+        memcpy(send_buffer + 3, &header.length, sizeof(short));
+        memcpy(send_buffer + 5, content, content_len);
+
+        if (send(connection, (void*)send_buffer, send_buffer_size, 0) < send_buffer_size) {
+            return -1;
+        }
+
+        printf("send:%d", send_buffer_size);
+        printf(",msg_type:%d", content_type);
+        if (content_type == content_handshake) {
+            printf(",handshake_type:%d", content[0]);
+        }
+        printf("\n");
+
+        return 0;
+    }
 
     if (TLS_VERSION_MINOR >= 2 && (active_suite->bulk_encrypt || active_suite->aead_encrypt)) {
         cbc_attack_mode = 1;
@@ -632,9 +670,6 @@ int send_message(
         }
     }
 
-    header.type = content_type;
-    header.version.major = TLS_VERSION_MAJOR;
-    header.version.minor = TLS_VERSION_MINOR;
     header.length = htons(send_buffer_size - 5);
     send_buffer[0] = header.type;
     send_buffer[1] = header.version.major;
@@ -721,7 +756,7 @@ int send_alert_message(
     buffer[0] = fatal;
     buffer[1] = alert_code;
 
-    return send_message(connection, content_alert, buffer, 2, parameters);
+    return send_message(connection, content_alert, buffer, 2, 0, parameters);
 }
 
 int send_handshake_message(
@@ -753,7 +788,7 @@ int send_handshake_message(
         update_digest(&parameters->sha1_handshake_digest, send_buffer, send_buffer_size);
     }
 
-    response = send_message(connection, content_handshake, send_buffer, send_buffer_size, &parameters->active_send_parameters);
+    response = send_message(connection, content_handshake, send_buffer, send_buffer_size, 0, &parameters->active_send_parameters);
 
     free(send_buffer);
 
@@ -860,22 +895,40 @@ void compute_master_secret(
     show_hex(parameters->master_secret, 48, 1);
 }
 
-unsigned char* set_renegotiat_extension(int* length) {
+unsigned char* set_renegotiat_extension(int* out_len) {
     unsigned char* buffer = NULL;
-    *length = 0;
+    *out_len = 0;
 
     if (TLS_VERSION_MINOR >= 3) {
         buffer = (unsigned char*)malloc(5);
-        buffer[0] = 0xff;
-        buffer[1] = 0x01;
+        memcpy(buffer, RENEGOTIATE_INF_EXT, 2);
+        buffer[2] = 0x00;
         buffer[3] = 0x01;
-        *length = 5;
+        *out_len = 5;
     }
 
     return buffer;
 }
 
-unsigned char* set_hello_extensions(int* length) {
+unsigned char* set_session_ticket_extension(unsigned char* session_ticket, int session_ticket_length, int* out_len) {
+    unsigned char* buffer = NULL;
+    unsigned short ext_item_len = htons(session_ticket_length);
+    *out_len = 0;
+
+    if (TLS_VERSION_MINOR >= 3) {
+        buffer = (unsigned char*)malloc(4 + session_ticket_length);
+        memcpy(buffer, SESSION_TICKET_EXT, 2);
+        memcpy(buffer + 2, &ext_item_len, 2);
+        if (session_ticket_length > 0) {
+            memcpy(buffer + 4, session_ticket, session_ticket_length);
+        }
+        *out_len = 4 + session_ticket_length;
+    }
+
+    return buffer;
+}
+
+unsigned char* set_server_hello_extensions(int* length, TLSParameters* parameters) {
     unsigned char* buffer = NULL;
     unsigned char* ext_buffer = NULL;
     unsigned char* item_ext_buffer = NULL;
@@ -886,11 +939,18 @@ unsigned char* set_hello_extensions(int* length) {
     item_ext_buffer = set_renegotiat_extension(&item_ext_len);
     if (item_ext_buffer) {
         ext_len += item_ext_len;
-        ext_buffer = (unsigned char*)malloc(ext_len + 2);
-        buffer = ext_buffer + 2;
-        memcpy(buffer, item_ext_buffer, item_ext_len);
-        buffer += item_ext_len;
+        ext_buffer = malloc(ext_len + 2);
+        memcpy(ext_buffer + ext_len + 2 - item_ext_len, item_ext_buffer, item_ext_len);
     }
+
+#ifdef USE_SESSION_TICKET
+    item_ext_buffer = set_session_ticket_extension(parameters->session_ticket, parameters->session_ticket_length, &item_ext_len);
+    if (item_ext_buffer) {
+        ext_len += item_ext_len;
+        ext_buffer = realloc(ext_buffer, ext_len + 2);
+        memcpy(ext_buffer + ext_len + 2 - item_ext_len, item_ext_buffer, item_ext_len);
+    }
+#endif
 
     if (ext_len) {
         *length = ext_len + 2;
@@ -936,7 +996,6 @@ int send_client_hello(int connection, TLSParameters* parameters) {
     package.compression_methods_length = 1;
     supported_compression_methods[0] = 0;
     package.compression_methods = supported_compression_methods;
-    ext_buffer = set_hello_extensions(&ext_len);
 
     // Compute the size of the ClientHello message after flattening.
     send_buffer_size =
@@ -983,6 +1042,46 @@ int send_client_hello(int connection, TLSParameters* parameters) {
     return status;
 }
 
+unsigned char* parse_client_hello_extensions(
+    unsigned char* read_pos,
+    int pdu_length,
+    TLSParameters* parameters
+) {
+    if (pdu_length <= 0) {
+        return read_pos;
+    }
+
+    unsigned char* start_pos = read_pos;
+    unsigned char ext_type[2];
+    unsigned short ext_len = 0;
+    unsigned short ext_item_len = 0;
+
+    read_pos = read_buffer((void*)&ext_len, (void*)read_pos, 2);
+    ext_len = ntohs(ext_len);
+
+    while (ext_len > 0 && read_pos - start_pos < pdu_length) {
+        read_pos = read_buffer((void*)ext_type, (void*)read_pos, 2);
+        read_pos = read_buffer((void*)&ext_item_len, (void*)read_pos, 2);
+        ext_item_len = ntohs(ext_item_len);
+
+        if (!memcmp(ext_type, SESSION_TICKET_EXT, 2)) {
+            if (ext_item_len > 12 + 16) {
+                unsigned char decrypted[ext_item_len - 12 - 16];
+                if (aes_128_gcm_decrypt(read_pos + 12, ext_item_len - 12, decrypted, read_pos, (unsigned char*)"session_ticket", 14, session_key) >= 0) {
+                    parameters->session_ticket_length = ext_item_len;
+                    parameters->session_ticket = (unsigned char*)malloc(ext_item_len);
+                    memcpy(parameters->session_ticket, read_pos, ext_item_len);
+                    memcpy(parameters->master_secret, decrypted, MASTER_SECRET_LENGTH);
+                }
+            }
+        }
+
+        read_pos += ext_item_len;
+    }
+
+    return read_pos;
+}
+
 unsigned char* parse_client_hello(
     unsigned char* read_pos,
     int pdu_length,
@@ -990,6 +1089,7 @@ unsigned char* parse_client_hello(
 ) {
     int i;
     ClientHello hello;
+    unsigned char* start_pos = read_pos;
 
     read_pos = read_buffer((void*)&hello.client_version.major, (void*)read_pos, 1);
     read_pos = read_buffer((void*)&hello.client_version.minor, (void*)read_pos, 1);
@@ -1006,7 +1106,9 @@ unsigned char* parse_client_hello(
         parameters->session_id_length = hello.session_id_length;
         parameters->session_id = (unsigned char*)malloc(parameters->session_id_length);
         memcpy(parameters->session_id, hello.session_id, parameters->session_id_length);
+#ifndef USE_SESSION_TICKET
         find_stored_session(parameters);
+#endif
     }
 
     read_pos = read_buffer((void*)&hello.cipher_suites_length, (void*)read_pos, 2);
@@ -1053,9 +1155,10 @@ unsigned char* parse_client_hello(
     printf("client_random:");
     show_hex(parameters->client_random, 32, 1);
 
+    read_pos = parse_client_hello_extensions(read_pos, pdu_length - (read_pos - start_pos), parameters);
+
     return read_pos;
 }
-
 
 int send_server_hello(int connection, TLSParameters* parameters) {
     ServerHello       package;
@@ -1082,7 +1185,7 @@ int send_server_hello(int connection, TLSParameters* parameters) {
     package.session_id_length = parameters->session_id_length ? parameters->session_id_length : 32;
     package.cipher_suite = htons(parameters->pending_send_parameters.suite);
     package.compression_method = 0;
-    ext_buffer = set_hello_extensions(&ext_len);
+    ext_buffer = set_server_hello_extensions(&ext_len, parameters);
 
     if (!parameters->session_id_length) {
         parameters->session_id = create_session_id();
@@ -1172,6 +1275,30 @@ unsigned char* parse_server_hello(
     memcpy((void*)(parameters->server_random + 4), (void*)hello.random.random_bytes, 28);
 
     return read_pos;
+}
+
+int send_server_session_ticket(int connection, TLSParameters* parameters) {
+    unsigned char* sign_out;
+    unsigned char iv[12] = { 0 };
+    unsigned char encrypted[MASTER_SECRET_LENGTH + 16];
+
+    aes_128_gcm_encrypt(parameters->master_secret, MASTER_SECRET_LENGTH, encrypted, iv, (unsigned char*)"session_ticket", 14, session_key);
+
+    unsigned short session_tikcet_len = sizeof(iv) + sizeof(encrypted);
+    int send_buffer_size = session_tikcet_len + 6;
+    unsigned char* send_bufer = (unsigned char*)malloc(send_buffer_size);
+    unsigned char* buffer = send_bufer;
+
+    memset(buffer, 0, send_buffer_size);
+    buffer += 4;
+    session_tikcet_len = htons(session_tikcet_len);
+    memcpy(buffer, &session_tikcet_len, 2);
+    buffer += 2;
+    memcpy(buffer, iv, sizeof(iv));
+    buffer += sizeof(iv);
+    memcpy(buffer, encrypted, sizeof(encrypted));
+
+    return send_handshake_message(connection, session_ticket, send_bufer, send_buffer_size, parameters);
 }
 
 int send_certificate(int connection, TLSParameters* parameters) {
@@ -2176,7 +2303,7 @@ int send_change_cipher_spec(int connection, TLSParameters* parameters) {
     unsigned char send_buffer[1];
     send_buffer[0] = 1;
 
-    send_message(connection, content_change_cipher_spec, send_buffer, 1, &parameters->active_send_parameters);
+    send_message(connection, content_change_cipher_spec, send_buffer, 1, 0, &parameters->active_send_parameters);
 
     // Per 6.1: The sequence number must be set to zero whenever a connection
     // state is made the active state... the first record which is transmitted 
@@ -2717,7 +2844,14 @@ int tls_accept(int connection, TLSParameters* parameters) {
         }
     }
 
+
+#ifdef USE_SESSION_TICKET
+    is_resume = parameters->session_ticket_length > 0 ? 1 : 0;
+#else
+#ifdef USE_SESSION_ID
     is_resume = parameters->session_id_length > 0 ? 1 : 0;
+#endif
+#endif
 
     if (send_server_hello(connection, parameters)) {
         send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
@@ -2725,8 +2859,10 @@ int tls_accept(int connection, TLSParameters* parameters) {
     }
 
     if (is_resume) {
-        calculate_keys(parameters);
+        printf("master_secret:");
+        show_hex(parameters->master_secret, MASTER_SECRET_LENGTH, 1);
 
+        calculate_keys(parameters);
         if (!(send_change_cipher_spec(connection, parameters))) {
             perror("Unable to send client change cipher spec");
             send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
@@ -2772,6 +2908,11 @@ int tls_accept(int connection, TLSParameters* parameters) {
             }
         }
 
+#ifdef USE_SESSION_TICKET
+        if (parameters->session_ticket_length == 0) {
+            send_server_session_ticket(connection, parameters);
+        }
+#endif
         if (!(send_change_cipher_spec(connection, parameters))) {
             perror("Unable to send client change cipher spec");
             send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
@@ -2784,7 +2925,9 @@ int tls_accept(int connection, TLSParameters* parameters) {
             return 7;
         }
 
+#ifdef USE_SESSION_ID
         remember_session(parameters);
+#endif
     }
 
     // Handshake is complete; now ready to start sending encrypted data
@@ -2797,7 +2940,7 @@ int tls_send(int connection,
     int options,
     TLSParameters* parameters
 ) {
-    send_message(connection, content_application_data, application_data, length, &parameters->active_send_parameters);
+    send_message(connection, content_application_data, application_data, length, 0, &parameters->active_send_parameters);
     return length;
 }
 
@@ -2826,6 +2969,9 @@ int tls_shutdown(int connection, TLSParameters* parameters) {
     send_alert_message(connection, close_notify, &parameters->active_send_parameters);
     if (parameters->unread_buffer) {
         free(parameters->unread_buffer);
+    }
+    if (parameters->session_ticket) {
+        free(parameters->session_ticket);
     }
     if (parameters->session_id) {
         free(parameters->session_id);

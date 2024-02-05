@@ -165,7 +165,9 @@ typedef struct {
 	digest_ctx            sha256_handshake_digest;
 	digest_ctx            sha384_handshake_digest;
 	int					  session_id_length;
+	int					  session_ticket_length;
 	int                   unread_length;
+	unsigned char* session_ticket;
 	unsigned char* session_id;
 	unsigned char* unread_buffer;
 }
@@ -246,6 +248,7 @@ typedef enum {
 	hello_request = 0,
 	client_hello = 1,
 	server_hello = 2,
+	session_ticket = 4,
 	certificate = 11,
 	server_key_exchange = 12,
 	certificate_request = 13,
