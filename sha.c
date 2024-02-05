@@ -451,6 +451,7 @@ void new_sha1_digest(digest_ctx* context) {
     context->digest_input_block_size = SHA1_INPUT_BLOCK_SIZE;
     context->input_len = 0;
     context->block_len = 0;
+    context->input = NULL;
     context->hash = (void*)malloc(context->hash_size * sizeof(u32));
     context->block = (u8*)malloc(context->digest_block_size);
     memcpy(context->hash, sha1_initial_hash, context->hash_size * sizeof(u32));
@@ -467,6 +468,7 @@ void new_sha256_digest(digest_ctx* context) {
     context->digest_input_block_size = SHA256_INPUT_BLOCK_SIZE;
     context->input_len = 0;
     context->block_len = 0;
+    context->input = NULL;
     context->hash = (void*)malloc(context->hash_size * sizeof(u32));
     context->block = (u8*)malloc(context->digest_block_size);
     memcpy(context->hash, sha256_initial_hash, context->hash_size * sizeof(u32));
@@ -483,6 +485,7 @@ void new_sha224_digest(digest_ctx* context) {
     context->digest_input_block_size = SHA256_INPUT_BLOCK_SIZE;
     context->input_len = 0;
     context->block_len = 0;
+    context->input = NULL;
     context->hash = (void*)malloc(context->hash_size * sizeof(u32));
     context->block = (u8*)malloc(context->digest_block_size);
     memcpy(context->hash, sha224_initial_hash, context->hash_size * sizeof(u32));
@@ -499,6 +502,7 @@ void new_sha512_digest(digest_ctx* context) {
     context->digest_input_block_size = SHA512_INPUT_BLOCK_SIZE;
     context->input_len = 0;
     context->block_len = 0;
+    context->input = NULL;
     context->hash = (void*)malloc(context->hash_size * sizeof(u64));
     context->block = (u8*)malloc(context->digest_block_size);
     memcpy(context->hash, sha512_initial_hash, context->hash_size * sizeof(u64));
@@ -515,6 +519,7 @@ void new_sha512_224_digest(digest_ctx* context) {
     context->digest_input_block_size = SHA512_INPUT_BLOCK_SIZE;
     context->input_len = 0;
     context->block_len = 0;
+    context->input = NULL;
     context->hash = (void*)malloc(context->hash_size * sizeof(u64));
     context->block = (u8*)malloc(context->digest_block_size);
     memcpy(context->hash, sha512_224_initial_hash, context->hash_size * sizeof(u64));
@@ -530,6 +535,7 @@ void new_sha512_256_digest(digest_ctx* context) {
     context->digest_block_size = SHA512_BLOCK_SIZE;
     context->digest_input_block_size = SHA512_INPUT_BLOCK_SIZE;
     context->input_len = 0;
+    context->input = NULL;
     context->block_len = 0;
     context->hash = (void*)malloc(context->hash_size * sizeof(u64));
     context->block = (u8*)malloc(context->digest_block_size);
@@ -547,6 +553,7 @@ void new_sha384_digest(digest_ctx* context) {
     context->digest_input_block_size = SHA512_INPUT_BLOCK_SIZE;
     context->input_len = 0;
     context->block_len = 0;
+    context->input = NULL;
     context->hash = (void*)malloc(context->hash_size * sizeof(u64));
     context->block = (u8*)malloc(context->digest_block_size);
     memcpy(context->hash, sha384_initial_hash, context->hash_size * sizeof(u64));

@@ -10,6 +10,7 @@ typedef struct {
   int digest_input_block_size;
 
   void* hash;
+  unsigned char* input;
   int hash_size;
   int word_size;
   int result_size;

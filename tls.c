@@ -495,7 +495,6 @@ void remember_session(TLSParameters* parameters) {
 
     session_id = (unsigned char*)malloc(parameters->session_id_length);
     memcpy(session_id, parameters->session_id, parameters->session_id_length);
-    free(parameters->session_id);
 
     if (session_count >= sizeof(stored_sessions)) {
         for (int i = 0, size = sizeof(stored_sessions); i < size; i++) {
@@ -2197,7 +2196,6 @@ int send_finished(int connection, TLSParameters* parameters) {
     );
 
     send_handshake_message(connection, finished, verify_data, VERIFY_DATA_LEN, parameters);
-    init_protection_parameters(&parameters->pending_send_parameters);
 
     return 1;
 }
@@ -2622,7 +2620,6 @@ int receive_tls_msg(
             } else {
                 parameters->pending_recv_parameters.seq_num = 0;
                 memcpy(&parameters->active_recv_parameters, &parameters->pending_recv_parameters, sizeof(ProtectionParameters));
-                init_protection_parameters(&parameters->pending_recv_parameters);
             }
         }
     } else if (message.type == content_application_data) {
@@ -2830,8 +2827,9 @@ int tls_shutdown(int connection, TLSParameters* parameters) {
     if (parameters->unread_buffer) {
         free(parameters->unread_buffer);
     }
-    free_protection_parameters(&parameters->pending_send_parameters);
-    free_protection_parameters(&parameters->pending_recv_parameters);
+    if (parameters->session_id) {
+        free(parameters->session_id);
+    }
     free_protection_parameters(&parameters->active_send_parameters);
     free_protection_parameters(&parameters->active_recv_parameters);
 

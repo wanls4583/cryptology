@@ -18,6 +18,9 @@ int digest_hash(digest_ctx* context, u8* input, int len) {
     u8* padded_block = (u8*)malloc(context->digest_block_size);
     int length_in_bits = len * 8;
 
+    context->input = (unsigned char*)malloc(len);
+    memcpy(context->input, input, len);
+
     while (len >= context->digest_block_size) {
         context->block_operate(input, context->hash);
         len -= context->digest_block_size;
@@ -44,6 +47,8 @@ int digest_hash(digest_ctx* context, u8* input, int len) {
 
 // 在尾部添加消息
 void update_digest(digest_ctx* context, u8* input, int input_len) {
+    context->input = (u8*)realloc(context->input, context->input_len + input_len);
+    memcpy(context->input + context->input_len, input, input_len);
     context->input_len += input_len;
 
     if (context->block_len && context->block_len + input_len >= context->digest_block_size) {
@@ -81,14 +86,12 @@ void finalize_digest(digest_ctx* context) {
 
 void copy_digest(digest_ctx* target, digest_ctx* src) {
     memcpy(target, src, sizeof(digest_ctx));
-    if (src->word_size == 8) {
-        target->hash = (u64*)malloc(src->hash_size * src->word_size);
-    } else {
-        target->hash = (u32*)malloc(src->hash_size * src->word_size);
-    }
+    target->hash = (void*)malloc(src->hash_size * src->word_size);
     target->block = (unsigned char*)malloc(src->digest_block_size);
+    target->input = (unsigned char*)malloc(src->input_len);
     memcpy(target->hash, src->hash, src->hash_size * src->word_size);
     memcpy(target->block, src->block, src->digest_block_size);
+    memcpy(target->input, src->input, src->input_len);
 }
 
 // #define TEST_DIGEST

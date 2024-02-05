@@ -205,6 +205,7 @@ void new_md5_digest(digest_ctx* context) {
     context->digest_input_block_size = MD5_INPUT_BLOCK_SIZE;
     context->input_len = 0;
     context->block_len = 0;
+    context->input = NULL;
     context->hash = (void*)malloc(context->hash_size * sizeof(u32));
     context->block = (u8*)malloc(context->digest_block_size);
     memcpy(context->hash, md5_initial_hash, context->hash_size * sizeof(u32));
