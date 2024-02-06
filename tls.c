@@ -27,8 +27,14 @@
 #include "asn1.h"
 #include "ecdsa.h"
 
-// #define USE_SESSION_TICKET
+// session_id 和 session_ticket 机制不能同时启用
+#ifndef USE_SESSION_ID
+#define USE_SESSION_TICKET
+#endif
+
+#ifndef USE_SESSION_TICKET
 #define USE_SESSION_ID
+#endif
 
 extern unsigned char SECP256R1_OID[8];
 extern unsigned char SECP192R1_OID[8];
@@ -530,6 +536,7 @@ void find_stored_session(TLSParameters* parameters) {
         }
         if (!finded) {
             parameters->session_id_length = 0;
+            free(parameters->session_id);
         }
     }
 }
@@ -944,11 +951,15 @@ unsigned char* set_server_hello_extensions(int* length, TLSParameters* parameter
     }
 
 #ifdef USE_SESSION_TICKET
-    item_ext_buffer = set_session_ticket_extension(parameters->session_ticket, parameters->session_ticket_length, &item_ext_len);
-    if (item_ext_buffer) {
-        ext_len += item_ext_len;
-        ext_buffer = realloc(ext_buffer, ext_len + 2);
-        memcpy(ext_buffer + ext_len + 2 - item_ext_len, item_ext_buffer, item_ext_len);
+    // 恢复会话时，server_hello消息不需要再发送session_ticket，只有第一次完整连接需要发送一个空的session_ticket，
+    // 空的session_ticket是用来告诉客户端其后续将发送一个NewSessionTicket来支持session_ticket机制
+    if (parameters->session_ticket_length == 0) {
+        item_ext_buffer = set_session_ticket_extension(parameters->session_ticket, parameters->session_ticket_length, &item_ext_len);
+        if (item_ext_buffer) {
+            ext_len += item_ext_len;
+            ext_buffer = realloc(ext_buffer, ext_len + 2);
+            memcpy(ext_buffer + ext_len + 2 - item_ext_len, item_ext_buffer, item_ext_len);
+        }
     }
 #endif
 
@@ -1103,11 +1114,19 @@ unsigned char* parse_client_hello(
     if (hello.session_id_length > 0) {
         hello.session_id = (unsigned char*)malloc(hello.session_id_length);
         read_pos = read_buffer((void*)hello.session_id, (void*)read_pos, hello.session_id_length);
+
+#ifdef USE_SESSION_TICKET
+        // 对于session_ticket机制来说，需要原样返回客户端传过来的session_id
         parameters->session_id_length = hello.session_id_length;
         parameters->session_id = (unsigned char*)malloc(parameters->session_id_length);
         memcpy(parameters->session_id, hello.session_id, parameters->session_id_length);
-#ifndef USE_SESSION_TICKET
+#else 
+#ifdef USE_SESSION_ID
+        parameters->session_id_length = hello.session_id_length;
+        parameters->session_id = (unsigned char*)malloc(parameters->session_id_length);
+        memcpy(parameters->session_id, hello.session_id, parameters->session_id_length);
         find_stored_session(parameters);
+#endif
 #endif
     }
 
