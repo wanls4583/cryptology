@@ -6,22 +6,29 @@
 #include "hmac.h"
 #include "hex.h"
 
-void HKDF(
-    unsigned char* key, int key_len,
+void HKDF_extract(
     unsigned char* salt, int salt_len,
+    unsigned char* key, int key_len,
+    unsigned char* PRK
+) {
+    digest_ctx ctx;
+    new_sha256_digest(&ctx);
+    hmac(&ctx, salt, salt_len, key, key_len);
+    memcpy(PRK, ctx.hash, ctx.result_size);
+    free_digest(&ctx);
+
+    printf("PRK:");
+    show_hex(PRK, ctx.result_size, 1);
+}
+
+void HKDF_expand(
+    unsigned char* key, int key_len,
     unsigned char* info, int info_len,
     unsigned char* out, int out_len
 ) {
     digest_ctx ctx, tmp;
     new_sha256_digest(&ctx);
     new_sha256_digest(&tmp);
-
-    unsigned char PRK[ctx.result_size];
-
-    hmac(&ctx, salt, salt_len, key, key_len);
-    memcpy(PRK, ctx.hash, ctx.result_size);
-    printf("PRK:");
-    show_hex(PRK, ctx.result_size, 1);
 
     unsigned char T[ctx.result_size];
     unsigned char data[ctx.result_size + info_len + 1];
@@ -43,7 +50,7 @@ void HKDF(
         buffer[0] = i;
         buffer += 1;
 
-        hmac(&ctx, PRK, ctx.result_size, data, (int)(buffer - data));
+        hmac(&ctx, key, key_len, data, (int)(buffer - data));
         memcpy(T, ctx.hash, ctx.result_size);
         memcpy(out, T, out_len > ctx.result_size ? ctx.result_size : out_len);
         out += ctx.result_size;
@@ -53,6 +60,18 @@ void HKDF(
 
     free_digest(&ctx);
     free_digest(&tmp);
+}
+
+void HKDF(
+    unsigned char* key, int key_len,
+    unsigned char* salt, int salt_len,
+    unsigned char* info, int info_len,
+    unsigned char* out, int out_len
+) {
+    unsigned char PRK[SHA256_BYTE_SIZE];
+
+    HKDF_extract(salt, salt_len, key, key_len, PRK);
+    HKDF_expand(PRK, sizeof(PRK), info, info_len, out, out_len);
 }
 
 // #define TEST_HKDF
