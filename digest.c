@@ -85,6 +85,7 @@ void finalize_digest(digest_ctx* context) {
 }
 
 void copy_digest(digest_ctx* target, digest_ctx* src) {
+    free_digest(target);
     memcpy(target, src, sizeof(digest_ctx));
     target->hash = (void*)malloc(src->hash_size * src->word_size);
     target->block = (unsigned char*)malloc(src->digest_block_size);
@@ -92,6 +93,12 @@ void copy_digest(digest_ctx* target, digest_ctx* src) {
     memcpy(target->hash, src->hash, src->hash_size * src->word_size);
     memcpy(target->block, src->block, src->digest_block_size);
     memcpy(target->input, src->input, src->input_len);
+}
+
+void free_digest(digest_ctx* ctx) {
+    free(ctx->hash);
+    free(ctx->block);
+    free(ctx->input);
 }
 
 // #define TEST_DIGEST
