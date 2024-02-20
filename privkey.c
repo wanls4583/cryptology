@@ -8,6 +8,7 @@
 unsigned char SECP256R1_OID[] = { 0x2A, 0x86, 0x48, 0xCE, 0x3D, 0x03, 0x01, 0x07 };
 unsigned char SECP192R1_OID[] = { 0x2A, 0x86, 0x48, 0xCE, 0x3D, 0x03, 0x01, 0x01 };
 unsigned char SECP192K1_OID[] = { 0x2B, 0x81, 0x04, 0x00, 0x1F };
+unsigned char X25519_OID[] = { 0x2B, 0x65, 0x6E };
 
 /**
  * Parse the modulus and private exponent from the buffer, which
@@ -256,6 +257,71 @@ int parse_private_ecdsa_key(
 
     unsigned char* data = pub->data + 2;
     int length = pub->length - 2;
+    huge_load(&privkey->Q.x, data, length / 2);
+    huge_load(&privkey->Q.y, data + length / 2, length / 2);
+
+    return 0;
+}
+
+int parse_private_ecdh_key(
+    ecc_key* privkey,
+    unsigned char* buffer,
+    int buffer_length
+) {
+    struct asn1struct private_key;
+    struct asn1struct* version;
+    struct asn1struct* obj;
+    struct asn1struct* curve_oid;
+
+    asn1parse(buffer, buffer_length, &private_key);
+
+    version = (struct asn1struct*)private_key.children;
+    obj = (struct asn1struct*)version->next;
+    curve_oid = (struct asn1struct*)obj->children;
+    privkey->curve_oid = (unsigned char*)malloc(curve_oid->length);
+    memcpy(privkey->curve_oid, curve_oid->data, curve_oid->length);
+
+    if (!memcmp(curve_oid->data, X25519_OID, curve_oid->length)) {
+        get_named_curve("x25519", &privkey->curve);
+    }
+
+    obj = (struct asn1struct*)obj->next;
+    if (obj->tag == ASN1_OCTET_STRING) {
+        asn1parse(obj->data, obj->length, obj);
+    }
+
+    unsigned char* data = obj->data;
+    int length = obj->length;
+    huge_load(&privkey->d, data, length);
+
+    return 0;
+}
+
+int parse_private_ecdh_pub(
+    ecc_key* privkey,
+    unsigned char* buffer,
+    int buffer_length
+) {
+    struct asn1struct private_key;
+    struct asn1struct* obj;
+    struct asn1struct* curve_oid;
+    struct asn1struct* pub;
+
+    asn1parse(buffer, buffer_length, &private_key);
+
+    obj = (struct asn1struct*)private_key.children;
+    curve_oid = (struct asn1struct*)obj->children;
+    privkey->curve_oid = (unsigned char*)malloc(curve_oid->length);
+    memcpy(privkey->curve_oid, curve_oid->data, curve_oid->length);
+
+    if (!memcmp(curve_oid->data, X25519_OID, curve_oid->length)) {
+        get_named_curve("x25519", &privkey->curve);
+    }
+
+    pub = (struct asn1struct*)obj->next;
+
+    unsigned char* data = pub->data + 1;
+    int length = pub->length - 1;
     huge_load(&privkey->Q.x, data, length / 2);
     huge_load(&privkey->Q.y, data + length / 2, length / 2);
 

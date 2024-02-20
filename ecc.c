@@ -25,6 +25,13 @@ unsigned char secp192k1_Gx[] = "0xdb4ff10ec057e9ae26b07d0280b7f4341da5d1b1eae06c
 unsigned char secp192k1_Gy[] = "0x9b2f2f6d9c5628a7844163d015be86344082aa88d95e2f9d";
 unsigned char secp192k1_N[] = "0xfffffffffffffffffffffffe26f2fc170f69466a74defd8d";
 
+unsigned char x25519_P[] = "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffed";
+unsigned char x25519_A[] = "0x76d06";
+unsigned char x25519_B[] = "0x01";
+unsigned char x25519_Gx[] = "0x09";
+unsigned char x25519_Gy[] = "0x20ae19a1b8a086b4e01edd2c7748d14c923d4d7e6d7c61b229e9c5a27eced3d9";
+unsigned char x25519_N[] = "0x1000000000000000000000000000000014def9dea2f79cd65812631a5cf5d3ed";
+
 int get_named_curve(const char* curve_name, elliptic_curve* target) {
     unsigned char* p, * a, * b, * x, * y, * n = NULL;
     int p_size, a_size, b_size, x_size, y_size, n_size;
@@ -50,6 +57,13 @@ int get_named_curve(const char* curve_name, elliptic_curve* target) {
         x_size = hex_decode(secp192k1_Gx, &x);
         y_size = hex_decode(secp192k1_Gy, &y);
         n_size = hex_decode(secp192k1_N, &n);
+    } else if (!strcmp("x25519", curve_name) || !strcmp("Curve25519", curve_name)) {
+        p_size = hex_decode(x25519_P, &p);
+        a_size = hex_decode(x25519_A, &a);
+        b_size = hex_decode(x25519_B, &b);
+        x_size = hex_decode(x25519_Gx, &x);
+        y_size = hex_decode(x25519_Gy, &y);
+        n_size = hex_decode(x25519_N, &n);
     }
 
     if (n) {

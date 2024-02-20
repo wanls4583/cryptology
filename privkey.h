@@ -32,4 +32,14 @@ int parse_private_ecdsa_key(
     unsigned char* buffer,
     int buffer_length
 );
+int parse_private_ecdh_key(
+    ecc_key* privkey,
+    unsigned char* buffer,
+    int buffer_length
+);
+int parse_private_ecdh_pub(
+    ecc_key* privkey,
+    unsigned char* buffer,
+    int buffer_length
+);
 #endif

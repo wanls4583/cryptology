@@ -156,6 +156,7 @@ typedef struct {
 	// Note that a server can legitimately have an RSA key for signing and 
 	// a DH key for key exchange (e.g. DHE_RSA)
 	dh_key                server_dh_key;
+	huge				  ecdh_key;
 
 	int                   got_client_hello;
 	int                   server_hello_done;

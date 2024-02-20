@@ -54,6 +54,9 @@ openssl x509 -req -in ecdh_req.pem -CA rsa_ca.pem -days 3600 \
 	-force_pubkey ecdh_pubkey.pem \
 	-extfile ca.cnf -extensions dh_cert -CAcreateserial -out rsa_ecdhcert.pem
 
+openssl genpkey -algorithm X25519 -out ecdh_x25519_key.pem
+openssl pkey -in ecdh_x25519_key.pem -pubout -out ecdh_x25519_pub.pem
+
 rm dhp.pem
 rm dhreq.pem
 rm ecdh_req.pem

@@ -48,8 +48,12 @@ typedef struct {
 static int next_session_id = 1;
 static int session_count = 0;
 static unsigned char SESSION_TICKET_EXT[] = { 0x00, 0x23 };
+static unsigned char KEY_SHARE_EXT[] = { 0x00, 0x33 };
+static unsigned char KEY_SHARE_GROUP_X25519[] = { 0x00, 0x1d };
+static unsigned char SUPPORT_VERSION_EXT[] = { 0x00, 0x2b };
 static unsigned char RENEGOTIATE_INF_EXT[] = { 0xff, 0x01 };
 static unsigned char session_key[] = { 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01 };
+
 
 static session_and_master stored_sessions[100];
 
@@ -155,6 +159,7 @@ rsa_key private_rsa_key;
 rsa_key private_rsa_export_key;
 dsa_key private_dsa_key;
 ecc_key private_ecc_key;
+ecc_key private_ecc_25519_key;
 ecc_key private_ecdsa_key;
 dh_key dh_priv_key;
 dh_key dh_tmp_key;
@@ -290,6 +295,39 @@ int init_ecc_key() {
 
     parse_private_ecdsa_key(&private_ecc_key, buffer, buffer_length);
     free(buffer);
+
+    return 1;
+}
+
+int init_ecc_x25519_key() {
+    unsigned char* pem_buffer;
+    unsigned char* buffer;
+    int buffer_length;
+
+    if (!(pem_buffer = load_file("./res/ecdh_x25519_key.pem", &buffer_length))) {
+        perror("Unable to load file");
+        return 0;
+    }
+    buffer = (unsigned char*)malloc(buffer_length);
+    buffer_length = pem_decode(pem_buffer, buffer, NULL, NULL);
+
+    parse_private_ecdh_key(&private_ecc_25519_key, buffer, buffer_length);
+    free(buffer);
+
+    if (!(pem_buffer = load_file("./res/ecdh_x25519_pub.pem", &buffer_length))) {
+        perror("Unable to load file");
+        return 0;
+    }
+    buffer = (unsigned char*)malloc(buffer_length);
+    buffer_length = pem_decode(pem_buffer, buffer, NULL, NULL);
+
+    parse_private_ecdh_pub(&private_ecc_25519_key, buffer, buffer_length);
+    free(buffer);
+
+    // printf("ecdh_x25519_key:\n");
+    // show_hex(private_ecc_25519_key.d.rep, private_ecc_25519_key.d.size, HUGE_WORD_BYTES);
+    // show_hex(private_ecc_25519_key.Q.x.rep, private_ecc_25519_key.Q.x.size, HUGE_WORD_BYTES);
+    // show_hex(private_ecc_25519_key.Q.y.rep, private_ecc_25519_key.Q.y.size, HUGE_WORD_BYTES);
 
     return 1;
 }
@@ -465,6 +503,7 @@ void init_parameters(TLSParameters* parameters) {
     init_rsa_export_key();
     // init_dsa_key();
     init_ecc_key();
+    init_ecc_x25519_key();
     init_ecdsa_key();
     init_ciphers();
 
@@ -935,6 +974,54 @@ unsigned char* set_session_ticket_extension(unsigned char* session_ticket, int s
     return buffer;
 }
 
+unsigned char* set_tls_version_extension(int* out_len) {
+    unsigned char* buffer = NULL;
+    *out_len = 0;
+
+    if (TLS_VERSION_MINOR >= 4) {
+        buffer = (unsigned char*)malloc(5);
+        memcpy(buffer, SUPPORT_VERSION_EXT, 2);
+        buffer[3] = 0x02;
+        buffer[4] = 0x03;
+        buffer[5] = 0x04;
+        *out_len = 6;
+    }
+
+    return buffer;
+}
+
+unsigned char* set_key_share_extension(int* out_len, TLSParameters* parameters) {
+    unsigned char* buffer = NULL;
+    unsigned char* tmp_buf = NULL;
+    unsigned short x_len = huge_bytes(&private_ecc_25519_key.Q.x);
+    unsigned short y_len = huge_bytes(&private_ecc_25519_key.Q.y);
+    unsigned short q_len = x_len + y_len;
+    unsigned short ext_item_len = 4 + q_len;
+    unsigned short ext_item_len_n = htons(ext_item_len);
+
+    q_len = htons(q_len);
+    *out_len = 0;
+
+    if (TLS_VERSION_MINOR >= 4) {
+        buffer = (unsigned char*)malloc(4 + ext_item_len);
+        tmp_buf = buffer;
+        memcpy(tmp_buf, KEY_SHARE_EXT, 2);
+        tmp_buf += 2;
+        memcpy(tmp_buf, &ext_item_len_n, 2);
+        tmp_buf += 2;
+        memcpy(tmp_buf, KEY_SHARE_GROUP_X25519, 2);
+        tmp_buf += 2;
+        memcpy(tmp_buf, &q_len, 2);
+        tmp_buf += 2;
+        huge_unload(&private_ecc_25519_key.Q.x, tmp_buf, x_len);
+        tmp_buf += x_len;
+        huge_unload(&private_ecc_25519_key.Q.y, tmp_buf, y_len);
+        *out_len = 4 + ext_item_len;
+    }
+
+    return buffer;
+}
+
 unsigned char* set_server_hello_extensions(int* length, TLSParameters* parameters) {
     unsigned char* buffer = NULL;
     unsigned char* ext_buffer = NULL;
@@ -962,6 +1049,20 @@ unsigned char* set_server_hello_extensions(int* length, TLSParameters* parameter
         }
     }
 #endif
+
+    item_ext_buffer = set_tls_version_extension(&item_ext_len);
+    if (item_ext_buffer) {
+        ext_len += item_ext_len;
+        ext_buffer = realloc(ext_buffer, ext_len + 2);
+        memcpy(ext_buffer + ext_len + 2 - item_ext_len, item_ext_buffer, item_ext_len);
+    }
+
+    item_ext_buffer = set_key_share_extension(&item_ext_len, parameters);
+    if (item_ext_buffer) {
+        ext_len += item_ext_len;
+        ext_buffer = realloc(ext_buffer, ext_len + 2);
+        memcpy(ext_buffer + ext_len + 2 - item_ext_len, item_ext_buffer, item_ext_len);
+    }
 
     if (ext_len) {
         *length = ext_len + 2;
@@ -1087,6 +1188,33 @@ unsigned char* parse_client_hello_extensions(
             }
         }
 
+        if (!memcmp(ext_type, KEY_SHARE_EXT, 2)) {
+            unsigned short len = 0;
+            unsigned short key_len = 0;
+            unsigned char group[2];
+            elliptic_curve curve;
+            point pt;
+
+            read_pos += 2;
+            while (len < ext_item_len) {
+                read_pos = read_buffer((void*)group, (void*)read_pos, 2);
+                read_pos = read_buffer((void*)&key_len, (void*)read_pos, 2);
+                key_len = ntohs(key_len);
+                len += key_len + 4;
+                if (!memcmp(group, KEY_SHARE_GROUP_X25519, 2)) {
+                    get_named_curve("x25519", &curve);
+                    huge_load(&pt.x, read_pos, key_len / 2);
+                    huge_load(&pt.y, read_pos + key_len / 2, key_len / 2);
+                    // printf("key_share:\n");
+                    // show_hex(pt.x.rep, pt.x.size, HUGE_WORD_BYTES);
+                    // show_hex(pt.y.rep, pt.y.size, HUGE_WORD_BYTES);
+                    multiply_point(&pt, &private_ecc_25519_key.d, &curve.a, &curve.p);
+                    huge_set(&parameters->ecdh_key, 0);
+                    huge_copy(&parameters->ecdh_key, &pt.x);
+                }
+            }
+
+        }
         read_pos += ext_item_len;
     }
 
@@ -1153,8 +1281,8 @@ unsigned char* parse_client_hello(
     printf("\n");
 
     // 0039 0038 0037 0036 0035 0033 0032 0031 0030 002f 0007 0005 0004 0016 0013 0010 000d 000a
-    parameters->pending_recv_parameters.suite = TLS_RSA_WITH_AES_256_GCM_SHA384;
-    parameters->pending_send_parameters.suite = TLS_RSA_WITH_AES_256_GCM_SHA384;
+    parameters->pending_recv_parameters.suite = TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA;
+    parameters->pending_send_parameters.suite = TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA;
 
     if (i == MAX_SUPPORTED_CIPHER_SUITE) {
         return NULL;
