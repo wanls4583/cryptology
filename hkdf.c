@@ -62,6 +62,50 @@ void HKDF_expand(
     free_digest(&tmp);
 }
 
+// HKDF-Expand-Label(Secret, Label, Context, Length) = HKDF-Expand(Secret, HkdfLabel, Length)
+// Where HkdfLabel is specified as:
+// struct {
+//     uint16 length = Length;
+//     opaque label<7..255> = "tls13 " + Label;
+//     opaque context<0..255> = Context;
+// } HkdfLabel;
+void HKDF_expand_label(
+    unsigned char* secret, int secret_len,
+    unsigned char* label, int label_len,
+    unsigned char* context, int context_len,
+    unsigned char* out, int out_len
+) {
+    int hkdf_label_len = 2 + 1 + 6 + label_len + 1 + context_len;
+    unsigned char hkdf_Label[hkdf_label_len];
+    unsigned char* buffer = hkdf_Label;
+    int s_len = htons(out_len);
+
+    memcpy(buffer, &s_len, 2);
+    buffer += 2;
+    buffer[0] = 6 + label_len;
+    buffer += 1;
+    memcpy(buffer, (void*)"tls13 ", 6);
+    buffer += 6;
+    memcpy(buffer, label, label_len);
+    buffer += label_len;
+    buffer[0] = context_len;
+    buffer += 1;
+    memcpy(buffer, context, context_len);
+
+    HKDF_expand(secret, secret_len, hkdf_Label, hkdf_label_len, out, out_len);
+}
+
+void derive_secret(
+    unsigned char* secret, int secret_len,
+    unsigned char* label, int label_len,
+    unsigned char* message, int message_len,
+    unsigned char* out, int out_len,
+    digest_ctx* ctx
+) {
+    digest_hash(ctx, message, message_len);
+    HKDF_expand_label(secret, secret_len, label, label_len, ctx->hash, ctx->result_size, out, out_len);
+}
+
 void HKDF(
     unsigned char* key, int key_len,
     unsigned char* salt, int salt_len,
