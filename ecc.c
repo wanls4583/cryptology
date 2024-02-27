@@ -26,11 +26,13 @@ unsigned char secp192k1_Gy[] = "0x9b2f2f6d9c5628a7844163d015be86344082aa88d95e2f
 unsigned char secp192k1_N[] = "0xfffffffffffffffffffffffe26f2fc170f69466a74defd8d";
 
 unsigned char x25519_P[] = "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffed";
-unsigned char x25519_A[] = "0x76d06";
+unsigned char x25519_A[] = "0x076d06";
 unsigned char x25519_B[] = "0x01";
 unsigned char x25519_Gx[] = "0x09";
 unsigned char x25519_Gy[] = "0x20ae19a1b8a086b4e01edd2c7748d14c923d4d7e6d7c61b229e9c5a27eced3d9";
 unsigned char x25519_N[] = "0x1000000000000000000000000000000014def9dea2f79cd65812631a5cf5d3ed";
+
+unsigned char A[] = { 0x07, 0x6d, 0x06 };
 
 int get_named_curve(const char* curve_name, elliptic_curve* target) {
     unsigned char* p, * a, * b, * x, * y, * n = NULL;
@@ -78,17 +80,32 @@ int get_named_curve(const char* curve_name, elliptic_curve* target) {
     return 1;
 }
 
-void double_point(point* p1, huge* a, huge* p) {
+void double_point(point* p1, huge* a, huge* p, int is25519) {
     //if p1==p2
-    //k=(3x1^2+a)/(2y1)
+    //k=(3*x1^2+a)/(2y1)
+    //if is25519
+    //k=(3*x1^2+2A*x1+1)/(2y1)
     //x3=k^2-x1-x2
+    //if is25519
+    //x3=k^2-A-x1-x2
     //y3=k(x1-x3)-y1
 
     huge k, x3, y3, tmp;
     huge_set(&k, 3);
     huge_multiply(&k, &p1->x);
     huge_multiply(&k, &p1->x);
-    huge_add(&k, a);
+
+    if (is25519) {
+        huge_set(&tmp, 1);
+        huge_add(&k, &tmp);
+        huge_load(&tmp, A, sizeof(A));
+        huge_add(&tmp, &tmp);
+        huge_multiply(&tmp, &p1->x);
+        huge_add(&k, &tmp);
+    } else {
+        huge_add(&k, a);
+    }
+
     huge_set(&tmp, 2);
     huge_multiply(&tmp, &p1->y);
     huge_inverse_mul(&tmp, p);
@@ -99,6 +116,12 @@ void double_point(point* p1, huge* a, huge* p) {
     huge_multiply(&x3, &k);
     huge_subtract(&x3, &p1->x);
     huge_subtract(&x3, &p1->x);
+
+    if (is25519) {
+        huge_load(&tmp, A, sizeof(A));
+        huge_subtract(&x3, &tmp);
+    }
+
     huge_divide(&x3, p, NULL);
 
     huge_set(&y3, 0);
@@ -120,10 +143,12 @@ void double_point(point* p1, huge* a, huge* p) {
     free(tmp.rep);
 }
 
-void add_points(point* p1, point* p2, huge* p) {
+void add_points_25519(point* p1, point* p2, huge* p, int is25519) {
     //if p1!=p2
     //k=(y2-y1)/(x2-x1)
     //x3=k^2-x1-x2
+    //if is25519
+    //x3=k^2-A-x1-x2
     //y3=k(x1-x3)-y1
 
     huge k, x3, y3, tmp;
@@ -141,6 +166,12 @@ void add_points(point* p1, point* p2, huge* p) {
     huge_multiply(&x3, &k);
     huge_subtract(&x3, &p1->x);
     huge_subtract(&x3, &p2->x);
+
+    if (is25519) {
+        huge_load(&tmp, A, sizeof(A));
+        huge_subtract(&x3, &tmp);
+    }
+
     huge_divide(&x3, p, NULL);
 
     huge_set(&y3, 0);
@@ -161,7 +192,11 @@ void add_points(point* p1, point* p2, huge* p) {
     free(tmp.rep);
 }
 
-void multiply_point(point* p1, huge* k, huge* a, huge* p) {
+void add_points(point* p1, point* p2, huge* p) {
+    add_points_25519(p1, p2, p, 0);
+}
+
+void multiply_point_25519(point* p1, huge* k, huge* a, huge* p, int is25519) {
     point sum;
     int hasCopy = 0;
 
@@ -178,7 +213,7 @@ void multiply_point(point* p1, huge* k, huge* a, huge* p) {
                     huge_copy(&p1->x, &sum.x);
                     huge_copy(&p1->y, &sum.y);
                 } else {
-                    add_points(p1, &sum, p);
+                    add_points_25519(p1, &sum, p, is25519);
                     // printf("before-----------:\n");
                     // show_hex(p1->x.rep, p1->x.size, HUGE_WORD_BYTES);
                     // show_hex(p1->y.rep, p1->y.size, HUGE_WORD_BYTES);
@@ -191,7 +226,7 @@ void multiply_point(point* p1, huge* k, huge* a, huge* p) {
                     // show_hex(p1->y.rep, p1->y.size, HUGE_WORD_BYTES);
                 }
             }
-            double_point(&sum, a, p);
+            double_point(&sum, a, p, is25519);
             // printf("double:\n");
             // show_hex(sum.x.rep, sum.x.size, HUGE_WORD_BYTES);
             // show_hex(sum.y.rep, sum.y.size, HUGE_WORD_BYTES);
@@ -202,12 +237,16 @@ void multiply_point(point* p1, huge* k, huge* a, huge* p) {
     free(sum.y.rep);
 }
 
-// #define TEST_ECC
+void multiply_point(point* p1, huge* k, huge* a, huge* p) {
+    multiply_point_25519(p1, k, a, p, 0);
+}
+
+#define TEST_ECC
 #ifdef TEST_ECC
 #include "hex.h"
 #include <time.h>
 
-int main() {
+int test1() {
     clock_t start, end;
     int _a = 1, b = 1, _p = 23;
     point p1, p2;
@@ -276,6 +315,33 @@ int main() {
     end = clock();
     printf("duration: %fs", (double)(end - start) / CLOCKS_PER_SEC);
 
+    return 0;
+}
+
+void test2() {
+    ecc_key key;
+    point pub;
+    int len;
+    unsigned char* tmp;
+
+    get_named_curve("x25519", &key.curve);
+
+    len = hex_decode((unsigned char*)"0daf32e7ed8099122b2dfa4c1d8c4a20c0972a1538bf0575338aae0fe0841828", &tmp);
+    huge_load(&pub.x, tmp, len);
+    huge_set(&pub.y, 2);
+    len = hex_decode((unsigned char*)"0x05", &tmp);
+    huge_load(&key.d, tmp, len);
+    multiply_point_25519(&pub, &key.d, &key.curve.a, &key.curve.p, 1);
+    show_hex(pub.x.rep, pub.x.size, HUGE_WORD_BYTES);
+
+    len = hex_decode((unsigned char*)"0x909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeaf", &tmp);
+    huge_load(&key.d, tmp, len);
+    multiply_point_25519(&key.curve.G, &key.d,&key.curve.a, &key.curve.p, 1);
+    show_hex(key.curve.G.x.rep, key.curve.G.x.size, HUGE_WORD_BYTES);
+}
+
+int main() {
+    test2();
     return 0;
 }
 #endif
