@@ -24,7 +24,7 @@ void huge_unload(huge* h, unsigned char* c, int length);
 void huge_load_words(huge* h, huge_word* words, int length);
 void huge_unload_words(huge* h, huge_word* words, int length);
 void huge_free(huge* h);
-void huge_swap(huge* a, huge* b);
+void huge_swap(huge* a, huge* b, int if_swap_sign);
 void huge_contract(huge* h);
 void huge_left_shift(huge* h, int size);
 void huge_right_shift(huge* h, int size);

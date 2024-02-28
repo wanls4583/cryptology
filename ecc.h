@@ -28,9 +28,8 @@ typedef struct {
 ecc_key;
 
 void add_points(point* p1, point* p2, huge* p);
-void add_points_25519(point* p1, point* p2, huge* p, int is25519);
 void multiply_point(point* p1, huge* k, huge* a, huge* p);
-void multiply_point_25519(point* p1, huge* k, huge* a, huge* p, int is25519);
+void multiply_25519(huge* p1, huge* k, huge* p);
 int get_named_curve(const char* curve_name, elliptic_curve* target);
 
 #endif

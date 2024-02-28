@@ -5,13 +5,19 @@
 #include <stdio.h>
 #include <time.h>
 
-void huge_swap(huge* a, huge* b) {
+void huge_swap(huge* a, huge* b, int if_swap_sign) {
     huge_word* rep = a->rep;
     unsigned int size = a->size;
     a->rep = b->rep;
     a->size = b->size;
     b->rep = rep;
     b->size = size;
+
+    if (if_swap_sign) {
+        int sign = a->sign;
+        a->sign = b->sign;
+        b->sign = a->sign;
+    }
 }
 
 void expand(huge* h) {
@@ -262,7 +268,7 @@ void huge_add(huge* a, huge* b) {
         int i = 0, j = 0;
         u_int64_t carry = 0;
         if (y.size > x.size) {
-            huge_swap(&x, &y);
+            huge_swap(&x, &y, 0);
         }
         i = x.size - 1;
         j = y.size - 1;
@@ -280,7 +286,7 @@ void huge_add(huge* a, huge* b) {
             expand(&x);
         }
     } else if (x.sign) { //-x+y
-        huge_swap(&x, &y);
+        huge_swap(&x, &y, 0);
         x.sign = 0;
         huge_subtract(&x, &y);
     } else { //x+(-y)
@@ -302,12 +308,12 @@ void huge_subtract(huge* a, huge* b) {
         int i = 0, j = 0;
         int64_t carry = 0;
         if (x.sign) { //-x-(-y)
-            huge_swap(&x, &y);
+            huge_swap(&x, &y, 0);
             x.sign = 0;
             y.sign = 0;
         }
         if (huge_compare(&x, &y) <= 0) { // 为0时也为负
-            huge_swap(&x, &y);
+            huge_swap(&x, &y, 0);
             x.sign = 1;
         }
         i = x.size - 1;

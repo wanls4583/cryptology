@@ -32,7 +32,7 @@ unsigned char x25519_Gx[] = "0x09";
 unsigned char x25519_Gy[] = "0x20ae19a1b8a086b4e01edd2c7748d14c923d4d7e6d7c61b229e9c5a27eced3d9";
 unsigned char x25519_N[] = "0x1000000000000000000000000000000014def9dea2f79cd65812631a5cf5d3ed";
 
-unsigned char A[] = { 0x07, 0x6d, 0x06 };
+unsigned char curve_A[] = { 0x07, 0x6d, 0x06 };
 
 int get_named_curve(const char* curve_name, elliptic_curve* target) {
     unsigned char* p, * a, * b, * x, * y, * n = NULL;
@@ -80,7 +80,7 @@ int get_named_curve(const char* curve_name, elliptic_curve* target) {
     return 1;
 }
 
-void double_point(point* p1, huge* a, huge* p, int is25519) {
+void double_point(point* p1, huge* a, huge* p) {
     //if p1==p2
     //k=(3*x1^2+a)/(2y1)
     //if is25519
@@ -90,6 +90,7 @@ void double_point(point* p1, huge* a, huge* p, int is25519) {
     //x3=k^2-A-x1-x2
     //y3=k(x1-x3)-y1
 
+    int is25519 = 0;
     huge k, x3, y3, tmp;
     huge_set(&k, 3);
     huge_multiply(&k, &p1->x);
@@ -98,7 +99,7 @@ void double_point(point* p1, huge* a, huge* p, int is25519) {
     if (is25519) {
         huge_set(&tmp, 1);
         huge_add(&k, &tmp);
-        huge_load(&tmp, A, sizeof(A));
+        huge_load(&tmp, curve_A, sizeof(curve_A));
         huge_add(&tmp, &tmp);
         huge_multiply(&tmp, &p1->x);
         huge_add(&k, &tmp);
@@ -118,7 +119,7 @@ void double_point(point* p1, huge* a, huge* p, int is25519) {
     huge_subtract(&x3, &p1->x);
 
     if (is25519) {
-        huge_load(&tmp, A, sizeof(A));
+        huge_load(&tmp, curve_A, sizeof(curve_A));
         huge_subtract(&x3, &tmp);
     }
 
@@ -143,7 +144,7 @@ void double_point(point* p1, huge* a, huge* p, int is25519) {
     free(tmp.rep);
 }
 
-void add_points_25519(point* p1, point* p2, huge* p, int is25519) {
+void add_points(point* p1, point* p2, huge* p) {
     //if p1!=p2
     //k=(y2-y1)/(x2-x1)
     //x3=k^2-x1-x2
@@ -151,6 +152,7 @@ void add_points_25519(point* p1, point* p2, huge* p, int is25519) {
     //x3=k^2-A-x1-x2
     //y3=k(x1-x3)-y1
 
+    int is25519 = 0;
     huge k, x3, y3, tmp;
     huge_set(&k, 0);
     huge_copy(&k, &p2->y);
@@ -168,7 +170,7 @@ void add_points_25519(point* p1, point* p2, huge* p, int is25519) {
     huge_subtract(&x3, &p2->x);
 
     if (is25519) {
-        huge_load(&tmp, A, sizeof(A));
+        huge_load(&tmp, curve_A, sizeof(curve_A));
         huge_subtract(&x3, &tmp);
     }
 
@@ -192,11 +194,7 @@ void add_points_25519(point* p1, point* p2, huge* p, int is25519) {
     free(tmp.rep);
 }
 
-void add_points(point* p1, point* p2, huge* p) {
-    add_points_25519(p1, p2, p, 0);
-}
-
-void multiply_point_25519(point* p1, huge* k, huge* a, huge* p, int is25519) {
+void multiply_point(point* p1, huge* k, huge* a, huge* p) {
     point sum;
     int hasCopy = 0;
 
@@ -213,7 +211,7 @@ void multiply_point_25519(point* p1, huge* k, huge* a, huge* p, int is25519) {
                     huge_copy(&p1->x, &sum.x);
                     huge_copy(&p1->y, &sum.y);
                 } else {
-                    add_points_25519(p1, &sum, p, is25519);
+                    add_points(p1, &sum, p);
                     // printf("before-----------:\n");
                     // show_hex(p1->x.rep, p1->x.size, HUGE_WORD_BYTES);
                     // show_hex(p1->y.rep, p1->y.size, HUGE_WORD_BYTES);
@@ -226,7 +224,7 @@ void multiply_point_25519(point* p1, huge* k, huge* a, huge* p, int is25519) {
                     // show_hex(p1->y.rep, p1->y.size, HUGE_WORD_BYTES);
                 }
             }
-            double_point(&sum, a, p, is25519);
+            double_point(&sum, a, p);
             // printf("double:\n");
             // show_hex(sum.x.rep, sum.x.size, HUGE_WORD_BYTES);
             // show_hex(sum.y.rep, sum.y.size, HUGE_WORD_BYTES);
@@ -235,10 +233,6 @@ void multiply_point_25519(point* p1, huge* k, huge* a, huge* p, int is25519) {
 
     free(sum.x.rep);
     free(sum.y.rep);
-}
-
-void multiply_point(point* p1, huge* k, huge* a, huge* p) {
-    multiply_point_25519(p1, k, a, p, 0);
 }
 
 #define TEST_ECC
@@ -318,26 +312,141 @@ int test1() {
     return 0;
 }
 
+void multiply_25519(huge* p1, huge* k, huge* p) {
+    huge x_1, x_2, z_2, x_3, z_3;
+
+    huge_set(&x_1, 0);
+    huge_copy(&x_1, p1);
+
+    huge_set(&x_2, 1);
+    huge_set(&z_2, 0);
+
+    huge_set(&x_3, 0);
+    huge_copy(&x_3, p1);
+    huge_set(&z_3, 1);
+
+    int swap = 0, k_t;
+    huge k1, A, AA, B, BB, C, D, E, DA, CB;
+    huge curveA, multA24;
+
+    huge_set(&k1, 0);
+    huge_set(&A, 0);
+    huge_set(&AA, 0);
+    huge_set(&B, 0);
+    huge_set(&BB, 0);
+    huge_set(&C, 0);
+    huge_set(&D, 0);
+    huge_set(&E, 0);
+    huge_set(&DA, 0);
+    huge_set(&CB, 0);
+
+    huge_load(&curveA, curve_A, sizeof(curve_A));
+    // multA24 = (curveA - 2) / 4
+    huge_copy(&multA24, &curveA);
+    huge_set(&k1, 2);
+    huge_subtract(&multA24, &k1);
+    huge_set(&k1, 4);
+    huge_divide(&multA24, &k1, &A);
+    huge_copy(&multA24, &A);
+
+    for (int t = 255; t >= 0; t--) {
+        huge_copy(&k1, k);
+        huge_right_shift(&k1, t);
+        k_t = k1.rep[k1.size - 1] & 0x01;
+        swap ^= k_t;
+        if (swap) {
+            huge_swap(&x_2, &x_3, 1);
+            huge_swap(&z_2, &z_3, 1);
+        }
+        swap = k_t;
+
+        // A = x_2 + z_2
+        huge_copy(&A, &x_2);
+        huge_add(&A, &z_2);
+        // AA = A*A
+        huge_copy(&AA, &A);
+        huge_multiply(&AA, &A);
+
+        // B = x_2 - z_2
+        huge_copy(&B, &x_2);
+        huge_subtract(&B, &z_2);
+        // BB = B*B
+        huge_copy(&BB, &B);
+        huge_multiply(&BB, &B);
+
+        // E = AA - BB
+        huge_copy(&E, &AA);
+        huge_subtract(&E, &BB);
+
+        // C = x_3 + z_3
+        huge_copy(&C, &x_3);
+        huge_add(&C, &z_3);
+
+        // D = x_3 - z_3
+        huge_copy(&D, &x_3);
+        huge_subtract(&D, &z_3);
+
+        // DA = D * A
+        huge_copy(&DA, &D);
+        huge_multiply(&DA, &A);
+
+        // CB = C * B
+        huge_copy(&CB, &C);
+        huge_multiply(&CB, &B);
+
+        // x_3 = (DA + CB) * (DA + CB);
+        huge_copy(&x_3, &DA);
+        huge_add(&x_3, &CB);
+        huge_multiply(&x_3, &x_3);
+        huge_divide(&x_3, p, NULL);
+
+        // z_3 = x_1 * (DA - CB) * (DA - CB)
+        huge_copy(&z_3, &DA);
+        huge_subtract(&z_3, &CB);
+        huge_multiply(&z_3, &z_3);
+        huge_multiply(&z_3, &x_1);
+        huge_divide(&z_3, p, NULL);
+
+        // x_2 = AA * BB
+        huge_copy(&x_2, &AA);
+        huge_multiply(&x_2, &BB);
+        huge_divide(&x_2, p, NULL);
+
+        // z_2 = E * (AA + multA24 * E)
+        huge_copy(&z_2, &multA24);
+        huge_multiply(&z_2, &E);
+        huge_add(&z_2, &AA);
+        huge_multiply(&z_2, &E);
+        huge_divide(&z_2, p, NULL);
+    }
+
+    if (swap) {
+        huge_swap(&x_2, &x_3, 1);
+        huge_swap(&z_2, &z_3, 1);
+    }
+
+    // x = x_2 / z_2
+    huge_copy(p1, &z_2);
+    huge_inverse_mul(p1, p);
+    huge_multiply(p1, &x_2);
+    huge_divide(p1, p, NULL);
+}
+
 void test2() {
     ecc_key key;
-    point pub;
+    huge pub;
     int len;
     unsigned char* tmp;
 
+    huge_set(&pub, 0);
     get_named_curve("x25519", &key.curve);
 
-    len = hex_decode((unsigned char*)"0daf32e7ed8099122b2dfa4c1d8c4a20c0972a1538bf0575338aae0fe0841828", &tmp);
-    huge_load(&pub.x, tmp, len);
-    huge_set(&pub.y, 2);
-    len = hex_decode((unsigned char*)"0x05", &tmp);
+    len = hex_decode((unsigned char*)"0x202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f", &tmp);
     huge_load(&key.d, tmp, len);
-    multiply_point_25519(&pub, &key.d, &key.curve.a, &key.curve.p, 1);
-    show_hex(pub.x.rep, pub.x.size, HUGE_WORD_BYTES);
-
-    len = hex_decode((unsigned char*)"0x909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeaf", &tmp);
-    huge_load(&key.d, tmp, len);
-    multiply_point_25519(&key.curve.G, &key.d,&key.curve.a, &key.curve.p, 1);
-    show_hex(key.curve.G.x.rep, key.curve.G.x.size, HUGE_WORD_BYTES);
+    huge_copy(&pub, &key.curve.G.x);
+    multiply_25519(&pub, &key.d, &key.curve.p);
+    //13b44beebbf0ab83d27f02353d453339dbd0410948e2fa12570782fe8a4a7337
+    show_hex(pub.rep, pub.size, HUGE_WORD_BYTES);
 }
 
 int main() {
