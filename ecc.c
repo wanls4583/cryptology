@@ -418,6 +418,12 @@ void multiply_25519(huge* p1, huge* k, huge* p) {
         huge_add(&z_2, &AA);
         huge_multiply(&z_2, &E);
         huge_divide(&z_2, p, NULL);
+        // printf("t=%d\n", t);
+        // show_hex(x_3.rep, x_3.size, HUGE_WORD_BYTES);
+        // show_hex(z_3.rep, z_3.size, HUGE_WORD_BYTES);
+        // show_hex(x_2.rep, x_2.size, HUGE_WORD_BYTES);
+        // show_hex(z_2.rep, z_2.size, HUGE_WORD_BYTES);
+        // printf("----------------------------------\n");
     }
 
     if (swap) {
@@ -446,6 +452,14 @@ void test2() {
     huge_copy(&pub, &key.curve.G.x);
     multiply_25519(&pub, &key.d, &key.curve.p);
     //13b44beebbf0ab83d27f02353d453339dbd0410948e2fa12570782fe8a4a7337
+    show_hex(pub.rep, pub.size, HUGE_WORD_BYTES);
+
+    len = hex_decode((unsigned char*)"0x41b6ec3c50ee7af203c0026e5e079e7fa8cbc9bc581d49cb0d537d5778497c87", &tmp);
+    huge_load(&key.d, tmp, len);
+    len = hex_decode((unsigned char*)"0x13b44beebbf0ab83d27f02353d453339dbd0410948e2fa12570782fe8a4a7337", &tmp);
+    huge_load(&pub, tmp, len);
+    multiply_25519(&pub, &key.d, &key.curve.p);
+    //1452deff24dcbe5a2a4b5ede768f4fea94de72e200cae16aaf462d02409a8ac3
     show_hex(pub.rep, pub.size, HUGE_WORD_BYTES);
 }
 

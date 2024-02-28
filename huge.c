@@ -212,8 +212,10 @@ void huge_left_shift(huge* h, int size) {
         h->rep[0] = 0;
     }
 
-    for (i = 0; i < h->size - 1; i++) {
-        h->rep[i] = (h->rep[i] << size) | ((h->rep[i + 1] & next) >> (HUGE_WORD_BITS - size));
+    if (size) {
+        for (i = 0; i < h->size - 1; i++) {
+            h->rep[i] = (h->rep[i] << size) | ((h->rep[i + 1] & next) >> (HUGE_WORD_BITS - size));
+        }
     }
 
     h->rep[h->size - 1] <<= size;
@@ -250,8 +252,10 @@ void huge_right_shift(huge* h, int size) {
         next |= n2;
     }
 
-    for (int i = h->size - 1; i > 0; i--) {
-        h->rep[i] = (h->rep[i] >> size) | ((h->rep[i - 1] & next) << (HUGE_WORD_BITS - size));
+    if (size) {
+        for (int i = h->size - 1; i > 0; i--) {
+            h->rep[i] = (h->rep[i] >> size) | ((h->rep[i - 1] & next) << (HUGE_WORD_BITS - size));
+        }
     }
 
     h->rep[0] >>= size;
