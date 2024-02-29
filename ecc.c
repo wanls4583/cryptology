@@ -362,7 +362,7 @@ void multiply_25519(huge* p1, huge* k, huge* p) {
     huge_divide(p1, p, NULL);
 }
 
-#define TEST_ECC
+// #define TEST_ECC
 #ifdef TEST_ECC
 #include "hex.h"
 #include "privkey.h"
