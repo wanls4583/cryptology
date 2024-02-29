@@ -263,7 +263,28 @@ int parse_private_ecdsa_key(
     return 0;
 }
 
-int parse_private_ecdh_key(
+void clamp_x25519_priv(huge* priv) {
+    int len = huge_bytes(priv);
+    unsigned char bytes[len];
+    huge_unload(priv, bytes, len);
+
+    bytes[0] &= 0xf8;
+    bytes[len - 1] &= 0x7f;
+    bytes[len - 1] |= 0x40;
+
+    int i = 0, j = len - 1, tmp;
+    while (i < j) {
+        tmp = bytes[i];
+        bytes[i] = bytes[j];
+        bytes[j] = tmp;
+        i++;
+        j--;
+    }
+
+    huge_load(priv, bytes, len);
+}
+
+int parse_x25519_priv(
     ecc_key* privkey,
     unsigned char* buffer,
     int buffer_length
@@ -293,11 +314,12 @@ int parse_private_ecdh_key(
     unsigned char* data = obj->data;
     int length = obj->length;
     huge_load(&privkey->d, data, length);
+    clamp_x25519_priv(&privkey->d);
 
     return 0;
 }
 
-int parse_private_ecdh_pub(
+int parse_x25519_pub(
     ecc_key* privkey,
     unsigned char* buffer,
     int buffer_length

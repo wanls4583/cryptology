@@ -36,5 +36,6 @@ void huge_divide(huge* dividend, huge* divisor, huge* quotient);
 void huge_mod_pow(huge* a, huge* e, huge* n);
 void huge_inverse_mul(huge* h, huge* p);
 void huge_inverse_neg(huge* h, huge* p);
+void huge_reverse(huge* h);
 
 #endif

@@ -802,6 +802,21 @@ void huge_inverse_mul(huge* h, huge* p) {
     huge_inverse_neg(h, p);
 }
 
+void huge_reverse(huge *h) {
+    int len = huge_bytes(h);
+    int i = 0, j = len - 1, tmp;
+    unsigned char bytes[len];
+    huge_unload(h, bytes, len);
+    while (i < j) {
+        tmp = bytes[i];
+        bytes[i] = bytes[j];
+        bytes[j] = tmp;
+        i++;
+        j--;
+    }
+    huge_load(h, bytes, len);
+}
+
 // #define TEST_HUGE
 #ifdef TEST_HUGE
 #include <time.h>

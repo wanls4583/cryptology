@@ -235,83 +235,6 @@ void multiply_point(point* p1, huge* k, huge* a, huge* p) {
     free(sum.y.rep);
 }
 
-#define TEST_ECC
-#ifdef TEST_ECC
-#include "hex.h"
-#include <time.h>
-
-int test1() {
-    clock_t start, end;
-    int _a = 1, b = 1, _p = 23;
-    point p1, p2;
-    huge a, p, k;
-    huge_set(&a, _a);
-    huge_set(&p, _p);
-
-    // for (int x = 0; x < 100; x += 1) {
-    //     int y = x * x * x + _a * x * x + b, r = y * 2 % _p;
-    //     printf("x=%d,y=%d,r=%d\n", x, y, r);
-    //     huge_set(&p1.x, x);
-    //     huge_set(&p1.y, y);
-    //     double_point(&p1, &a, &p);
-    //     show_hex(p1.x.rep, p1.x.size, HUGE_WORD_BYTES);
-    //     show_hex(p1.y.rep, p1.y.size, HUGE_WORD_BYTES);
-    // }
-
-    // huge_set(&p1.x, 1);
-    // huge_set(&p1.y, 0);
-    // double_point(&p1, &a, &p);
-    // show_hex(p1.x.rep, p1.x.size, HUGE_WORD_BYTES);
-    // show_hex(p1.y.rep, p1.y.size, HUGE_WORD_BYTES);
-
-    // for (int x = 0; x < 200; x += 2) {
-    //     int x1 = x, x2 = x+1;
-    //     int y1 = x1 * x1 * x1 + _a * x1 * x1 + b;
-    //     int y2 = x2 * x2 * x2 + _a * x2 * x2 + b;
-    //     printf("x1=%d,y1=%d,x2=%d,y2=%d\n", x1, y1, x2, y2);
-    //     huge_set(&p1.x, x1);
-    //     huge_set(&p1.y, y1);
-    //     huge_set(&p2.x, x2);
-    //     huge_set(&p2.y, y2);
-    //     add_points(&p1, &p2, &p);
-    //     show_hex(p1.x.rep, p1.x.size, HUGE_WORD_BYTES);
-    //     show_hex(p1.y.rep, p1.y.size, HUGE_WORD_BYTES);
-    // }
-
-    // huge_set(&p1.x, 0x04);
-    // huge_set(&p1.y, 0x51);
-    // huge_set(&p2.x, 1);
-    // huge_set(&p2.y, 3);
-    // add_points(&p1, &p2, &p);
-    // show_hex(p1.x.rep, p1.x.size, HUGE_WORD_BYTES);
-    // show_hex(p1.y.rep, p1.y.size, HUGE_WORD_BYTES);
-    start = clock();
-    for (int x = 0; x < 1000; x += 1) {
-        // if (x != 126) {
-        //     continue;
-        // }
-        int y = x * x * x + _a * x * x + b, r = y * 2 % _p;
-        printf("x=%d,y=%d,r=%d\n", x, y, r);
-        huge_set(&p1.x, x);
-        huge_set(&p1.y, y);
-        huge_set(&k, 1234);
-        multiply_point(&p1, &k, &a, &p);
-        show_hex(p1.x.rep, p1.x.size, HUGE_WORD_BYTES);
-        show_hex(p1.y.rep, p1.y.size, HUGE_WORD_BYTES);
-
-        huge_set(&p1.x, x);
-        huge_set(&p1.y, y);
-        huge_set(&k, 101);
-        multiply_point(&p1, &k, &a, &p);
-        show_hex(p1.x.rep, p1.x.size, HUGE_WORD_BYTES);
-        show_hex(p1.y.rep, p1.y.size, HUGE_WORD_BYTES);
-    }
-    end = clock();
-    printf("duration: %fs", (double)(end - start) / CLOCKS_PER_SEC);
-
-    return 0;
-}
-
 void multiply_25519(huge* p1, huge* k, huge* p) {
     huge x_1, x_2, z_2, x_3, z_3;
 
@@ -339,6 +262,7 @@ void multiply_25519(huge* p1, huge* k, huge* p) {
     huge_set(&E, 0);
     huge_set(&DA, 0);
     huge_set(&CB, 0);
+    huge_set(&multA24, 0);
 
     huge_load(&curveA, curve_A, sizeof(curve_A));
     // multA24 = (curveA - 2) / 4
@@ -438,28 +362,114 @@ void multiply_25519(huge* p1, huge* k, huge* p) {
     huge_divide(p1, p, NULL);
 }
 
+#define TEST_ECC
+#ifdef TEST_ECC
+#include "hex.h"
+#include "privkey.h"
+#include <time.h>
+
+int test1() {
+    clock_t start, end;
+    int _a = 1, b = 1, _p = 23;
+    point p1, p2;
+    huge a, p, k;
+    huge_set(&a, _a);
+    huge_set(&p, _p);
+
+    // for (int x = 0; x < 100; x += 1) {
+    //     int y = x * x * x + _a * x * x + b, r = y * 2 % _p;
+    //     printf("x=%d,y=%d,r=%d\n", x, y, r);
+    //     huge_set(&p1.x, x);
+    //     huge_set(&p1.y, y);
+    //     double_point(&p1, &a, &p);
+    //     show_hex(p1.x.rep, p1.x.size, HUGE_WORD_BYTES);
+    //     show_hex(p1.y.rep, p1.y.size, HUGE_WORD_BYTES);
+    // }
+
+    // huge_set(&p1.x, 1);
+    // huge_set(&p1.y, 0);
+    // double_point(&p1, &a, &p);
+    // show_hex(p1.x.rep, p1.x.size, HUGE_WORD_BYTES);
+    // show_hex(p1.y.rep, p1.y.size, HUGE_WORD_BYTES);
+
+    // for (int x = 0; x < 200; x += 2) {
+    //     int x1 = x, x2 = x+1;
+    //     int y1 = x1 * x1 * x1 + _a * x1 * x1 + b;
+    //     int y2 = x2 * x2 * x2 + _a * x2 * x2 + b;
+    //     printf("x1=%d,y1=%d,x2=%d,y2=%d\n", x1, y1, x2, y2);
+    //     huge_set(&p1.x, x1);
+    //     huge_set(&p1.y, y1);
+    //     huge_set(&p2.x, x2);
+    //     huge_set(&p2.y, y2);
+    //     add_points(&p1, &p2, &p);
+    //     show_hex(p1.x.rep, p1.x.size, HUGE_WORD_BYTES);
+    //     show_hex(p1.y.rep, p1.y.size, HUGE_WORD_BYTES);
+    // }
+
+    // huge_set(&p1.x, 0x04);
+    // huge_set(&p1.y, 0x51);
+    // huge_set(&p2.x, 1);
+    // huge_set(&p2.y, 3);
+    // add_points(&p1, &p2, &p);
+    // show_hex(p1.x.rep, p1.x.size, HUGE_WORD_BYTES);
+    // show_hex(p1.y.rep, p1.y.size, HUGE_WORD_BYTES);
+    start = clock();
+    for (int x = 0; x < 1000; x += 1) {
+        // if (x != 126) {
+        //     continue;
+        // }
+        int y = x * x * x + _a * x * x + b, r = y * 2 % _p;
+        printf("x=%d,y=%d,r=%d\n", x, y, r);
+        huge_set(&p1.x, x);
+        huge_set(&p1.y, y);
+        huge_set(&k, 1234);
+        multiply_point(&p1, &k, &a, &p);
+        show_hex(p1.x.rep, p1.x.size, HUGE_WORD_BYTES);
+        show_hex(p1.y.rep, p1.y.size, HUGE_WORD_BYTES);
+
+        huge_set(&p1.x, x);
+        huge_set(&p1.y, y);
+        huge_set(&k, 101);
+        multiply_point(&p1, &k, &a, &p);
+        show_hex(p1.x.rep, p1.x.size, HUGE_WORD_BYTES);
+        show_hex(p1.y.rep, p1.y.size, HUGE_WORD_BYTES);
+    }
+    end = clock();
+    printf("duration: %fs", (double)(end - start) / CLOCKS_PER_SEC);
+
+    return 0;
+}
+
 void test2() {
-    ecc_key key;
-    huge pub;
+    elliptic_curve curve;
+    huge priv, pub;
     int len;
     unsigned char* tmp;
 
+    huge_set(&priv, 0);
     huge_set(&pub, 0);
-    get_named_curve("x25519", &key.curve);
+    get_named_curve("x25519", &curve);
 
-    len = hex_decode((unsigned char*)"0x202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f", &tmp);
-    huge_load(&key.d, tmp, len);
-    huge_copy(&pub, &key.curve.G.x);
-    multiply_25519(&pub, &key.d, &key.curve.p);
-    //13b44beebbf0ab83d27f02353d453339dbd0410948e2fa12570782fe8a4a7337
+    len = hex_decode((unsigned char*)"0x77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a", &tmp);
+    huge_load(&priv, tmp, len);
+    clamp_x25519_priv(&priv);
+    len = hex_decode((unsigned char*)"0xde9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f", &tmp);
+    huge_load(&pub, tmp, len);
+    huge_reverse(&pub);
+    multiply_25519(&pub, &priv, &curve.p);
+    huge_reverse(&pub);
+    // 4a5d9d5ba4ce2de1728e3bf480350f25e07e21c947d19e3376f09b3c1e161742
     show_hex(pub.rep, pub.size, HUGE_WORD_BYTES);
 
-    len = hex_decode((unsigned char*)"0x41b6ec3c50ee7af203c0026e5e079e7fa8cbc9bc581d49cb0d537d5778497c87", &tmp);
-    huge_load(&key.d, tmp, len);
-    len = hex_decode((unsigned char*)"0x13b44beebbf0ab83d27f02353d453339dbd0410948e2fa12570782fe8a4a7337", &tmp);
+    len = hex_decode((unsigned char*)"0x5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb", &tmp);
+    huge_load(&priv, tmp, len);
+    clamp_x25519_priv(&priv);
+    len = hex_decode((unsigned char*)"0x8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a", &tmp);
     huge_load(&pub, tmp, len);
-    multiply_25519(&pub, &key.d, &key.curve.p);
-    //1452deff24dcbe5a2a4b5ede768f4fea94de72e200cae16aaf462d02409a8ac3
+    huge_reverse(&pub);
+    multiply_25519(&pub, &priv, &curve.p);
+    huge_reverse(&pub);
+    // 4a5d9d5ba4ce2de1728e3bf480350f25e07e21c947d19e3376f09b3c1e161742
     show_hex(pub.rep, pub.size, HUGE_WORD_BYTES);
 }
 

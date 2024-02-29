@@ -311,7 +311,7 @@ int init_ecc_x25519_key() {
     buffer = (unsigned char*)malloc(buffer_length);
     buffer_length = pem_decode(pem_buffer, buffer, NULL, NULL);
 
-    parse_private_ecdh_key(&private_ecc_25519_key, buffer, buffer_length);
+    parse_x25519_priv(&private_ecc_25519_key, buffer, buffer_length);
     free(buffer);
 
     if (!(pem_buffer = load_file("./res/ecdh_x25519_pub.pem", &buffer_length))) {
@@ -321,7 +321,7 @@ int init_ecc_x25519_key() {
     buffer = (unsigned char*)malloc(buffer_length);
     buffer_length = pem_decode(pem_buffer, buffer, NULL, NULL);
 
-    parse_private_ecdh_pub(&private_ecc_25519_key, buffer, buffer_length);
+    parse_x25519_pub(&private_ecc_25519_key, buffer, buffer_length);
     free(buffer);
 
     // printf("ecdh_x25519_key:\n");
