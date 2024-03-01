@@ -132,6 +132,7 @@ void HKDF(
 #ifdef TEST_HKDF
 #include "digest.h"
 #include "sha.h"
+#include "aes.h"
 
 void test1() {
     unsigned char* key, * salt, * info;
@@ -163,6 +164,40 @@ void test1() {
     show_hex(out, 42, 1);
 }
 
+void build_iv(unsigned char* iv, uint64_t seq) {
+    size_t i;
+    for (i = 0; i < 8; i++) {
+        iv[12 - 1 - i] ^= ((seq >> (i * 8)) & 0xFF);
+    }
+}
+
+void enc_and_dec(unsigned char* data, int data_len, unsigned char* server_handshake_key, unsigned char* server_handshake_iv, int seq_num) {
+    unsigned char header[5] = { 0x17, 0x03, 0x03, 0x00, 0x00 };
+    unsigned short len = htons(data_len + 16);
+    memcpy(header + 3, &len, 2);
+    len = data_len + 16;
+
+    unsigned char iv[12];
+    unsigned char* encrypted_message = (unsigned char*)malloc(len);
+
+    memcpy(iv, server_handshake_iv, 12);
+    build_iv(iv, seq_num);
+    aes_256_gcm_encrypt(data, data_len, encrypted_message, iv, header, 5, server_handshake_key);
+    printf("encrypt:\n");
+    show_hex(encrypted_message, len, 1);
+
+    unsigned char dec_msg[data_len];
+    int encrypted_length = len;
+    int decrypted_length = data_len;
+
+    memset(dec_msg, 0, data_len);
+    memcpy(iv, server_handshake_iv, 12);
+    build_iv(iv, seq_num);
+    aes_256_gcm_decrypt(encrypted_message, encrypted_length, dec_msg, iv, header, 5, server_handshake_key);
+    printf("decrypt:\n");
+    show_hex(dec_msg, sizeof(dec_msg), 1);
+}
+
 void test2() {
     int share_secret_len = 0;
     unsigned char* tmp;
@@ -192,11 +227,12 @@ void test2() {
     unsigned char server_handshake_key[32];
     unsigned char client_handshake_iv[12];
     unsigned char server_handshake_iv[12];
+    unsigned char client_finished_key[48];
+    unsigned char server_finished_key[48];
 
     share_secret_len = hex_decode((unsigned char*)"0xdf4a291baa1eb7cfa6934b29b474baad2697e29f1f920dcc77c8a0a088447624", &shared_secret);
     memset(zero_key, 0, ctx.result_size);
 
-    new_sha384_digest(&ctx);
     HKDF_extract(NULL, 0, zero_key, ctx.result_size, early_secret, ctx);
     printf("early_secret:");
     // 7ee8206f5570023e6dc7519eb1073bc4e791ad37b5c382aa10ba18e2357e716971f9362f2c2fe2a76bfd78dfec4ea9b5
@@ -241,6 +277,56 @@ void test2() {
     printf("server_handshake_iv:");
     // 9563bc8b590f671f488d2da3
     show_hex(server_handshake_iv, 12, 1);
+
+    HKDF_expand_label(client_handshake_traffic_secret, ctx.result_size, (unsigned char*)"finished", 8, NULL, 0, client_finished_key, 48, ctx);
+    printf("client_finished_key:");
+    // 096d2782cdc1e9493ebba79c892a60bc14179584ab4679d834e1daef44b522a614bb61b98d27d78e2f85dac2e4beedfb
+    show_hex(client_finished_key, 48, 1);
+
+    HKDF_expand_label(server_handshake_traffic_secret, ctx.result_size, (unsigned char*)"finished", 8, NULL, 0, server_finished_key, 48, ctx);
+    printf("server_finished_key:");
+    // 23e073033202055ca66455ecde694079e5197a6bdff80d65b4c1e934d0f8e7f5f187ed32a86e1d10918bca30d289f796
+    show_hex(server_finished_key, 48, 1);
+
+    unsigned char* data;
+    unsigned char hs_data[10000] = { 0 };
+    unsigned char* hs_buffer = hs_data;
+    int data_len = 0, hs_len = 0;
+
+    // server_encrypted_extensions
+    data_len = hex_decode((unsigned char*)"0x08000002000016", &data);
+    memcpy(hs_buffer, data, data_len - 1);
+    hs_buffer += data_len - 1;
+    hs_len += data_len - 1;
+    // 6be02f9da7c2dc9ddef56f2468b90adfa25101ab0344ae
+    enc_and_dec(data, data_len, server_handshake_key, server_handshake_iv, 0);
+
+    // server_certificate
+    data_len = hex_decode((unsigned char*)"0x0b00032e0000032a0003253082032130820209a0030201020208155a92adc2048f90300d06092a864886f70d01010b05003022310b300906035504061302555331133011060355040a130a4578616d706c65204341301e170d3138313030353031333831375a170d3139313030353031333831375a302b310b3009060355040613025553311c301a060355040313136578616d706c652e756c666865696d2e6e657430820122300d06092a864886f70d01010105000382010f003082010a0282010100c4803606bae7476b089404eca7b691043ff792bc19eefb7d74d7a80d001e7b4b3a4ae60fe8c071fc73e7024c0dbcf4bdd11d396bba70464a13e94af83df3e10959547bc955fb412da3765211e1f3dc776caa53376eca3aecbec3aab73b31d56cb6529c8098bcc9e02818e20bf7f8a03afd1704509ece79bd9f39f1ea69ec47972e830fb5ca95de95a1e60422d5eebe527954a1e7bf8a86f6466d0d9f16951a4cf7a04692595c1352f2549e5afb4ebfd77a37950144e4c026874c653e407d7d23074401f484ffd08f7a1fa05210d1f4f0d5ce79702932e2cabe701fdfad6b4bb71101f44bad666a11130fe2ee829e4d029dc91cdd6716dbb9061886edc1ba94210203010001a3523050300e0603551d0f0101ff0404030205a0301d0603551d250416301406082b0601050507030206082b06010505070301301f0603551d23041830168014894fde5bcc69e252cf3ea300dfb197b81de1c146300d06092a864886f70d01010b05000382010100591645a69a2e3779e4f6dd271aba1c0bfd6cd75599b5e7c36e533eff3659084324c9e7a504079d39e0d42987ffe3ebdd09c1cf1d914455870b571dd19bdf1d24f8bb9a11fe80fd592ba0398cde11e2651e618ce598fa96e5372eef3d248afde17463ebbfabb8e4d1ab502a54ec0064e92f7819660d3f27cf209e667fce5ae2e4ac99c7c93818f8b2510722dfed97f32e3e9349d4c66c9ea6396d744462a06b42c6d5ba688eac3a017bddfc8e2cfcad27cb69d3ccdca280414465d3ae348ce0f34ab2fb9c618371312b191041641c237f11a5d65c844f0404849938712b959ed685bc5c5dd645ed19909473402926dcb40e3469a15941e8e2cca84bb6084636a0000016", &data);
+    memcpy(hs_buffer, data, data_len - 1);
+    hs_buffer += data_len - 1;
+    hs_len += data_len - 1;
+    // baf00a9be50f3f2307e726edcbdacbe4b18616449d46c6207af6e9953ee5d2411ba65d31feaf4f78764f2d693987186cc01329c187a5e4608e8d27b318e98dd94769f7739ce6768392caca8dcc597d77ec0d1272233785f6e69d6f43effa8e7905edfdc4037eee5933e990a7972f206913a31e8d04931366d3d8bcd6a4a4d647dd4bd80b0ff863ce3554833d744cf0e0b9c07cae726dd23f9953df1f1ce3aceb3b7230871e92310cfb2b098486f43538f8e82d8404e5c6c25f66a62ebe3c5f26232640e20a769175ef83483cd81e6cb16e78dfad4c1b714b04b45f6ac8d1065ad18c13451c9055c47da300f93536ea56f531986d6492775393c4ccb095467092a0ec0b43ed7a0687cb470ce350917b0ac30c6e5c24725a78c45f9f5f29b6626867f6f79ce054273547b36df030bd24af10d632dba54fc4e890bd0586928c0206ca2e28e44e227a2d5063195935df38da8936092eef01e84cad2e49d62e470a6c7745f625ec39e4fc23329c79d1172876807c36d736ba42bb69b004ff55f93850dc33c1f98abb92858324c76ff1eb085db3c1fc50f74ec04442e622973ea70743418794c388140bb492d6294a0540e5a59cfae60ba0f14899fca71333315ea083a68e1d7c1e4cdc2f56bcd6119681a4adbc1bbf42afd806c3cbd42a076f545dee4e118d0b396754be2b042a685dd4727e89c0386a94d3cd6ecb9820e9d49afeed66c47e6fc243eabebbcb0b02453877f5ac5dbfbdf8db1052a3c994b224cd9aaaf56b026bb9efa2e01302b36401ab6494e7018d6e5b573bd38bcef023b1fc92946bbca0209ca5fa926b4970b1009103645cb1fcfe552311ff730558984370038fd2cce2a91fc74d6f3e3ea9f843eed356f6f82d35d03bc24b81b58ceb1a43ec9437e6f1e50eb6f555e321fd67c8332eb1b832aa8d795a27d479c6e27d5a61034683891903f66421d094e1b00a9a138d861e6f78a20ad3e1580054d2e305253c713a02fe1e28deee7336246f6ae34331806b46b47b833c39b9d31cd300c2a6ed831399776d07f570eaf0059a2c68a5f3ae16b617404af7b7231a4d942758fc020b3f23ee8c15e36044cfd67cd640993b16207597fbf385ea7a4d99e8d456ff83d41f7b8b4f069b028a2a63a919a70e3a10e3084158faa5bafa30186c6b2f238eb530c73e
+    enc_and_dec(data, data_len, server_handshake_key, server_handshake_iv, 1);
+
+    // server_certificate_verify
+    data_len = hex_decode((unsigned char*)"0x0f000104080401005cbb24c0409332daa920bbabbdb9bd50170be49cfbe0a4107fca6ffb1068e65f969e6de7d4f9e56038d67c69c031403a7a7c0bcc8683e65721a0c72cc6634019ad1d3ad265a812615ba36380372084f5daec7e63d3f4933f27227419a611034644dcdbc7be3e74ffac473faaadde8c2fc65f3265773e7e62de33861fa705d19c506e896c8d82f5bcf35fece259b71538115e9c8cfba62e49bb8474f58587b11b8ae317c633e9c76c791d466284ad9c4ff735a6d2e963b59bbca440a307091a1b4e46bcc7a2f9fb2f1c898ecb19918be4121d7e8ed04cd50c9a59e987980107bbbf299c232e7fdbe10a4cfdae5c891c96afdff94b54ccd2bc19d3cdaa6644859c16", &data);
+    memcpy(hs_buffer, data, data_len - 1);
+    hs_buffer += data_len - 1;
+    hs_len += data_len - 1;
+    // 73719fce07ec2f6d3bba0292a0d40b2770c06a271799a53314f6f77fc95c5fe7b9a4329fd9548c670ebeea2f2d5c351dd9356ef2dcd52eb137bd3a676522f8cd0fb7560789ad7b0e3caba2e37e6b4199c6793b3346ed46cf740a9fa1fec414dc715c415c60e575703ce6a34b70b5191aa6a61a18faff216c687ad8d17e12a7e99915a611bfc1a2befc15e6e94d784642e682fd17382a348c301056b940c9847200408bec56c81ea3d7217ab8e85a88715395899c90587f72e8ddd74b26d8edc1c7c837d9f2ebbc260962219038b05654a63a0b12999b4a8306a3ddcc0e17c53ba8f9c80363f7841354d291b4ace0c0f330c0fcd5aa9deef969ae8ab2d98da88ebb6ea80a3a11f00ea296a3232367ff075e1c66dd9cbedc4713
+    enc_and_dec(data, data_len, server_handshake_key, server_handshake_iv, 2);
+
+    unsigned char hs_hash[ctx.result_size];
+
+    digest_hash(&ctx, hs_data, hs_len);
+    memcpy(hs_hash, ctx.hash, ctx.result_size);
+    new_sha384_digest(&ctx);
+
+    hmac(&ctx, server_finished_key, 48, hs_hash, ctx.result_size);
+    printf("verify_data:");
+    show_hex(ctx.hash, ctx.result_size, 1);
+    new_sha384_digest(&ctx);
 }
 
 int main() {
