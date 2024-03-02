@@ -315,6 +315,7 @@ int parse_x25519_priv(
     int length = obj->length;
     huge_load(&privkey->d, data, length);
     clamp_x25519_priv(&privkey->d);
+    huge_reverse(&privkey->d);
 
     return 0;
 }
@@ -344,8 +345,8 @@ int parse_x25519_pub(
 
     unsigned char* data = pub->data + 1;
     int length = pub->length - 1;
-    huge_load(&privkey->Q.x, data, length / 2);
-    huge_load(&privkey->Q.y, data + length / 2, length / 2);
+    huge_load(&privkey->Q.x, data, length);
+    huge_reverse(&privkey->Q.x);
 
     return 0;
 }

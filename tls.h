@@ -119,11 +119,21 @@ typedef struct {
 CipherSuite;
 
 typedef struct {
+	unsigned char* handshake_key;
+	unsigned char* handshake_iv;
+	unsigned char* finished_key;
+	unsigned char* application_key;
+	unsigned char* application_iv;
+}
+Tls3Keys;
+
+typedef struct {
 	unsigned char* MAC_secret;
 	unsigned char* key;
 	unsigned char* IV;
 	CipherSuiteIdentifier suite;
 	unsigned long  seq_num;
+	Tls3Keys tls_3_keys;
 }
 ProtectionParameters;
 
@@ -156,7 +166,7 @@ typedef struct {
 	// Note that a server can legitimately have an RSA key for signing and 
 	// a DH key for key exchange (e.g. DHE_RSA)
 	dh_key                server_dh_key;
-	huge				  ecdh_key;
+	huge				  key_share;
 
 	int                   got_client_hello;
 	int                   server_hello_done;

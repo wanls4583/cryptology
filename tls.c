@@ -26,6 +26,7 @@
 #include "hex.h"
 #include "asn1.h"
 #include "ecdsa.h"
+#include "hkdf.h"
 
 // session_id 和 session_ticket 机制不能同时启用
 #ifndef USE_SESSION_ID
@@ -324,11 +325,6 @@ int init_ecc_x25519_key() {
     parse_x25519_pub(&private_ecc_25519_key, buffer, buffer_length);
     free(buffer);
 
-    // printf("ecdh_x25519_key:\n");
-    // show_hex(private_ecc_25519_key.d.rep, private_ecc_25519_key.d.size, HUGE_WORD_BYTES);
-    // show_hex(private_ecc_25519_key.Q.x.rep, private_ecc_25519_key.Q.x.size, HUGE_WORD_BYTES);
-    // show_hex(private_ecc_25519_key.Q.y.rep, private_ecc_25519_key.Q.y.size, HUGE_WORD_BYTES);
-
     return 1;
 }
 
@@ -626,7 +622,7 @@ int send_message(
 
     header.type = content_type;
     header.version.major = TLS_VERSION_MAJOR;
-    header.version.minor = TLS_VERSION_MINOR;
+    header.version.minor = TLS_VERSION_MINOR > 3 ? 3 : TLS_VERSION_MINOR;
     header.length = htons(content_len);
 
     if (skip_encrypt == 1) {
@@ -666,7 +662,7 @@ int send_message(
 
         header.type = content_type;
         header.version.major = TLS_VERSION_MAJOR;
-        header.version.minor = TLS_VERSION_MINOR;
+        header.version.minor = TLS_VERSION_MINOR > 3 ? 3 : TLS_VERSION_MINOR;
         header.length = htons(content_len);
         mac_header[8] = header.type;
         mac_header[9] = header.version.major;
@@ -994,10 +990,11 @@ unsigned char* set_key_share_extension(int* out_len, TLSParameters* parameters) 
     unsigned char* buffer = NULL;
     unsigned char* tmp_buf = NULL;
     unsigned short x_len = huge_bytes(&private_ecc_25519_key.Q.x);
-    unsigned short y_len = huge_bytes(&private_ecc_25519_key.Q.y);
+    unsigned short y_len = 0;
     unsigned short q_len = x_len + y_len;
     unsigned short ext_item_len = 4 + q_len;
     unsigned short ext_item_len_n = htons(ext_item_len);
+    huge pub;
 
     q_len = htons(q_len);
     *out_len = 0;
@@ -1013,9 +1010,11 @@ unsigned char* set_key_share_extension(int* out_len, TLSParameters* parameters) 
         tmp_buf += 2;
         memcpy(tmp_buf, &q_len, 2);
         tmp_buf += 2;
-        huge_unload(&private_ecc_25519_key.Q.x, tmp_buf, x_len);
+        huge_set(&pub, 0);
+        huge_copy(&pub, &private_ecc_25519_key.Q.x);
+        huge_reverse(&pub);
+        huge_unload(&pub, tmp_buf, x_len);
         tmp_buf += x_len;
-        huge_unload(&private_ecc_25519_key.Q.y, tmp_buf, y_len);
         *out_len = 4 + ext_item_len;
     }
 
@@ -1091,7 +1090,7 @@ int send_client_hello(int connection, TLSParameters* parameters) {
     int               status = 1;
 
     package.client_version.major = TLS_VERSION_MAJOR;
-    package.client_version.minor = TLS_VERSION_MINOR;
+    package.client_version.minor = TLS_VERSION_MINOR > 3 ? 3 : TLS_VERSION_MINOR;
     time(&local_time);
     package.random.gmt_unix_time = htonl(local_time);
     // TODO - actually make this random.
@@ -1193,7 +1192,7 @@ unsigned char* parse_client_hello_extensions(
             unsigned short key_len = 0;
             unsigned char group[2];
             elliptic_curve curve;
-            point pt;
+            huge pub;
 
             read_pos += 2;
             while (len < ext_item_len) {
@@ -1203,14 +1202,12 @@ unsigned char* parse_client_hello_extensions(
                 len += key_len + 4;
                 if (!memcmp(group, KEY_SHARE_GROUP_X25519, 2)) {
                     get_named_curve("x25519", &curve);
-                    huge_load(&pt.x, read_pos, key_len / 2);
-                    huge_load(&pt.y, read_pos + key_len / 2, key_len / 2);
+                    huge_load(&pub, read_pos, key_len);
                     // printf("key_share:\n");
-                    // show_hex(pt.x.rep, pt.x.size, HUGE_WORD_BYTES);
-                    // show_hex(pt.y.rep, pt.y.size, HUGE_WORD_BYTES);
-                    multiply_point(&pt, &private_ecc_25519_key.d, &curve.a, &curve.p);
-                    huge_set(&parameters->ecdh_key, 0);
-                    huge_copy(&parameters->ecdh_key, &pt.x);
+                    // show_hex(pub.rep, pub.size, HUGE_WORD_BYTES);
+                    huge_reverse(&pub);
+                    huge_set(&parameters->key_share, 0);
+                    huge_copy(&parameters->key_share, &pub);
                 }
             }
 
@@ -1307,6 +1304,59 @@ unsigned char* parse_client_hello(
     return read_pos;
 }
 
+void calculate_handshake_keys(TLSParameters* parameters) {
+    CipherSuite* send_suite = &(suites[parameters->pending_send_parameters.suite]);
+    digest_ctx ctx;
+    send_suite->new_digest(&ctx);
+    unsigned char handshake_hash[ctx.result_size];
+
+    unsigned char* shared_secret;
+    unsigned char zero_key[ctx.result_size];
+    unsigned char early_secret[ctx.result_size];
+    unsigned char derived_secret[ctx.result_size];
+    unsigned char handshake_secret[ctx.result_size];
+    unsigned char handshake_traffic_secret[ctx.result_size];
+    unsigned char handshake_key = (unsigned char*)malloc(send_suite->key_size);
+    unsigned char handshake_iv = (unsigned char*)malloc(send_suite->IV_size);
+    unsigned char finished_key = (unsigned char*)malloc(send_suite->hash_size);
+    unsigned char traffic_label[12];
+    int share_secret_len = huge_bytes(shared_secret);
+
+    huge_unload(&parameters->key_share, shared_secret, share_secret_len);
+    compute_handshake_hash(parameters, handshake_hash);
+    memset(zero_key, 0, ctx.result_size);
+
+    HKDF_extract(NULL, 0, zero_key, ctx.result_size, early_secret, ctx);
+    derive_secret(early_secret, ctx.result_size, (unsigned char*)"derived", 7, NULL, 0, derived_secret, ctx.result_size, ctx);
+    HKDF_extract(derived_secret, ctx.result_size, shared_secret, share_secret_len, handshake_secret, ctx);
+
+    if (connection_end_client == parameters->connection_end) {
+        memcpy(traffic_label, (void*)"c hs traffic", 12);
+    } else {
+        memcpy(traffic_label, (void*)"s hs traffic", 12);
+    }
+    HKDF_expand_label(handshake_secret, ctx.result_size, traffic_label, 12, handshake_hash, ctx.result_size, handshake_traffic_secret, ctx.result_size, ctx);
+    HKDF_expand_label(handshake_traffic_secret, ctx.result_size, (unsigned char*)"key", 3, NULL, 0, handshake_key, send_suite->key_size, ctx);
+    HKDF_expand_label(handshake_traffic_secret, ctx.result_size, (unsigned char*)"iv", 2, NULL, 0, handshake_iv, send_suite->IV_size, ctx);
+    HKDF_expand_label(handshake_traffic_secret, ctx.result_size, (unsigned char*)"finished", 8, NULL, 0, finished_key, ctx.result_size, ctx);
+    parameters->pending_send_parameters.tls_3_keys.handshake_key = handshake_key;
+    parameters->pending_send_parameters.tls_3_keys.handshake_iv = handshake_iv;
+    parameters->pending_send_parameters.tls_3_keys.finished_key = finished_key;
+
+    if (connection_end_client == parameters->connection_end) {
+        memcpy(traffic_label, (void*)"s hs traffic", 12);
+    } else {
+        memcpy(traffic_label, (void*)"c hs traffic", 12);
+    }
+    HKDF_expand_label(handshake_secret, ctx.result_size, traffic_label, 12, handshake_hash, ctx.result_size, handshake_traffic_secret, ctx.result_size, ctx);
+    HKDF_expand_label(handshake_traffic_secret, ctx.result_size, (unsigned char*)"key", 3, NULL, 0, handshake_key, send_suite->key_size, ctx);
+    HKDF_expand_label(handshake_traffic_secret, ctx.result_size, (unsigned char*)"iv", 2, NULL, 0, handshake_iv, send_suite->IV_size, ctx);
+    HKDF_expand_label(handshake_traffic_secret, ctx.result_size, (unsigned char*)"finished", 8, NULL, 0, finished_key, ctx.result_size, ctx);
+    parameters->pending_recv_parameters.tls_3_keys.handshake_key = handshake_key;
+    parameters->pending_recv_parameters.tls_3_keys.handshake_iv = handshake_iv;
+    parameters->pending_recv_parameters.tls_3_keys.finished_key = finished_key;
+}
+
 int send_server_hello(int connection, TLSParameters* parameters) {
     ServerHello       package;
     int               ext_len = 0;
@@ -1317,7 +1367,7 @@ int send_server_hello(int connection, TLSParameters* parameters) {
     time_t            local_time;
 
     package.server_version.major = TLS_VERSION_MAJOR;
-    package.server_version.minor = TLS_VERSION_MINOR;
+    package.server_version.minor = TLS_VERSION_MINOR > 3 ? 3 : TLS_VERSION_MINOR;
     time(&local_time);
     package.random.gmt_unix_time = htonl(local_time);
     package.random.gmt_unix_time = 1705734549;
@@ -1378,6 +1428,7 @@ int send_server_hello(int connection, TLSParameters* parameters) {
     show_hex(send_buffer, send_buffer_size, 1);
 
     send_handshake_message(connection, server_hello, send_buffer, send_buffer_size, parameters);
+    calculate_handshake_keys(parameters);
 
     free(send_buffer);
 
@@ -1576,7 +1627,7 @@ int rsa_key_exchange(
 
     // first two bytes are protocol version
     premaster_secret[0] = TLS_VERSION_MAJOR;
-    premaster_secret[1] = TLS_VERSION_MINOR;
+    premaster_secret[1] = TLS_VERSION_MINOR > 3 ? 3 : TLS_VERSION_MINOR;
     for (i = 2; i < MASTER_SECRET_LENGTH; i++) {
         // XXX SHOULD BE RANDOM!
         premaster_secret[i] = i;

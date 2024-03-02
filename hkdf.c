@@ -224,7 +224,6 @@ void test2() {
     unsigned char* shared_secret;
     unsigned char zero_key[ctx.result_size];
     unsigned char early_secret[ctx.result_size];
-    unsigned char empty_hash[ctx.result_size];
     unsigned char derived_secret[ctx.result_size];
     unsigned char handshake_secret[ctx.result_size];
     unsigned char client_handshake_traffic_secret[ctx.result_size];
