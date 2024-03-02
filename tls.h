@@ -181,6 +181,7 @@ typedef struct {
 	unsigned char* session_ticket;
 	unsigned char* session_id;
 	unsigned char* unread_buffer;
+	unsigned char* handshake_secret;
 }
 TLSParameters;
 

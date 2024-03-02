@@ -486,6 +486,11 @@ void init_protection_parameters(ProtectionParameters* parameters) {
     parameters->IV = NULL;
     parameters->seq_num = 0;
     parameters->suite = TLS_NULL_WITH_NULL_NULL;
+    parameters->tls_3_keys.handshake_key = NULL;
+    parameters->tls_3_keys.handshake_iv = NULL;
+    parameters->tls_3_keys.finished_key = NULL;
+    parameters->tls_3_keys.application_key = NULL;
+    parameters->tls_3_keys.application_iv = NULL;
 }
 
 void init_parameters(TLSParameters* parameters) {
@@ -506,6 +511,8 @@ void init_parameters(TLSParameters* parameters) {
     memset(parameters->master_secret, '\0', MASTER_SECRET_LENGTH);
     memset(parameters->client_random, '\0', RANDOM_LENGTH);
     memset(parameters->server_random, '\0', RANDOM_LENGTH);
+    huge_set(&parameters->key_share, 0);
+
     parameters->got_client_hello = 0;
     parameters->server_hello_done = 0;
     parameters->peer_finished = 0;
@@ -518,6 +525,8 @@ void init_parameters(TLSParameters* parameters) {
 
     parameters->unread_buffer = NULL;
     parameters->unread_length = 0;
+
+    parameters->handshake_secret = NULL;
 }
 
 unsigned char* append_buffer(unsigned char* dest, unsigned char* src, size_t n) {
@@ -1329,6 +1338,8 @@ void calculate_handshake_keys(TLSParameters* parameters) {
     HKDF_extract(NULL, 0, zero_key, ctx.result_size, early_secret, ctx);
     derive_secret(early_secret, ctx.result_size, (unsigned char*)"derived", 7, NULL, 0, derived_secret, ctx.result_size, ctx);
     HKDF_extract(derived_secret, ctx.result_size, shared_secret, share_secret_len, handshake_secret, ctx);
+    parameters->handshake_secret = (unsigned char*)malloc(ctx.result_size);
+    memcpy(parameters->handshake_secret, handshake_secret, ctx.result_size);
 
     if (connection_end_client == parameters->connection_end) {
         memcpy(traffic_label, (void*)"c hs traffic", 12);
@@ -2512,6 +2523,49 @@ int send_change_cipher_spec(int connection, TLSParameters* parameters) {
     return 1;
 }
 
+void calculate_application_keys(TLSParameters* parameters) {
+    CipherSuite* send_suite = &(suites[parameters->pending_send_parameters.suite]);
+    digest_ctx ctx;
+    send_suite->new_digest(&ctx);
+    unsigned char handshake_hash[ctx.result_size];
+
+    unsigned char zero_key[ctx.result_size];
+    unsigned char master_secret[ctx.result_size];
+    unsigned char derived_secret[ctx.result_size];
+    unsigned char application_traffic_secret[ctx.result_size];
+    unsigned char application_key = (unsigned char*)malloc(send_suite->key_size);
+    unsigned char application_iv = (unsigned char*)malloc(send_suite->IV_size);
+    unsigned char traffic_label[12];
+
+    compute_handshake_hash(parameters, handshake_hash);
+    memset(zero_key, 0, ctx.result_size);
+
+    derive_secret(parameters->handshake_secret, ctx.result_size, (unsigned char*)"derived", 7, NULL, 0, derived_secret, ctx.result_size, ctx);
+    HKDF_extract(derived_secret, ctx.result_size, zero_key, ctx.result_size, master_secret, ctx);
+
+    if (connection_end_client == parameters->connection_end) {
+        memcpy(traffic_label, (void*)"c ap traffic", 12);
+    } else {
+        memcpy(traffic_label, (void*)"s ap traffic", 12);
+    }
+    HKDF_expand_label(master_secret, ctx.result_size, traffic_label, 12, handshake_hash, ctx.result_size, application_traffic_secret, ctx.result_size, ctx);
+    HKDF_expand_label(application_traffic_secret, ctx.result_size, (unsigned char*)"key", 3, NULL, 0, application_key, send_suite->key_size, ctx);
+    HKDF_expand_label(application_traffic_secret, ctx.result_size, (unsigned char*)"iv", 2, NULL, 0, application_iv, send_suite->IV_size, ctx);
+    parameters->pending_send_parameters.tls_3_keys.application_key = application_key;
+    parameters->pending_send_parameters.tls_3_keys.application_iv = application_iv;
+
+    if (connection_end_client == parameters->connection_end) {
+        memcpy(traffic_label, (void*)"s ap traffic", 12);
+    } else {
+        memcpy(traffic_label, (void*)"c ap traffic", 12);
+    }
+    HKDF_expand_label(master_secret, ctx.result_size, traffic_label, 12, handshake_hash, ctx.result_size, application_traffic_secret, ctx.result_size, ctx);
+    HKDF_expand_label(application_traffic_secret, ctx.result_size, (unsigned char*)"key", 3, NULL, 0, application_key, send_suite->key_size, ctx);
+    HKDF_expand_label(application_traffic_secret, ctx.result_size, (unsigned char*)"iv", 2, NULL, 0, application_iv, send_suite->IV_size, ctx);
+    parameters->pending_recv_parameters.tls_3_keys.application_key = application_key;
+    parameters->pending_recv_parameters.tls_3_keys.application_iv = application_iv;
+}
+
 int send_finished(int connection, TLSParameters* parameters) {
     unsigned char verify_data[VERIFY_DATA_LEN];
 
@@ -2521,6 +2575,7 @@ int send_finished(int connection, TLSParameters* parameters) {
     );
 
     send_handshake_message(connection, finished, verify_data, VERIFY_DATA_LEN, parameters);
+    calculate_application_keys(parameters);
 
     return 1;
 }
@@ -3022,15 +3077,8 @@ int tls_connect(int connection, TLSParameters* parameters) {
     return 0;
 }
 
-int tls_accept(int connection, TLSParameters* parameters) {
+int tls_accept_1_2(int connection, TLSParameters* parameters) {
     int is_resume = 0;
-    init_parameters(parameters);
-    parameters->connection_end = connection_end_server;
-
-    new_md5_digest(&parameters->md5_handshake_digest);
-    new_sha1_digest(&parameters->sha1_handshake_digest);
-    new_sha256_digest(&parameters->sha256_handshake_digest);
-    new_sha384_digest(&parameters->sha384_handshake_digest);
 
     // The client sends the first message
     parameters->got_client_hello = 0;
@@ -3041,7 +3089,6 @@ int tls_accept(int connection, TLSParameters* parameters) {
             return 1;
         }
     }
-
 
 #ifdef USE_SESSION_TICKET
     is_resume = parameters->session_ticket_length > 0 ? 1 : 0;
@@ -3126,12 +3173,63 @@ int tls_accept(int connection, TLSParameters* parameters) {
 #ifdef USE_SESSION_ID
         remember_session(parameters);
 #endif
-    }
+        }
 
     // Handshake is complete; now ready to start sending encrypted data
     return 0;
+    }
+
+int tls_accept_1_3(int connection, TLSParameters* parameters) {
+    // The client sends the first message
+    parameters->got_client_hello = 0;
+    while (!parameters->got_client_hello) {
+        if (receive_tls_msg(connection, NULL, 0, parameters) < 0) {
+            perror("Unable to receive client hello");
+            send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
+            return 1;
+        }
+    }
+
+    if (send_server_hello(connection, parameters)) {
+        send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
+        return 2;
+    }
+
+    if (send_certificate(connection, parameters)) {
+        send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
+        return 3;
+    }
+
+    if (!(send_change_cipher_spec(connection, parameters))) {
+        perror("Unable to send client change cipher spec");
+        send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
+        return 6;
+    }
+
+    if (!(send_finished(connection, parameters))) {
+        perror("Unable to send client finished");
+        send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
+        return 7;
+    }
+
+    return 0;
 }
 
+int tls_accept(int connection, TLSParameters* parameters) {
+    init_parameters(parameters);
+    parameters->connection_end = connection_end_server;
+
+    new_md5_digest(&parameters->md5_handshake_digest);
+    new_sha1_digest(&parameters->sha1_handshake_digest);
+    new_sha256_digest(&parameters->sha256_handshake_digest);
+    new_sha384_digest(&parameters->sha384_handshake_digest);
+
+    if (TLS_VERSION_MINOR <= 3) {
+        return tls_accept_1_2(connection, parameters);
+    } else {
+        return tls_accept_1_3(connection, parameters);
+    }
+}
 int tls_send(int connection,
     unsigned char* application_data,
     int length,
@@ -3161,6 +3259,21 @@ void free_protection_parameters(ProtectionParameters* parameters) {
     if (parameters->IV) {
         free(parameters->IV);
     }
+    if (parameters->tls_3_keys.handshake_key) {
+        free(parameters->tls_3_keys.handshake_key);
+    }
+    if (parameters->tls_3_keys.handshake_iv) {
+        free(parameters->tls_3_keys.handshake_iv);
+    }
+    if (parameters->tls_3_keys.finished_key) {
+        free(parameters->tls_3_keys.finished_key);
+    }
+    if (parameters->tls_3_keys.application_key) {
+        free(parameters->tls_3_keys.application_key);
+    }
+    if (parameters->tls_3_keys.application_iv) {
+        free(parameters->tls_3_keys.application_iv);
+    }
 }
 
 int tls_shutdown(int connection, TLSParameters* parameters) {
@@ -3173,6 +3286,9 @@ int tls_shutdown(int connection, TLSParameters* parameters) {
     }
     if (parameters->session_id) {
         free(parameters->session_id);
+    }
+    if (parameters->handshake_secret) {
+        free(parameters->handshake_secret);
     }
     free_protection_parameters(&parameters->active_send_parameters);
     free_protection_parameters(&parameters->active_recv_parameters);
