@@ -485,19 +485,18 @@ void init_protection_parameters(ProtectionParameters* parameters) {
     parameters->key = NULL;
     parameters->IV = NULL;
     parameters->seq_num = 0;
+    parameters->key_done = 0;
     parameters->suite = TLS_NULL_WITH_NULL_NULL;
-    parameters->tls_3_keys.handshake_key = NULL;
-    parameters->tls_3_keys.handshake_iv = NULL;
-    parameters->tls_3_keys.finished_key = NULL;
-    parameters->tls_3_keys.application_key = NULL;
-    parameters->tls_3_keys.application_iv = NULL;
+    parameters->tls3_keys.handshake_key = NULL;
+    parameters->tls3_keys.handshake_iv = NULL;
+    parameters->tls3_keys.finished_key = NULL;
+    parameters->tls3_keys.application_key = NULL;
+    parameters->tls3_keys.application_iv = NULL;
 }
 
 void init_parameters(TLSParameters* parameters) {
-    init_protection_parameters(&parameters->pending_send_parameters);
-    init_protection_parameters(&parameters->pending_recv_parameters);
-    init_protection_parameters(&parameters->active_send_parameters);
-    init_protection_parameters(&parameters->active_recv_parameters);
+    init_protection_parameters(&parameters->send_parameters);
+    init_protection_parameters(&parameters->recv_parameters);
     init_dh_tmp_key();
     init_dh_key();
     init_rsa_key();
@@ -596,7 +595,7 @@ void tls_prf(
     unsigned char* output,
     int out_len
 ) {
-    CipherSuite* send_suite = &(suites[parameters->pending_send_parameters.suite]);
+    CipherSuite* send_suite = &(suites[parameters->send_parameters.suite]);
 
     if (TLS_VERSION_MINOR >= 3) {
         if (send_suite->new_digest == new_sha384_digest) {
@@ -609,12 +608,11 @@ void tls_prf(
     }
 }
 
-int send_message(
+int send_tls2_message(
     int connection,
     int content_type,
     unsigned char* content,
     short content_len,
-    int skip_encrypt,
     ProtectionParameters* parameters
 ) {
     TLSPlaintext header;
@@ -634,7 +632,7 @@ int send_message(
     header.version.minor = TLS_VERSION_MINOR > 3 ? 3 : TLS_VERSION_MINOR;
     header.length = htons(content_len);
 
-    if (skip_encrypt == 1) {
+    if (parameters->key_done != 1) {
         send_buffer_size = content_len + 5;
         send_buffer = (unsigned char*)malloc(content_len + 5);
         send_buffer[0] = header.type;
@@ -796,6 +794,116 @@ int send_message(
     return 0;
 }
 
+void build_iv(unsigned char* iv, uint64_t seq) {
+    size_t i;
+    for (i = 0; i < 8; i++) {
+        iv[12 - 1 - i] ^= ((seq >> (i * 8)) & 0xFF);
+    }
+}
+
+int send_tls3_message(
+    int connection,
+    int content_type,
+    unsigned char* content,
+    short content_len,
+    ProtectionParameters* parameters
+) {
+    TLSPlaintext header;
+    unsigned char* send_buffer;
+    int send_buffer_size;
+    digest_ctx digest;
+    CipherSuite* active_suite;
+    active_suite = &suites[parameters->suite];
+
+    header.type = content_type;
+    header.version.major = TLS_VERSION_MAJOR;
+    header.version.minor = TLS_VERSION_MINOR > 3 ? 3 : TLS_VERSION_MINOR;
+    header.length = htons(content_len);
+
+    if (parameters->key_done != 1) {
+        send_buffer_size = content_len + 5;
+        send_buffer = (unsigned char*)malloc(content_len + 5);
+        send_buffer[0] = header.type;
+        send_buffer[1] = header.version.major;
+        send_buffer[2] = header.version.minor;
+        memcpy(send_buffer + 3, &header.length, sizeof(short));
+        memcpy(send_buffer + 5, content, content_len);
+
+        if (send(connection, (void*)send_buffer, send_buffer_size, 0) < send_buffer_size) {
+            return -1;
+        }
+
+        printf("send:%d", send_buffer_size);
+        printf(",msg_type:%d", content_type);
+        if (content_type == content_handshake) {
+            printf(",handshake_type:%d", content[0]);
+        }
+        printf("\n");
+
+        return 0;
+    }
+
+    unsigned char* application_iv = parameters->tls3_keys.application_iv ? parameters->tls3_keys.application_iv : parameters->tls3_keys.handshake_iv;
+    unsigned char* key = parameters->tls3_keys.application_key ? parameters->tls3_keys.application_key : parameters->tls3_keys.handshake_key;
+    unsigned char iv[active_suite->IV_size];
+
+    send_buffer_size = 5 + content_len + active_suite->block_size;
+    send_buffer = (unsigned char*)malloc(send_buffer_size);
+    header.length = htons(send_buffer_size - 5);
+    send_buffer[0] = header.type;
+    send_buffer[1] = header.version.major;
+    send_buffer[2] = header.version.minor;
+    memcpy(send_buffer + 3, &header.length, sizeof(short));
+
+    memcpy(iv, application_iv, active_suite->IV_size);
+    build_iv(iv, parameters->seq_num);
+
+    unsigned char* encrypted_buffer = (unsigned char*)malloc(send_buffer_size);
+    int un_enc_size = 5;
+    memcpy(encrypted_buffer, send_buffer, 5);
+
+    active_suite->aead_encrypt(
+        send_buffer + 5,
+        send_buffer_size - 5 - active_suite->block_size,
+        encrypted_buffer + 5,
+        iv,
+        send_buffer, 5,
+        key
+    );
+
+    if (send(connection, (void*)send_buffer, send_buffer_size, 0) < send_buffer_size) {
+        return -1;
+    }
+
+    printf("send:%d", send_buffer_size);
+    printf(",msg_type:%d", content_type);
+    if (content_type == content_handshake) {
+        printf(",handshake_type:%d", content[0]);
+    }
+    printf("\n");
+    // show_hex(send_buffer, send_buffer_size, 1);
+
+    parameters->seq_num++;
+
+    free(send_buffer);
+
+    return 0;
+}
+
+int send_message(
+    int connection,
+    int content_type,
+    unsigned char* content,
+    short content_len,
+    ProtectionParameters* parameters
+) {
+    if (TLS_VERSION_MINOR <= 3) {
+        return send_tls2_message(connection, content_type, content, content_len, parameters);
+    } else {
+        return send_tls3_message(connection, content_type, content, content_len, parameters);
+    }
+}
+
 int send_alert_message(
     int connection,
     int alert_code,
@@ -807,7 +915,7 @@ int send_alert_message(
     buffer[0] = fatal;
     buffer[1] = alert_code;
 
-    return send_message(connection, content_alert, buffer, 2, 0, parameters);
+    return send_message(connection, content_alert, buffer, 2, parameters);
 }
 
 int send_handshake_message(
@@ -821,6 +929,7 @@ int send_handshake_message(
     short          send_buffer_size;
     unsigned char* send_buffer;
     int            response;
+    int            skip_encrypt;
 
     record.msg_type = msg_type;
     record.length = htons(message_len) << 8; // To deal with 24-bits...
@@ -839,7 +948,7 @@ int send_handshake_message(
         update_digest(&parameters->sha1_handshake_digest, send_buffer, send_buffer_size);
     }
 
-    response = send_message(connection, content_handshake, send_buffer, send_buffer_size, 0, &parameters->active_send_parameters);
+    response = send_message(connection, content_handshake, send_buffer, send_buffer_size, &parameters->send_parameters);
 
     free(send_buffer);
 
@@ -853,7 +962,7 @@ secret computation, it's client random followed by server random).  Sheesh!
 */
 void calculate_keys(TLSParameters* parameters) {
     // XXX assuming send suite & recv suite will always be the same
-    CipherSuite* suite = &(suites[parameters->pending_send_parameters.suite]);
+    CipherSuite* suite = &(suites[parameters->send_parameters.suite]);
     unsigned char label[] = "key expansion";
     int key_block_length = suite->hash_size * 2 + suite->key_size * 2 + suite->IV_size * 2;
     int iv_fixed_len = suite->aead_encrypt ? 4 : suite->IV_size;
@@ -861,8 +970,8 @@ void calculate_keys(TLSParameters* parameters) {
     unsigned char* key_block = (unsigned char*)malloc(key_block_length);
     unsigned char* key_block_ptr;
 
-    ProtectionParameters* send_parameters = &parameters->pending_send_parameters;
-    ProtectionParameters* recv_parameters = &parameters->pending_recv_parameters;
+    ProtectionParameters* send_parameters = &parameters->send_parameters;
+    ProtectionParameters* recv_parameters = &parameters->recv_parameters;
 
     memcpy(seed, parameters->server_random, RANDOM_LENGTH);
     memcpy(seed + RANDOM_LENGTH, parameters->client_random, RANDOM_LENGTH);
@@ -1279,16 +1388,16 @@ unsigned char* parse_client_hello(
             printf("%0.4x ", hello.cipher_suites[i]);
         }
         // if (hello.cipher_suites[i] < MAX_SUPPORTED_CIPHER_SUITE && suites[hello.cipher_suites[i]].bulk_encrypt != NULL) {
-        //     parameters->pending_recv_parameters.suite = hello.cipher_suites[i];
-        //     parameters->pending_send_parameters.suite = hello.cipher_suites[i];
+        //     parameters->recv_parameters.suite = hello.cipher_suites[i];
+        //     parameters->send_parameters.suite = hello.cipher_suites[i];
         //     break;
         // }
     }
     printf("\n");
 
     // 0039 0038 0037 0036 0035 0033 0032 0031 0030 002f 0007 0005 0004 0016 0013 0010 000d 000a
-    parameters->pending_recv_parameters.suite = TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA;
-    parameters->pending_send_parameters.suite = TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA;
+    parameters->recv_parameters.suite = TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA;
+    parameters->send_parameters.suite = TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA;
 
     if (i == MAX_SUPPORTED_CIPHER_SUITE) {
         return NULL;
@@ -1314,7 +1423,7 @@ unsigned char* parse_client_hello(
 }
 
 void calculate_handshake_keys(TLSParameters* parameters) {
-    CipherSuite* send_suite = &(suites[parameters->pending_send_parameters.suite]);
+    CipherSuite* send_suite = &(suites[parameters->send_parameters.suite]);
     digest_ctx ctx;
     send_suite->new_digest(&ctx);
     unsigned char handshake_hash[ctx.result_size];
@@ -1350,9 +1459,9 @@ void calculate_handshake_keys(TLSParameters* parameters) {
     HKDF_expand_label(handshake_traffic_secret, ctx.result_size, (unsigned char*)"key", 3, NULL, 0, handshake_key, send_suite->key_size, ctx);
     HKDF_expand_label(handshake_traffic_secret, ctx.result_size, (unsigned char*)"iv", 2, NULL, 0, handshake_iv, send_suite->IV_size, ctx);
     HKDF_expand_label(handshake_traffic_secret, ctx.result_size, (unsigned char*)"finished", 8, NULL, 0, finished_key, ctx.result_size, ctx);
-    parameters->pending_send_parameters.tls_3_keys.handshake_key = handshake_key;
-    parameters->pending_send_parameters.tls_3_keys.handshake_iv = handshake_iv;
-    parameters->pending_send_parameters.tls_3_keys.finished_key = finished_key;
+    parameters->send_parameters.tls3_keys.handshake_key = handshake_key;
+    parameters->send_parameters.tls3_keys.handshake_iv = handshake_iv;
+    parameters->send_parameters.tls3_keys.finished_key = finished_key;
 
     if (connection_end_client == parameters->connection_end) {
         memcpy(traffic_label, (void*)"s hs traffic", 12);
@@ -1363,9 +1472,9 @@ void calculate_handshake_keys(TLSParameters* parameters) {
     HKDF_expand_label(handshake_traffic_secret, ctx.result_size, (unsigned char*)"key", 3, NULL, 0, handshake_key, send_suite->key_size, ctx);
     HKDF_expand_label(handshake_traffic_secret, ctx.result_size, (unsigned char*)"iv", 2, NULL, 0, handshake_iv, send_suite->IV_size, ctx);
     HKDF_expand_label(handshake_traffic_secret, ctx.result_size, (unsigned char*)"finished", 8, NULL, 0, finished_key, ctx.result_size, ctx);
-    parameters->pending_recv_parameters.tls_3_keys.handshake_key = handshake_key;
-    parameters->pending_recv_parameters.tls_3_keys.handshake_iv = handshake_iv;
-    parameters->pending_recv_parameters.tls_3_keys.finished_key = finished_key;
+    parameters->recv_parameters.tls3_keys.handshake_key = handshake_key;
+    parameters->recv_parameters.tls3_keys.handshake_iv = handshake_iv;
+    parameters->recv_parameters.tls3_keys.finished_key = finished_key;
 }
 
 int send_server_hello(int connection, TLSParameters* parameters) {
@@ -1391,7 +1500,7 @@ int send_server_hello(int connection, TLSParameters* parameters) {
     }
     memcpy(package.random.random_bytes, parameters->server_random + 4, 28);
     package.session_id_length = parameters->session_id_length ? parameters->session_id_length : 32;
-    package.cipher_suite = htons(parameters->pending_send_parameters.suite);
+    package.cipher_suite = htons(parameters->send_parameters.suite);
     package.compression_method = 0;
     ext_buffer = set_server_hello_extensions(&ext_len, parameters);
 
@@ -1466,8 +1575,8 @@ unsigned char* parse_server_hello(
 
     // TODO check that these values were actually in the client hello
     // list.  
-    parameters->pending_recv_parameters.suite = hello.cipher_suite;
-    parameters->pending_send_parameters.suite = hello.cipher_suite;
+    parameters->recv_parameters.suite = hello.cipher_suite;
+    parameters->send_parameters.suite = hello.cipher_suite;
 
     read_pos = read_buffer((void*)&hello.compression_method, (void*)read_pos, 1);
     if (hello.compression_method != 0) {
@@ -1518,7 +1627,7 @@ int send_certificate(int connection, TLSParameters* parameters) {
     short cert_len;
     char cert_url[200] = { 0 };
 
-    switch (parameters->pending_send_parameters.suite) {
+    switch (parameters->send_parameters.suite) {
     case TLS_DH_RSA_EXPORT_WITH_DES40_CBC_SHA:
     case TLS_DH_RSA_WITH_DES_CBC_SHA:
     case TLS_DH_RSA_WITH_3DES_EDE_CBC_SHA:
@@ -1706,7 +1815,7 @@ int send_client_key_exchange(int connection, TLSParameters* parameters) {
     unsigned char* premaster_secret;
     int premaster_secret_len;
 
-    switch (parameters->pending_send_parameters.suite) {
+    switch (parameters->send_parameters.suite) {
     case TLS_NULL_WITH_NULL_NULL:
         // XXX this is an error, exit here
         break;
@@ -1798,7 +1907,7 @@ unsigned char* parse_client_key_exchange(
     huge Yc;
     point pt;
 
-    switch (parameters->pending_send_parameters.suite) {
+    switch (parameters->send_parameters.suite) {
     case TLS_RSA_WITH_NULL_MD5: //RSA密钥交换
     case TLS_RSA_WITH_NULL_SHA:
     case TLS_RSA_EXPORT_WITH_RC4_40_MD5:
@@ -1813,7 +1922,7 @@ unsigned char* parse_client_key_exchange(
     case TLS_RSA_WITH_AES_256_CBC_SHA:
     case TLS_RSA_WITH_AES_128_GCM_SHA256:
     case TLS_RSA_WITH_AES_256_GCM_SHA384:
-        switch (parameters->pending_send_parameters.suite) {
+        switch (parameters->send_parameters.suite) {
         case TLS_RSA_EXPORT_WITH_RC4_40_MD5:
         case TLS_RSA_EXPORT_WITH_RC2_CBC_40_MD5:
         case TLS_RSA_EXPORT_WITH_DES40_CBC_SHA:
@@ -2403,7 +2512,7 @@ int send_server_key_exchange_with_ecdh(int connection, TLSParameters* parameters
 
 // Server key exchange message
 int send_server_key_exchange(int connection, TLSParameters* parameters) {
-    switch (parameters->pending_send_parameters.suite) {
+    switch (parameters->send_parameters.suite) {
     case TLS_DHE_RSA_EXPORT_WITH_DES40_CBC_SHA:
     case TLS_DHE_RSA_WITH_DES_CBC_SHA:
     case TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA:
@@ -2445,7 +2554,7 @@ void compute_handshake_hash(TLSParameters* parameters, unsigned char* handshake_
     digest_ctx tmp_sha1_handshake_digest;
     digest_ctx tmp_sha256_handshake_digest;
     digest_ctx tmp_sha384_handshake_digest;
-    CipherSuite* send_suite = &(suites[parameters->pending_send_parameters.suite]);
+    CipherSuite* send_suite = &(suites[parameters->send_parameters.suite]);
 
     if (TLS_VERSION_MINOR >= 3) {
         if (send_suite->new_digest == new_sha384_digest) {
@@ -2494,7 +2603,7 @@ void compute_verify_data(
     TLSParameters* parameters,
     unsigned char* verify_data
 ) {
-    CipherSuite* send_suite = &(suites[parameters->pending_send_parameters.suite]);
+    CipherSuite* send_suite = &(suites[parameters->send_parameters.suite]);
     int hash_bytes = TLS_VERSION_MINOR >= 3 ? (send_suite->new_digest == new_sha384_digest ? SHA384_BYTE_SIZE : SHA256_BYTE_SIZE) : MD5_BYTE_SIZE + SHA1_BYTE_SIZE;
     unsigned char handshake_hash[hash_bytes];
 
@@ -2512,19 +2621,16 @@ int send_change_cipher_spec(int connection, TLSParameters* parameters) {
     unsigned char send_buffer[1];
     send_buffer[0] = 1;
 
-    send_message(connection, content_change_cipher_spec, send_buffer, 1, 0, &parameters->active_send_parameters);
+    send_message(connection, content_change_cipher_spec, send_buffer, 1, &parameters->send_parameters);
 
-    // Per 6.1: The sequence number must be set to zero whenever a connection
-    // state is made the active state... the first record which is transmitted 
-    // under a particular connection state should use sequence number 0.
-    parameters->pending_send_parameters.seq_num = 0;
-    memcpy(&parameters->active_send_parameters, &parameters->pending_send_parameters, sizeof(ProtectionParameters));
+    parameters->send_parameters.seq_num = 0;
+    parameters->send_parameters.key_done = 1;
 
     return 1;
 }
 
 void calculate_application_keys(TLSParameters* parameters) {
-    CipherSuite* send_suite = &(suites[parameters->pending_send_parameters.suite]);
+    CipherSuite* send_suite = &(suites[parameters->send_parameters.suite]);
     digest_ctx ctx;
     send_suite->new_digest(&ctx);
     unsigned char handshake_hash[ctx.result_size];
@@ -2551,8 +2657,8 @@ void calculate_application_keys(TLSParameters* parameters) {
     HKDF_expand_label(master_secret, ctx.result_size, traffic_label, 12, handshake_hash, ctx.result_size, application_traffic_secret, ctx.result_size, ctx);
     HKDF_expand_label(application_traffic_secret, ctx.result_size, (unsigned char*)"key", 3, NULL, 0, application_key, send_suite->key_size, ctx);
     HKDF_expand_label(application_traffic_secret, ctx.result_size, (unsigned char*)"iv", 2, NULL, 0, application_iv, send_suite->IV_size, ctx);
-    parameters->pending_send_parameters.tls_3_keys.application_key = application_key;
-    parameters->pending_send_parameters.tls_3_keys.application_iv = application_iv;
+    parameters->send_parameters.tls3_keys.application_key = application_key;
+    parameters->send_parameters.tls3_keys.application_iv = application_iv;
 
     if (connection_end_client == parameters->connection_end) {
         memcpy(traffic_label, (void*)"s ap traffic", 12);
@@ -2562,20 +2668,41 @@ void calculate_application_keys(TLSParameters* parameters) {
     HKDF_expand_label(master_secret, ctx.result_size, traffic_label, 12, handshake_hash, ctx.result_size, application_traffic_secret, ctx.result_size, ctx);
     HKDF_expand_label(application_traffic_secret, ctx.result_size, (unsigned char*)"key", 3, NULL, 0, application_key, send_suite->key_size, ctx);
     HKDF_expand_label(application_traffic_secret, ctx.result_size, (unsigned char*)"iv", 2, NULL, 0, application_iv, send_suite->IV_size, ctx);
-    parameters->pending_recv_parameters.tls_3_keys.application_key = application_key;
-    parameters->pending_recv_parameters.tls_3_keys.application_iv = application_iv;
+    parameters->recv_parameters.tls3_keys.application_key = application_key;
+    parameters->recv_parameters.tls3_keys.application_iv = application_iv;
+}
+
+void compute_tls3_verify_data(unsigned char* finished_key, unsigned char* verify_data, TLSParameters* parameters) {
+    CipherSuite* send_suite = &(suites[parameters->send_parameters.suite]);
+    digest_ctx ctx;
+    send_suite->new_digest(&ctx);
+    unsigned char handshake_hash[ctx.result_size];
+
+    compute_handshake_hash(parameters, handshake_hash);
+    hmac(&ctx, finished_key, ctx.result_size, handshake_hash, ctx.result_size);
+    memcpy(verify_data, ctx.hash, ctx.result_size);
 }
 
 int send_finished(int connection, TLSParameters* parameters) {
-    unsigned char verify_data[VERIFY_DATA_LEN];
+    CipherSuite* send_suite = &(suites[parameters->send_parameters.suite]);
+    int verify_data_len = TLS_VERSION_MINOR <= 3 ? VERIFY_DATA_LEN : send_suite->hash_size;
+    unsigned char verify_data[64] = { 0 };
 
-    compute_verify_data(
-        parameters->connection_end == connection_end_client ? (unsigned char*)"client finished" : (unsigned char*)"server finished",
-        parameters, verify_data
-    );
+    if (TLS_VERSION_MINOR <= 3) {
+        compute_verify_data(
+            parameters->connection_end == connection_end_client ? (unsigned char*)"client finished" : (unsigned char*)"server finished",
+            parameters, verify_data
+        );
+    } else {
+        compute_tls3_verify_data(parameters->send_parameters.tls3_keys.finished_key, verify_data, parameters);
+    }
 
-    send_handshake_message(connection, finished, verify_data, VERIFY_DATA_LEN, parameters);
-    calculate_application_keys(parameters);
+    send_handshake_message(connection, finished, verify_data, verify_data_len, parameters);
+
+    if (TLS_VERSION_MINOR > 3) {
+        calculate_application_keys(parameters);
+        parameters->send_parameters.seq_num = 0;
+    }
 
     return 1;
 }
@@ -2585,16 +2712,21 @@ unsigned char* parse_finished(
     int pdu_length,
     TLSParameters* parameters
 ) {
-    unsigned char verify_data[VERIFY_DATA_LEN];
+    unsigned char verify_data[64] = { 0 }; //最大64字节
 
     parameters->peer_finished = 1;
 
-    compute_verify_data(
-        parameters->connection_end == connection_end_client ? (unsigned char*)"server finished" : (unsigned char*)"client finished",
-        parameters, verify_data
-    );
+    if (TLS_VERSION_MINOR <= 3) {
+        compute_verify_data(
+            parameters->connection_end == connection_end_client ? (unsigned char*)"server finished" : (unsigned char*)"client finished",
+            parameters, verify_data
+        );
+    } else {
+        compute_tls3_verify_data(parameters->recv_parameters.tls3_keys.finished_key, verify_data, parameters);
+        parameters->recv_parameters.seq_num = 0;
+    }
 
-    if (memcmp(read_pos, verify_data, VERIFY_DATA_LEN)) {
+    if (memcmp(read_pos, verify_data, 64)) {
         return NULL;
     }
 
@@ -2703,7 +2835,7 @@ void report_alert(Alert* alert) {
  * off the MAC if present as well as bulk cipher padding (if a block cipher
  * algorithm is being used).
  */
-int tls_decrypt(
+int tls2_decrypt(
     unsigned char* header, // needed for MAC verification
     unsigned char* encrypted_message,
     short encrypted_length,
@@ -2718,6 +2850,14 @@ int tls_decrypt(
     CipherSuite* active_suite = &(suites[parameters->suite]);
     unsigned char dec_msg[encrypted_length];
     unsigned char* buffer = dec_msg;
+
+    if (parameters->key_done != 1) {
+        decrypted_length = encrypted_length;
+        *decrypted_message = malloc(decrypted_length);
+        memcpy(*decrypted_message, encrypted_message, encrypted_length);
+
+        return decrypted_length;
+    }
 
     memset(dec_msg, 0, encrypted_length);
     if (active_suite->bulk_decrypt) {
@@ -2808,6 +2948,59 @@ int tls_decrypt(
     return decrypted_length;
 }
 
+int tls3_decrypt(
+    unsigned char* header,
+    unsigned char* encrypted_message,
+    short encrypted_length,
+    unsigned char** decrypted_message,
+    ProtectionParameters* parameters
+) {
+    short decrypted_length;
+    digest_ctx digest;
+    unsigned char* mac_buffer;
+    int sequence_number;
+    short length;
+    CipherSuite* active_suite = &(suites[parameters->suite]);
+    unsigned char dec_msg[encrypted_length];
+    unsigned char* application_iv = parameters->tls3_keys.application_iv ? parameters->tls3_keys.application_iv : parameters->tls3_keys.handshake_iv;
+    unsigned char* key = parameters->tls3_keys.application_key ? parameters->tls3_keys.application_key : parameters->tls3_keys.handshake_key;
+    unsigned char iv[active_suite->IV_size];
+
+    if (parameters->key_done != 1) {
+        decrypted_length = encrypted_length;
+        *decrypted_message = malloc(decrypted_length);
+        memcpy(*decrypted_message, encrypted_message, encrypted_length);
+        return 0;
+    }
+
+    memset(dec_msg, 0, encrypted_length);
+    memcpy(iv, application_iv, active_suite->IV_size);
+    build_iv(iv, parameters->seq_num);
+
+    if (active_suite->aead_decrypt(encrypted_message, encrypted_length, dec_msg, iv, header, 5, key)) {
+        return -1;
+    }
+
+    decrypted_length = encrypted_message - active_suite->block_size;
+    *decrypted_message = malloc(decrypted_length);
+    memcpy(*decrypted_message, dec_msg, decrypted_length);
+
+    return decrypted_length;
+}
+
+int tls_decrypt(
+    unsigned char* header, // needed for MAC verification
+    unsigned char* encrypted_message,
+    short encrypted_length,
+    unsigned char** decrypted_message,
+    ProtectionParameters* parameters
+) {
+    if (TLS_VERSION_MINOR <= 3) {
+        return tls2_decrypt(header, encrypted_message, encrypted_length, decrypted_message, parameters);
+    } else {
+        return tls3_decrypt(header, encrypted_message, encrypted_length, decrypted_message, parameters);
+    }
+}
 /**
  * Read a TLS packet off of the connection (assuming there's one waiting) and try
  * to update the security parameters based on the type of message received.  If
@@ -2865,7 +3058,7 @@ int receive_tls_msg(
                 int status;
                 perror("While reading a TLS packet");
 
-                if ((status = send_alert_message(connection, illegal_parameter, &parameters->active_send_parameters))) {
+                if ((status = send_alert_message(connection, illegal_parameter, &parameters->send_parameters))) {
                     free(msg_buf);
                     return status;
                 }
@@ -2887,15 +3080,15 @@ int receive_tls_msg(
         // in all cases, since decrypting also involves verifying a MAC (unless the 
         // active cipher spec is NULL_WITH_NULL_NULL).
         decrypted_message = NULL;
-        decrypted_length = tls_decrypt(header, encrypted_message, message.length, &decrypted_message, &parameters->active_recv_parameters);
+        decrypted_length = tls_decrypt(header, encrypted_message, message.length, &decrypted_message, &parameters->recv_parameters);
 
         free(encrypted_message);
 
         if (decrypted_length < 0) {
-            send_alert_message(connection, bad_record_mac, &parameters->active_send_parameters);
+            send_alert_message(connection, bad_record_mac, &parameters->send_parameters);
             return -1;
         }
-        parameters->active_recv_parameters.seq_num++;
+        parameters->recv_parameters.seq_num++;
     }
 
     read_pos = decrypted_message;
@@ -2921,7 +3114,7 @@ int receive_tls_msg(
                 if (read_pos == NULL)  /* error occurred */
                 {
                     free(msg_buf);
-                    send_alert_message(connection, illegal_parameter, &parameters->active_send_parameters);
+                    send_alert_message(connection, illegal_parameter, &parameters->send_parameters);
                     return -1;
                 }
                 break;
@@ -2929,7 +3122,7 @@ int receive_tls_msg(
                 read_pos = parse_x509_chain(read_pos, handshake.length, &parameters->server_public_key);
                 if (read_pos == NULL) {
                     printf("Rejected, bad certificate\n");
-                    send_alert_message(connection, bad_certificate, &parameters->active_send_parameters);
+                    send_alert_message(connection, bad_certificate, &parameters->send_parameters);
                     return -1;
                 }
                 break;
@@ -2940,14 +3133,14 @@ int receive_tls_msg(
             {
                 read_pos = parse_finished(read_pos, handshake.length, parameters);
                 if (read_pos == NULL) {
-                    send_alert_message(connection, illegal_parameter, &parameters->active_send_parameters);
+                    send_alert_message(connection, illegal_parameter, &parameters->send_parameters);
                     return -1;
                 }
             }
             break;
             case client_hello: // Server-side messages
                 if (parse_client_hello(read_pos, handshake.length, parameters) == NULL) {
-                    send_alert_message(connection, illegal_parameter, &parameters->active_send_parameters);
+                    send_alert_message(connection, illegal_parameter, &parameters->send_parameters);
                     return -1;
                 }
                 read_pos += handshake.length;
@@ -2955,7 +3148,7 @@ int receive_tls_msg(
             case client_key_exchange:
                 read_pos = parse_client_key_exchange(read_pos, handshake.length, parameters);
                 if (read_pos == NULL) {
-                    send_alert_message(connection, illegal_parameter, &parameters->active_send_parameters);
+                    send_alert_message(connection, illegal_parameter, &parameters->send_parameters);
                     return -1;
                 }
                 break;
@@ -2998,8 +3191,8 @@ int receive_tls_msg(
                 printf("Error - received message ChangeCipherSpec, but type != 1\n");
                 exit(0);
             } else {
-                parameters->pending_recv_parameters.seq_num = 0;
-                memcpy(&parameters->active_recv_parameters, &parameters->pending_recv_parameters, sizeof(ProtectionParameters));
+                parameters->recv_parameters.seq_num = 0;
+                parameters->recv_parameters.key_done = 1;
             }
         }
     } else if (message.type == content_application_data) {
@@ -3077,7 +3270,7 @@ int tls_connect(int connection, TLSParameters* parameters) {
     return 0;
 }
 
-int tls_accept_1_2(int connection, TLSParameters* parameters) {
+int tls2_accept(int connection, TLSParameters* parameters) {
     int is_resume = 0;
 
     // The client sends the first message
@@ -3085,7 +3278,7 @@ int tls_accept_1_2(int connection, TLSParameters* parameters) {
     while (!parameters->got_client_hello) {
         if (receive_tls_msg(connection, NULL, 0, parameters) < 0) {
             perror("Unable to receive client hello");
-            send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
+            send_alert_message(connection, handshake_failure, &parameters->send_parameters);
             return 1;
         }
     }
@@ -3099,7 +3292,7 @@ int tls_accept_1_2(int connection, TLSParameters* parameters) {
 #endif
 
     if (send_server_hello(connection, parameters)) {
-        send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
+        send_alert_message(connection, handshake_failure, &parameters->send_parameters);
         return 2;
     }
 
@@ -3110,13 +3303,13 @@ int tls_accept_1_2(int connection, TLSParameters* parameters) {
         calculate_keys(parameters);
         if (!(send_change_cipher_spec(connection, parameters))) {
             perror("Unable to send client change cipher spec");
-            send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
+            send_alert_message(connection, handshake_failure, &parameters->send_parameters);
             return 6;
         }
 
         if (!(send_finished(connection, parameters))) {
             perror("Unable to send client finished");
-            send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
+            send_alert_message(connection, handshake_failure, &parameters->send_parameters);
             return 7;
         }
 
@@ -3124,23 +3317,23 @@ int tls_accept_1_2(int connection, TLSParameters* parameters) {
         while (!parameters->peer_finished) {
             if (receive_tls_msg(connection, NULL, 0, parameters) < 0) {
                 perror("Unable to receive client finished");
-                send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
+                send_alert_message(connection, handshake_failure, &parameters->send_parameters);
                 return 5;
             }
         }
     } else {
         if (send_certificate(connection, parameters)) {
-            send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
+            send_alert_message(connection, handshake_failure, &parameters->send_parameters);
             return 3;
         }
 
         if (send_server_key_exchange(connection, parameters)) {
-            send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
+            send_alert_message(connection, handshake_failure, &parameters->send_parameters);
             return 2;
         }
 
         if (send_server_hello_done(connection, parameters)) {
-            send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
+            send_alert_message(connection, handshake_failure, &parameters->send_parameters);
             return 4;
         }
 
@@ -3148,7 +3341,7 @@ int tls_accept_1_2(int connection, TLSParameters* parameters) {
         while (!parameters->peer_finished) {
             if (receive_tls_msg(connection, NULL, 0, parameters) < 0) {
                 perror("Unable to receive client finished");
-                send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
+                send_alert_message(connection, handshake_failure, &parameters->send_parameters);
                 return 5;
             }
         }
@@ -3160,55 +3353,55 @@ int tls_accept_1_2(int connection, TLSParameters* parameters) {
 #endif
         if (!(send_change_cipher_spec(connection, parameters))) {
             perror("Unable to send client change cipher spec");
-            send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
+            send_alert_message(connection, handshake_failure, &parameters->send_parameters);
             return 6;
         }
 
         if (!(send_finished(connection, parameters))) {
             perror("Unable to send client finished");
-            send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
+            send_alert_message(connection, handshake_failure, &parameters->send_parameters);
             return 7;
         }
 
 #ifdef USE_SESSION_ID
         remember_session(parameters);
 #endif
-        }
+    }
 
     // Handshake is complete; now ready to start sending encrypted data
     return 0;
-    }
+}
 
-int tls_accept_1_3(int connection, TLSParameters* parameters) {
+int tls3_accept(int connection, TLSParameters* parameters) {
     // The client sends the first message
     parameters->got_client_hello = 0;
     while (!parameters->got_client_hello) {
         if (receive_tls_msg(connection, NULL, 0, parameters) < 0) {
             perror("Unable to receive client hello");
-            send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
+            send_alert_message(connection, handshake_failure, &parameters->send_parameters);
             return 1;
         }
     }
 
     if (send_server_hello(connection, parameters)) {
-        send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
+        send_alert_message(connection, handshake_failure, &parameters->send_parameters);
         return 2;
     }
 
     if (send_certificate(connection, parameters)) {
-        send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
+        send_alert_message(connection, handshake_failure, &parameters->send_parameters);
         return 3;
     }
 
     if (!(send_change_cipher_spec(connection, parameters))) {
         perror("Unable to send client change cipher spec");
-        send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
+        send_alert_message(connection, handshake_failure, &parameters->send_parameters);
         return 6;
     }
 
     if (!(send_finished(connection, parameters))) {
         perror("Unable to send client finished");
-        send_alert_message(connection, handshake_failure, &parameters->active_send_parameters);
+        send_alert_message(connection, handshake_failure, &parameters->send_parameters);
         return 7;
     }
 
@@ -3225,18 +3418,19 @@ int tls_accept(int connection, TLSParameters* parameters) {
     new_sha384_digest(&parameters->sha384_handshake_digest);
 
     if (TLS_VERSION_MINOR <= 3) {
-        return tls_accept_1_2(connection, parameters);
+        return tls2_accept(connection, parameters);
     } else {
-        return tls_accept_1_3(connection, parameters);
+        return tls3_accept(connection, parameters);
     }
 }
+
 int tls_send(int connection,
     unsigned char* application_data,
     int length,
     int options,
     TLSParameters* parameters
 ) {
-    send_message(connection, content_application_data, application_data, length, 0, &parameters->active_send_parameters);
+    send_message(connection, content_application_data, application_data, length, &parameters->send_parameters);
     return length;
 }
 
@@ -3259,25 +3453,25 @@ void free_protection_parameters(ProtectionParameters* parameters) {
     if (parameters->IV) {
         free(parameters->IV);
     }
-    if (parameters->tls_3_keys.handshake_key) {
-        free(parameters->tls_3_keys.handshake_key);
+    if (parameters->tls3_keys.handshake_key) {
+        free(parameters->tls3_keys.handshake_key);
     }
-    if (parameters->tls_3_keys.handshake_iv) {
-        free(parameters->tls_3_keys.handshake_iv);
+    if (parameters->tls3_keys.handshake_iv) {
+        free(parameters->tls3_keys.handshake_iv);
     }
-    if (parameters->tls_3_keys.finished_key) {
-        free(parameters->tls_3_keys.finished_key);
+    if (parameters->tls3_keys.finished_key) {
+        free(parameters->tls3_keys.finished_key);
     }
-    if (parameters->tls_3_keys.application_key) {
-        free(parameters->tls_3_keys.application_key);
+    if (parameters->tls3_keys.application_key) {
+        free(parameters->tls3_keys.application_key);
     }
-    if (parameters->tls_3_keys.application_iv) {
-        free(parameters->tls_3_keys.application_iv);
+    if (parameters->tls3_keys.application_iv) {
+        free(parameters->tls3_keys.application_iv);
     }
 }
 
 int tls_shutdown(int connection, TLSParameters* parameters) {
-    send_alert_message(connection, close_notify, &parameters->active_send_parameters);
+    send_alert_message(connection, close_notify, &parameters->send_parameters);
     if (parameters->unread_buffer) {
         free(parameters->unread_buffer);
     }
@@ -3290,8 +3484,8 @@ int tls_shutdown(int connection, TLSParameters* parameters) {
     if (parameters->handshake_secret) {
         free(parameters->handshake_secret);
     }
-    free_protection_parameters(&parameters->active_send_parameters);
-    free_protection_parameters(&parameters->active_recv_parameters);
+    free_protection_parameters(&parameters->send_parameters);
+    free_protection_parameters(&parameters->recv_parameters);
 
     return 1;
 }

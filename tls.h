@@ -133,7 +133,8 @@ typedef struct {
 	unsigned char* IV;
 	CipherSuiteIdentifier suite;
 	unsigned long  seq_num;
-	Tls3Keys tls_3_keys;
+	Tls3Keys tls3_keys;
+	int key_done; //密钥是否协商完成
 }
 ProtectionParameters;
 
@@ -154,10 +155,8 @@ typedef struct {
 	random_type           client_random;
 	random_type           server_random;
 
-	ProtectionParameters  pending_send_parameters;
-	ProtectionParameters  pending_recv_parameters;
-	ProtectionParameters  active_send_parameters;
-	ProtectionParameters  active_recv_parameters;
+	ProtectionParameters  send_parameters;
+	ProtectionParameters  recv_parameters;
 
 	// RSA public key, if supplied
 	public_key_info       server_public_key;
