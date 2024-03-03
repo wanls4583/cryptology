@@ -1152,7 +1152,7 @@ int send_tls3_message(
     header.version.minor = TLS_VERSION_MINOR > 3 ? 3 : TLS_VERSION_MINOR;
     header.length = htons(content_len);
 
-    if (parameters->key_done != 1) {
+    if (parameters->key_done == 0) {
         send_buffer_size = content_len + 5;
         send_buffer = (unsigned char*)malloc(content_len + 5);
         send_buffer[0] = header.type;
@@ -1182,8 +1182,8 @@ int send_tls3_message(
     content_len += 1;
     header.type = content_application_data;
 
-    unsigned char* application_iv = parameters->tls3_keys.application_iv ? parameters->tls3_keys.application_iv : parameters->tls3_keys.handshake_iv;
-    unsigned char* key = parameters->tls3_keys.application_key ? parameters->tls3_keys.application_key : parameters->tls3_keys.handshake_key;
+    unsigned char* application_iv = parameters->key_done == 2 ? parameters->tls3_keys.application_iv : parameters->tls3_keys.handshake_iv;
+    unsigned char* key = parameters->key_done == 2 ? parameters->tls3_keys.application_key : parameters->tls3_keys.handshake_key;
     unsigned char iv[active_suite->IV_size];
 
     // printf("key:");
@@ -2868,16 +2868,10 @@ int send_finished(int connection, TLSParameters* parameters) {
     if (TLS_VERSION_MINOR > 3) {
         calculate_application_keys(parameters);
         parameters->send_parameters.seq_num = 0;
+        parameters->send_parameters.key_done = 2;
     }
 
     return 1;
-}
-
-int send_server_pong(int connection, TLSParameters* parameters) {
-    unsigned char send_bufer[4] = { 0x70, 0x6f, 0x6e, 0x67 };
-    int send_buffer_size = 4;
-
-    return send_message(connection, content_application_data, send_bufer, send_buffer_size, &parameters->send_parameters);
 }
 
 unsigned char* parse_finished(
@@ -2899,6 +2893,7 @@ unsigned char* parse_finished(
     } else {
         compute_tls3_verify_data(parameters->recv_parameters.tls3_keys.finished_key, verify_data, parameters);
         parameters->recv_parameters.seq_num = 0;
+        parameters->recv_parameters.key_done = 2;
     }
 
     if (memcmp(read_pos, verify_data, verify_data_len)) {
@@ -3137,11 +3132,11 @@ int tls3_decrypt(
     short length;
     CipherSuite* active_suite = &(suites[parameters->suite]);
     unsigned char dec_msg[encrypted_length];
-    unsigned char* application_iv = parameters->tls3_keys.application_iv ? parameters->tls3_keys.application_iv : parameters->tls3_keys.handshake_iv;
-    unsigned char* key = parameters->tls3_keys.application_key ? parameters->tls3_keys.application_key : parameters->tls3_keys.handshake_key;
+    unsigned char* application_iv = parameters->key_done == 2 ? parameters->tls3_keys.application_iv : parameters->tls3_keys.handshake_iv;
+    unsigned char* key = parameters->key_done == 2 ? parameters->tls3_keys.application_key : parameters->tls3_keys.handshake_key;
     unsigned char iv[active_suite->IV_size];
 
-    if (parameters->key_done != 1) {
+    if (parameters->key_done == 0) {
         decrypted_length = encrypted_length;
         *decrypted_message = malloc(decrypted_length);
         memcpy(*decrypted_message, encrypted_message, encrypted_length);
@@ -3245,13 +3240,6 @@ int receive_tls_msg(
             msg_buf += bytes_read;
         }
 
-        printf("recv:%d", message.length);
-        printf(",msg_type:%d", message.type);
-        if (message.type != content_handshake) {
-            printf("\n");
-        }
-        // show_hex(encrypted_message, message.length, 1);
-
         // If a cipherspec is active, all of "encrypted_message" will be encrypted.  
         // Must decrypt it before continuing.  This will change the message length 
         // in all cases, since decrypting also involves verifying a MAC (unless the 
@@ -3259,6 +3247,13 @@ int receive_tls_msg(
         decrypted_message = NULL;
         decrypted_length = tls_decrypt(header, encrypted_message, message.length, &decrypted_message, &parameters->recv_parameters);
         message.type = header[0]; //tls3中真实record type藏在数据尾部最后一个字节
+
+        printf("recv:%d", message.length);
+        printf(",msg_type:%d", message.type);
+        if (message.type != content_handshake) {
+            printf("\n");
+        }
+        // show_hex(encrypted_message, message.length, 1);
 
         free(encrypted_message);
 
@@ -3377,17 +3372,11 @@ int receive_tls_msg(
         if (decrypted_length <= bufsz) {
             memcpy(buffer, decrypted_message, decrypted_length);
         } else {
-            unsigned char ping[4] = { 0x70, 0x69, 0x6e, 0x67 };
-            if (TLS_VERSION_MINOR >= 4 && !memcmp(decrypted_message, ping, 4)) {
-                parameters->peer_ping = 1;
-            } else {
-                memcpy(buffer, decrypted_message, bufsz);
-                parameters->unread_length = decrypted_length - bufsz;
-                parameters->unread_buffer = malloc(parameters->unread_length);
-                memcpy(parameters->unread_buffer, decrypted_message + bufsz, parameters->unread_length);
-                decrypted_length = bufsz;
-            }
-
+            memcpy(buffer, decrypted_message, bufsz);
+            parameters->unread_length = decrypted_length - bufsz;
+            parameters->unread_buffer = malloc(parameters->unread_length);
+            memcpy(parameters->unread_buffer, decrypted_message + bufsz, parameters->unread_length);
+            decrypted_length = bufsz;
         }
     } else {
         // Ignore content types not understood, per section 6 of the RFC.
@@ -3530,7 +3519,7 @@ int tls2_accept(int connection, TLSParameters* parameters) {
 #ifdef USE_SESSION_TICKET
         if (parameters->session_ticket_length == 0) {
             send_server_session_ticket(connection, parameters);
-        }
+    }
 #endif
         if (!(send_change_cipher_spec(connection, parameters))) {
             perror("Unable to send client change cipher spec");
@@ -3547,7 +3536,7 @@ int tls2_accept(int connection, TLSParameters* parameters) {
 #ifdef USE_SESSION_ID
         remember_session(parameters);
 #endif
-    }
+}
 
     // Handshake is complete; now ready to start sending encrypted data
     return 0;
@@ -3606,17 +3595,6 @@ int tls3_accept(int connection, TLSParameters* parameters) {
             return 8;
         }
     }
-
-    parameters->peer_ping = 0;
-    while (!parameters->peer_ping) {
-        if (receive_tls_msg(connection, NULL, 0, parameters) < 0) {
-            perror("Unable to receive client ping");
-            send_alert_message(connection, handshake_failure, &parameters->send_parameters);
-            return 9;
-        }
-    }
-
-    send_server_pong(connection, parameters);
 
     return 0;
 }
