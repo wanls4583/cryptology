@@ -1971,10 +1971,11 @@ int send_server_certificate_verify(int connection, TLSParameters* parameters) {
     new_sha256_digest(&sha256);
 
     unsigned char handshake_hash[ctx.result_size];
-    int sign_in_len = 64 + 33 + 1 + ctx.result_size;
-    unsigned char content[sign_in_len];
+    int content_len = 64 + 33 + 1 + ctx.result_size;
+    unsigned char content[content_len];
     unsigned char* pos = content;
-    unsigned char sign_input[sha256.result_size];
+    int sign_in_len = sha256.result_size;
+    unsigned char sign_input[sign_in_len];
 
     compute_handshake_hash(parameters, handshake_hash);
     memset(pos, 0x20, 64);
@@ -1986,7 +1987,7 @@ int send_server_certificate_verify(int connection, TLSParameters* parameters) {
     memcpy(pos, handshake_hash, ctx.result_size);
     pos += ctx.result_size;
 
-    digest_hash(&sha256, content, sign_in_len);
+    digest_hash(&sha256, content, content_len);
     memcpy(sign_input, sha256.hash, sha256.result_size);
 
     int pre_len = sizeof(SHA_256_DER_PRE);
@@ -3550,7 +3551,7 @@ int tls2_accept(int connection, TLSParameters* parameters) {
 
     // Handshake is complete; now ready to start sending encrypted data
     return 0;
-    }
+}
 
 int tls3_accept(int connection, TLSParameters* parameters) {
     // The client sends the first message
