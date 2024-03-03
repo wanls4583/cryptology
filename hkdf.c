@@ -164,7 +164,7 @@ void test1() {
     show_hex(out, 42, 1);
 }
 
-void build_iv(unsigned char* iv, uint64_t seq) {
+static void build_iv(unsigned char* iv, uint64_t seq) {
     size_t i;
     for (i = 0; i < 8; i++) {
         iv[12 - 1 - i] ^= ((seq >> (i * 8)) & 0xFF);

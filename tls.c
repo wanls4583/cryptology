@@ -31,12 +31,17 @@
 #define VERIFY_DATA_LEN 12
 
 // session_id 和 session_ticket 机制不能同时启用
-// #ifndef USE_SESSION_ID
-// #define USE_SESSION_TICKET
-// #endif
+#ifndef USE_SESSION_ID
+#define USE_SESSION_TICKET
+#endif
 
 #ifndef USE_SESSION_TICKET
 #define USE_SESSION_ID
+#endif
+
+#if TLS_VERSION_MINOR >= 4
+#undef USE_SESSION_TICKET
+#undef USE_SESSION_ID
 #endif
 
 extern unsigned char SECP256R1_OID[8];
@@ -57,8 +62,15 @@ static unsigned char SUPPORT_VERSION_EXT[] = { 0x00, 0x2b };
 static unsigned char RENEGOTIATE_INF_EXT[] = { 0xff, 0x01 };
 static unsigned char session_key[] = { 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01 };
 
-
 static session_and_master stored_sessions[100];
+
+int tls3_decrypt(
+    unsigned char* header,
+    unsigned char* encrypted_message,
+    short encrypted_length,
+    unsigned char** decrypted_message,
+    ProtectionParameters* parameters
+);
 
 void set_data(unsigned char* target, unsigned char* str) {
     int length;
@@ -361,6 +373,9 @@ void init_ciphers() {
     suites[TLS_RSA_WITH_AES_128_GCM_SHA256].aead_encrypt = (aead_encrypt_func)aes_128_gcm_encrypt;
     suites[TLS_RSA_WITH_AES_128_GCM_SHA256].aead_decrypt = (aead_decrypt_func)aes_128_gcm_decrypt;
 
+    memcpy(&suites[TLS_AES_128_GCM_SHA256], &suites[TLS_RSA_WITH_AES_128_GCM_SHA256], sizeof(CipherSuite));
+    suites[TLS_AES_128_GCM_SHA256].hash_size = SHA256_BYTE_SIZE;
+
     suites[TLS_RSA_WITH_AES_256_GCM_SHA384].id = TLS_RSA_WITH_AES_256_GCM_SHA384;
     suites[TLS_RSA_WITH_AES_256_GCM_SHA384].min_version = 3;
     suites[TLS_RSA_WITH_AES_256_GCM_SHA384].block_size = 16;
@@ -372,6 +387,9 @@ void init_ciphers() {
     suites[TLS_RSA_WITH_AES_256_GCM_SHA384].new_digest = new_sha384_digest;
     suites[TLS_RSA_WITH_AES_256_GCM_SHA384].aead_encrypt = (aead_encrypt_func)aes_256_gcm_encrypt;
     suites[TLS_RSA_WITH_AES_256_GCM_SHA384].aead_decrypt = (aead_decrypt_func)aes_256_gcm_decrypt;
+
+    memcpy(&suites[TLS_AES_256_GCM_SHA384], &suites[TLS_RSA_WITH_AES_256_GCM_SHA384], sizeof(CipherSuite));
+    suites[TLS_AES_256_GCM_SHA384].hash_size = SHA384_BYTE_SIZE;
 
     suites[TLS_ECDH_RSA_WITH_AES_128_CBC_SHA].id = TLS_ECDH_RSA_WITH_AES_128_CBC_SHA;
     suites[TLS_ECDH_RSA_WITH_AES_128_CBC_SHA].min_version = 3;
@@ -517,6 +535,7 @@ void init_parameters(TLSParameters* parameters) {
     parameters->got_client_hello = 0;
     parameters->server_hello_done = 0;
     parameters->peer_finished = 0;
+    parameters->peer_ping = 0;
 
     parameters->session_ticket = NULL;
     parameters->session_ticket_length = 0;
@@ -628,7 +647,7 @@ void calculate_handshake_keys(TLSParameters* parameters) {
     CipherSuite* send_suite = &(suites[parameters->send_parameters.suite]);
     digest_ctx ctx;
     send_suite->new_digest(&ctx);
-    unsigned char handshake_hash[ctx.result_size];
+    unsigned char* handshake_hash = (unsigned char*)malloc(ctx.result_size);
 
     unsigned char* shared_secret;
     unsigned char zero_key[ctx.result_size];
@@ -657,6 +676,7 @@ void calculate_handshake_keys(TLSParameters* parameters) {
     } else {
         memcpy(traffic_label, (void*)"s hs traffic", 12);
     }
+
     HKDF_expand_label(handshake_secret, ctx.result_size, traffic_label, 12, handshake_hash, ctx.result_size, handshake_traffic_secret, ctx.result_size, ctx);
     HKDF_expand_label(handshake_traffic_secret, ctx.result_size, (unsigned char*)"key", 3, NULL, 0, handshake_key, send_suite->key_size, ctx);
     HKDF_expand_label(handshake_traffic_secret, ctx.result_size, (unsigned char*)"iv", 2, NULL, 0, handshake_iv, send_suite->IV_size, ctx);
@@ -665,11 +685,23 @@ void calculate_handshake_keys(TLSParameters* parameters) {
     parameters->send_parameters.tls3_keys.handshake_iv = handshake_iv;
     parameters->send_parameters.tls3_keys.finished_key = finished_key;
 
+    // printf("handshake_key:");
+    // show_hex(parameters->send_parameters.tls3_keys.handshake_key, send_suite->key_size, 1);
+    // printf("handshake_iv:");
+    // show_hex(parameters->send_parameters.tls3_keys.handshake_iv, send_suite->IV_size, 1);
+    // printf("finished_key:");
+    // show_hex(parameters->send_parameters.tls3_keys.finished_key, ctx.result_size, 1);
+
     if (connection_end_client == parameters->connection_end) {
         memcpy(traffic_label, (void*)"s hs traffic", 12);
     } else {
         memcpy(traffic_label, (void*)"c hs traffic", 12);
     }
+
+    handshake_key = (unsigned char*)malloc(send_suite->key_size);
+    handshake_iv = (unsigned char*)malloc(send_suite->IV_size);
+    finished_key = (unsigned char*)malloc(send_suite->hash_size);
+
     HKDF_expand_label(handshake_secret, ctx.result_size, traffic_label, 12, handshake_hash, ctx.result_size, handshake_traffic_secret, ctx.result_size, ctx);
     HKDF_expand_label(handshake_traffic_secret, ctx.result_size, (unsigned char*)"key", 3, NULL, 0, handshake_key, send_suite->key_size, ctx);
     HKDF_expand_label(handshake_traffic_secret, ctx.result_size, (unsigned char*)"iv", 2, NULL, 0, handshake_iv, send_suite->IV_size, ctx);
@@ -677,6 +709,13 @@ void calculate_handshake_keys(TLSParameters* parameters) {
     parameters->recv_parameters.tls3_keys.handshake_key = handshake_key;
     parameters->recv_parameters.tls3_keys.handshake_iv = handshake_iv;
     parameters->recv_parameters.tls3_keys.finished_key = finished_key;
+
+    // printf("handshake_key:");
+    // show_hex(parameters->recv_parameters.tls3_keys.handshake_key, send_suite->key_size, 1);
+    // printf("handshake_iv:");
+    // show_hex(parameters->recv_parameters.tls3_keys.handshake_iv, send_suite->IV_size, 1);
+    // printf("finished_key:");
+    // show_hex(parameters->recv_parameters.tls3_keys.finished_key, ctx.result_size, 1);
 }
 
 void calculate_application_keys(TLSParameters* parameters) {
@@ -704,6 +743,7 @@ void calculate_application_keys(TLSParameters* parameters) {
     } else {
         memcpy(traffic_label, (void*)"s ap traffic", 12);
     }
+
     HKDF_expand_label(master_secret, ctx.result_size, traffic_label, 12, handshake_hash, ctx.result_size, application_traffic_secret, ctx.result_size, ctx);
     HKDF_expand_label(application_traffic_secret, ctx.result_size, (unsigned char*)"key", 3, NULL, 0, application_key, send_suite->key_size, ctx);
     HKDF_expand_label(application_traffic_secret, ctx.result_size, (unsigned char*)"iv", 2, NULL, 0, application_iv, send_suite->IV_size, ctx);
@@ -715,6 +755,10 @@ void calculate_application_keys(TLSParameters* parameters) {
     } else {
         memcpy(traffic_label, (void*)"c ap traffic", 12);
     }
+
+    application_key = (unsigned char*)malloc(send_suite->key_size);
+    application_iv = (unsigned char*)malloc(send_suite->IV_size);
+
     HKDF_expand_label(master_secret, ctx.result_size, traffic_label, 12, handshake_hash, ctx.result_size, application_traffic_secret, ctx.result_size, ctx);
     HKDF_expand_label(application_traffic_secret, ctx.result_size, (unsigned char*)"key", 3, NULL, 0, application_key, send_suite->key_size, ctx);
     HKDF_expand_label(application_traffic_secret, ctx.result_size, (unsigned char*)"iv", 2, NULL, 0, application_iv, send_suite->IV_size, ctx);
@@ -1120,9 +1164,21 @@ int send_tls3_message(
         return 0;
     }
 
+    unsigned char* tmp = (unsigned char*)malloc(content_len + 1);
+    memcpy(tmp, content, content_len);
+    tmp[content_len] = parameters->tls3_keys.application_key ? 0x17 : 0x16; //tls3中，最后一个字节代表了真实record type
+    content = tmp;
+    content_len += 1;
+    header.type = content_application_data;
+
     unsigned char* application_iv = parameters->tls3_keys.application_iv ? parameters->tls3_keys.application_iv : parameters->tls3_keys.handshake_iv;
     unsigned char* key = parameters->tls3_keys.application_key ? parameters->tls3_keys.application_key : parameters->tls3_keys.handshake_key;
     unsigned char iv[active_suite->IV_size];
+
+    // printf("key:");
+    // show_hex(key, active_suite->key_size, 1);
+    // printf("iv:");
+    // show_hex(application_iv, active_suite->IV_size, 1);
 
     send_buffer_size = 5 + content_len + active_suite->block_size;
     send_buffer = (unsigned char*)malloc(send_buffer_size);
@@ -1131,6 +1187,7 @@ int send_tls3_message(
     send_buffer[1] = header.version.major;
     send_buffer[2] = header.version.minor;
     memcpy(send_buffer + 3, &header.length, sizeof(short));
+    memcpy(send_buffer + 5, content, content_len);
 
     memcpy(iv, application_iv, active_suite->IV_size);
     build_iv(iv, parameters->seq_num);
@@ -1147,10 +1204,21 @@ int send_tls3_message(
         send_buffer, 5,
         key
     );
+    free(send_buffer);
+    send_buffer = encrypted_buffer;
 
     if (send(connection, (void*)send_buffer, send_buffer_size, 0) < send_buffer_size) {
         return -1;
     }
+
+    // printf("plaintext:");
+    // show_hex(content, content_len, 1);
+    // printf("encrypt:");
+    // show_hex(send_buffer, send_buffer_size, 1);
+    // unsigned char* decrypted_message;
+    // int decrypted_length = tls3_decrypt(send_buffer, send_buffer + 5, send_buffer_size - 5, &decrypted_message, parameters);
+    // printf("decrypt:");
+    // show_hex(decrypted_message, decrypted_length, 1);
 
     printf("send:%d", send_buffer_size);
     printf(",msg_type:%d", content_type);
@@ -1324,11 +1392,13 @@ unsigned char* set_server_hello_extensions(int* length, TLSParameters* parameter
     int item_ext_len = 0;
     *length = 0;
 
-    item_ext_buffer = set_renegotiat_extension(&item_ext_len);
-    if (item_ext_buffer) {
-        ext_len += item_ext_len;
-        ext_buffer = malloc(ext_len + 2);
-        memcpy(ext_buffer + ext_len + 2 - item_ext_len, item_ext_buffer, item_ext_len);
+    if (TLS_VERSION_MINOR == 3) {
+        item_ext_buffer = set_renegotiat_extension(&item_ext_len);
+        if (item_ext_buffer) {
+            ext_len += item_ext_len;
+            ext_buffer = malloc(ext_len + 2);
+            memcpy(ext_buffer + ext_len + 2 - item_ext_len, item_ext_buffer, item_ext_len);
+        }
     }
 
 #ifdef USE_SESSION_TICKET
@@ -1498,11 +1568,17 @@ unsigned char* parse_client_hello_extensions(
                 if (!memcmp(group, KEY_SHARE_GROUP_X25519, 2)) {
                     get_named_curve("x25519", &curve);
                     huge_load(&pub, read_pos, key_len);
-                    // printf("key_share:\n");
-                    // show_hex(pub.rep, pub.size, HUGE_WORD_BYTES);
                     huge_reverse(&pub);
+                    // printf("pub:");
+                    // show_hex(pub.rep, pub.size, HUGE_WORD_BYTES);
+                    multiply_25519(&pub, &private_ecc_25519_key.d, &private_ecc_25519_key.curve.p);
+                    huge_reverse(&pub);
+                    // printf("private_key:");
+                    // show_hex(private_ecc_25519_key.d.rep, private_ecc_25519_key.d.size, HUGE_WORD_BYTES);
                     huge_set(&parameters->key_share, 0);
                     huge_copy(&parameters->key_share, &pub);
+                    // printf("secret:");
+                    // show_hex(parameters->key_share.rep, parameters->key_share.size, HUGE_WORD_BYTES);
                 }
             }
 
@@ -1535,6 +1611,11 @@ unsigned char* parse_client_hello(
         hello.session_id = (unsigned char*)malloc(hello.session_id_length);
         read_pos = read_buffer((void*)hello.session_id, (void*)read_pos, hello.session_id_length);
 
+#if TLS_VERSION_MINOR == 4
+        parameters->session_id_length = hello.session_id_length;
+        parameters->session_id = (unsigned char*)malloc(parameters->session_id_length);
+        memcpy(parameters->session_id, hello.session_id, parameters->session_id_length);
+#else
 #ifdef USE_SESSION_TICKET
         // 对于session_ticket机制来说，需要原样返回客户端传过来的session_id
         parameters->session_id_length = hello.session_id_length;
@@ -1546,6 +1627,7 @@ unsigned char* parse_client_hello(
         parameters->session_id = (unsigned char*)malloc(parameters->session_id_length);
         memcpy(parameters->session_id, hello.session_id, parameters->session_id_length);
         find_stored_session(parameters);
+#endif
 #endif
 #endif
     }
@@ -1573,8 +1655,8 @@ unsigned char* parse_client_hello(
     printf("\n");
 
     // 0039 0038 0037 0036 0035 0033 0032 0031 0030 002f 0007 0005 0004 0016 0013 0010 000d 000a
-    parameters->recv_parameters.suite = TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA;
-    parameters->send_parameters.suite = TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA;
+    parameters->recv_parameters.suite = TLS_AES_256_GCM_SHA384;
+    parameters->send_parameters.suite = TLS_AES_256_GCM_SHA384;
 
     if (i == MAX_SUPPORTED_CIPHER_SUITE) {
         return NULL;
@@ -1807,7 +1889,7 @@ int send_certificate(int connection, TLSParameters* parameters) {
         strcpy(cert_url, "./res/ecdsa_cert.pem");
         break;
     default:
-        return 0;
+        strcpy(cert_url, "./res/rsa_cert.pem");
     }
 
     if ((certificate_file = open(cert_url, O_RDONLY)) == -1) {
@@ -1822,6 +1904,7 @@ int send_certificate(int connection, TLSParameters* parameters) {
 
     unsigned char* pem_buffer;
     unsigned char* buffer;
+    unsigned char* pos;
     int buffer_size;
 
     if (!(pem_buffer = load_file(cert_url, &buffer_size))) {
@@ -1831,21 +1914,35 @@ int send_certificate(int connection, TLSParameters* parameters) {
 
     buffer = (unsigned char*)malloc(buffer_size);
     buffer_size = pem_decode(pem_buffer, buffer, NULL, NULL);
-    // Allocate enough space for the certificate file, plus 2 3-byte length
-    // entries.
+    free(pem_buffer);
+
     send_buffer_size = buffer_size + 6;
+    if(TLS_VERSION_MINOR >= 4) {
+        send_buffer_size += 3;
+    }
+
     send_buffer = (unsigned char*)malloc(send_buffer_size);
     memset(send_buffer, '\0', send_buffer_size);
 
+    pos = send_buffer;
+    if(TLS_VERSION_MINOR >= 4) {
+        pos += 1;
+    }
+
     cert_len = buffer_size + 3;
+    if(TLS_VERSION_MINOR >= 4) {
+        cert_len += 2;
+    }
     cert_len = htons(cert_len);
-    memcpy((void*)(send_buffer + 1), &cert_len, 2);
+    memcpy((void*)(pos + 1), &cert_len, 2);
+    pos += 3;
 
     cert_len = buffer_size;
     cert_len = htons(cert_len);
-    memcpy((void*)(send_buffer + 4), &cert_len, 2);
+    memcpy((void*)(pos + 1), &cert_len, 2);
+    pos += 3;
 
-    memcpy(send_buffer + 6, buffer, buffer_size);
+    memcpy(pos, buffer, buffer_size);
 
     send_handshake_message(connection, certificate, send_buffer, send_buffer_size, parameters);
 
@@ -2685,6 +2782,13 @@ int send_change_cipher_spec(int connection, TLSParameters* parameters) {
     return 1;
 }
 
+int send_encrypted_extensions(int connection, TLSParameters* parameters) {
+    unsigned char send_bufer[2] = { 0 };
+    int send_buffer_size = 2;
+
+    return send_handshake_message(connection, encrypted_extensions, send_bufer, send_buffer_size, parameters);
+}
+
 int send_finished(int connection, TLSParameters* parameters) {
     CipherSuite* send_suite = &(suites[parameters->send_parameters.suite]);
     int verify_data_len = TLS_VERSION_MINOR <= 3 ? VERIFY_DATA_LEN : send_suite->hash_size;
@@ -2707,6 +2811,13 @@ int send_finished(int connection, TLSParameters* parameters) {
     }
 
     return 1;
+}
+
+int send_server_pong(int connection, TLSParameters* parameters) {
+    unsigned char send_bufer[4] = { 0x70, 0x6f, 0x6e, 0x67 };
+    int send_buffer_size = 4;
+
+    return send_message(connection, content_application_data, send_bufer, send_buffer_size, &parameters->send_parameters);
 }
 
 unsigned char* parse_finished(
@@ -2974,7 +3085,7 @@ int tls3_decrypt(
         decrypted_length = encrypted_length;
         *decrypted_message = malloc(decrypted_length);
         memcpy(*decrypted_message, encrypted_message, encrypted_length);
-        return 0;
+        return decrypted_length;
     }
 
     memset(dec_msg, 0, encrypted_length);
@@ -2986,6 +3097,8 @@ int tls3_decrypt(
     }
 
     decrypted_length = encrypted_length - active_suite->block_size;
+    header[0] = dec_msg[decrypted_length - 1]; //tls3最后一个字节代表了真实record type
+    decrypted_length -= 1;
     *decrypted_message = malloc(decrypted_length);
     memcpy(*decrypted_message, dec_msg, decrypted_length);
 
@@ -3085,6 +3198,7 @@ int receive_tls_msg(
         // active cipher spec is NULL_WITH_NULL_NULL).
         decrypted_message = NULL;
         decrypted_length = tls_decrypt(header, encrypted_message, message.length, &decrypted_message, &parameters->recv_parameters);
+        message.type = header[0]; //tls3中真实record type藏在数据尾部最后一个字节
 
         free(encrypted_message);
 
@@ -3203,14 +3317,17 @@ int receive_tls_msg(
         if (decrypted_length <= bufsz) {
             memcpy(buffer, decrypted_message, decrypted_length);
         } else {
-            // Need to hang on to a buffer of data here and pass it back for the
-            // next call
-            memcpy(buffer, decrypted_message, bufsz);
-            parameters->unread_length = decrypted_length - bufsz;
-            parameters->unread_buffer = malloc(parameters->unread_length);
-            memcpy(parameters->unread_buffer, decrypted_message + bufsz, parameters->unread_length);
+            unsigned char ping[4] = { 0x70, 0x69, 0x6e, 0x67 };
+            if (TLS_VERSION_MINOR >= 4 && !memcmp(decrypted_message, ping, 4)) {
+                parameters->peer_ping = 1;
+            } else {
+                memcpy(buffer, decrypted_message, bufsz);
+                parameters->unread_length = decrypted_length - bufsz;
+                parameters->unread_buffer = malloc(parameters->unread_length);
+                memcpy(parameters->unread_buffer, decrypted_message + bufsz, parameters->unread_length);
+                decrypted_length = bufsz;
+            }
 
-            decrypted_length = bufsz;
         }
     } else {
         // Ignore content types not understood, per section 6 of the RFC.
@@ -3392,15 +3509,21 @@ int tls3_accept(int connection, TLSParameters* parameters) {
         return 2;
     }
 
-    if (send_certificate(connection, parameters)) {
-        send_alert_message(connection, handshake_failure, &parameters->send_parameters);
-        return 3;
-    }
-
     if (!(send_change_cipher_spec(connection, parameters))) {
         perror("Unable to send client change cipher spec");
         send_alert_message(connection, handshake_failure, &parameters->send_parameters);
         return 6;
+    }
+
+    if (send_encrypted_extensions(connection, parameters)) {
+        perror("Unable to send encrypted extensions");
+        send_alert_message(connection, handshake_failure, &parameters->send_parameters);
+        return 6;
+    }
+
+    if (send_certificate(connection, parameters)) {
+        send_alert_message(connection, handshake_failure, &parameters->send_parameters);
+        return 3;
     }
 
     if (!(send_finished(connection, parameters))) {
@@ -3408,6 +3531,26 @@ int tls3_accept(int connection, TLSParameters* parameters) {
         send_alert_message(connection, handshake_failure, &parameters->send_parameters);
         return 7;
     }
+
+    parameters->peer_finished = 0;
+    while (!parameters->peer_finished) {
+        if (receive_tls_msg(connection, NULL, 0, parameters) < 0) {
+            perror("Unable to receive client finished");
+            send_alert_message(connection, handshake_failure, &parameters->send_parameters);
+            return 5;
+        }
+    }
+
+    parameters->peer_ping = 0;
+    while (!parameters->peer_ping) {
+        if (receive_tls_msg(connection, NULL, 0, parameters) < 0) {
+            perror("Unable to receive client ping");
+            send_alert_message(connection, handshake_failure, &parameters->send_parameters);
+            return 5;
+        }
+    }
+
+    send_server_pong(connection, parameters);
 
     return 0;
 }

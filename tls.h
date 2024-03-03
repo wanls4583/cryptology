@@ -74,6 +74,10 @@ typedef enum {
 	TLS_RSA_WITH_AES_128_GCM_SHA256 = 0x009C,
 	TLS_RSA_WITH_AES_256_GCM_SHA384 = 0x009D,
 
+	// tsl1.3
+	TLS_AES_128_GCM_SHA256 = 0x1301,
+	TLS_AES_256_GCM_SHA384 = 0x1302,
+
 	// tls1.2 - ECC
 	TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA = 0xC004,
 	TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA = 0xC005,
@@ -139,7 +143,7 @@ typedef struct {
 ProtectionParameters;
 
 #define TLS_VERSION_MAJOR 3
-#define TLS_VERSION_MINOR 3
+#define TLS_VERSION_MINOR 4
 
 #define MASTER_SECRET_LENGTH  48
 typedef unsigned char master_secret_type[MASTER_SECRET_LENGTH];
@@ -170,6 +174,7 @@ typedef struct {
 	int                   got_client_hello;
 	int                   server_hello_done;
 	int                   peer_finished;
+	int                   peer_ping;
 	digest_ctx            md5_handshake_digest;
 	digest_ctx            sha1_handshake_digest;
 	digest_ctx            sha256_handshake_digest;
@@ -260,6 +265,7 @@ typedef enum {
 	client_hello = 1,
 	server_hello = 2,
 	session_ticket = 4,
+	encrypted_extensions = 8,
 	certificate = 11,
 	server_key_exchange = 12,
 	certificate_request = 13,

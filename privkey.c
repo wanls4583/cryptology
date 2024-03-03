@@ -315,7 +315,6 @@ int parse_x25519_priv(
     int length = obj->length;
     huge_load(&privkey->d, data, length);
     clamp_x25519_priv(&privkey->d);
-    huge_reverse(&privkey->d);
 
     return 0;
 }
