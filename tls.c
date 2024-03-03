@@ -62,6 +62,17 @@ static unsigned char SUPPORT_VERSION_EXT[] = { 0x00, 0x2b };
 static unsigned char RENEGOTIATE_INF_EXT[] = { 0xff, 0x01 };
 static unsigned char session_key[] = { 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01 };
 
+//RFC 3447-9.2 EMSA-PKCS1-v1_5
+// DigestInfo ::= SEQUENCE {
+//     digestAlgorithm AlgorithmIdentifier,
+//     digest OCTET STRING
+// }
+const static unsigned char MD5_DER_PRE[] = { 0x30, 0x20, 0x30, 0x0c, 0x06, 0x08, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x02, 0x05, 0x05, 0x00, 0x04, 0x10 };
+const static unsigned char SHA_1_DER_PRE[] = { 0x30, 0x21, 0x30, 0x09, 0x06, 0x05, 0x2b, 0x0e, 0x03, 0x02, 0x1a, 0x05, 0x00, 0x04, 0x14 };
+const static unsigned char SHA_256_DER_PRE[] = { 0x30, 0x31, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01, 0x05, 0x00, 0x04, 0x20 };
+const static unsigned char SHA_384_DER_PRE[] = { 0x30, 0x41, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x02, 0x05, 0x00, 0x04, 0x30 };
+const static unsigned char sha_512_DER_PRE[] = { 0x30, 0x51, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03, 0x05, 0x00, 0x04, 0x40 };
+
 static session_and_master stored_sessions[100];
 
 int tls3_decrypt(
@@ -1874,6 +1885,8 @@ int send_certificate(int connection, TLSParameters* parameters) {
     case TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA:
     case TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384:
     case TLS_RSA_WITH_AES_256_GCM_SHA384:
+    case TLS_AES_128_GCM_SHA256:
+    case TLS_AES_256_GCM_SHA384:
         strcpy(cert_url, "./res/rsa_cert.pem");
         break;
     case TLS_ECDH_RSA_WITH_AES_128_CBC_SHA:
@@ -1889,7 +1902,7 @@ int send_certificate(int connection, TLSParameters* parameters) {
         strcpy(cert_url, "./res/ecdsa_cert.pem");
         break;
     default:
-        strcpy(cert_url, "./res/rsa_cert.pem");
+        return 0;
     }
 
     if ((certificate_file = open(cert_url, O_RDONLY)) == -1) {
@@ -1917,7 +1930,7 @@ int send_certificate(int connection, TLSParameters* parameters) {
     free(pem_buffer);
 
     send_buffer_size = buffer_size + 6;
-    if(TLS_VERSION_MINOR >= 4) {
+    if (TLS_VERSION_MINOR >= 4) {
         send_buffer_size += 3;
     }
 
@@ -1925,12 +1938,12 @@ int send_certificate(int connection, TLSParameters* parameters) {
     memset(send_buffer, '\0', send_buffer_size);
 
     pos = send_buffer;
-    if(TLS_VERSION_MINOR >= 4) {
+    if (TLS_VERSION_MINOR >= 4) {
         pos += 1;
     }
 
     cert_len = buffer_size + 3;
-    if(TLS_VERSION_MINOR >= 4) {
+    if (TLS_VERSION_MINOR >= 4) {
         cert_len += 2;
     }
     cert_len = htons(cert_len);
@@ -1947,6 +1960,63 @@ int send_certificate(int connection, TLSParameters* parameters) {
     send_handshake_message(connection, certificate, send_buffer, send_buffer_size, parameters);
 
     free(send_buffer);
+
+    return 0;
+}
+
+int send_server_certificate_verify(int connection, TLSParameters* parameters) {
+    CipherSuite* send_suite = &(suites[parameters->send_parameters.suite]);
+    digest_ctx ctx, sha256;
+    send_suite->new_digest(&ctx);
+    new_sha256_digest(&sha256);
+
+    unsigned char handshake_hash[ctx.result_size];
+    int sign_in_len = 64 + 33 + 1 + ctx.result_size;
+    unsigned char content[sign_in_len];
+    unsigned char* pos = content;
+    unsigned char sign_input[sha256.result_size];
+
+    compute_handshake_hash(parameters, handshake_hash);
+    memset(pos, 0x20, 64);
+    pos += 64;
+    memcpy(pos, (void*)"TLS 1.3, server CertificateVerify", 33);
+    pos += 33;
+    pos[0] = 0;
+    pos += 1;
+    memcpy(pos, handshake_hash, ctx.result_size);
+    pos += ctx.result_size;
+
+    digest_hash(&sha256, content, sign_in_len);
+    memcpy(sign_input, sha256.hash, sha256.result_size);
+
+    int pre_len = sizeof(SHA_256_DER_PRE);
+    unsigned char* input = malloc(pre_len + sign_in_len);
+    unsigned char* sign_out;
+    memcpy(input, SHA_256_DER_PRE, pre_len);
+    memcpy(input + pre_len, sign_input, sign_in_len);
+    int sign_out_len = rsa_sign(&private_rsa_key, input, pre_len + sign_in_len, &sign_out, RSA_PKCS1_PADDING);
+
+    int send_buffer_size = 2 + sign_out_len + 2;
+    unsigned char send_buffer[send_buffer_size];
+    pos = send_buffer;
+
+    // enum {
+    //   none(0), md5(1), sha1(2), sha224(3), sha256(4), sha384(5),
+    //   sha512(6), (255)
+    // } HashAlgorithm;
+    memset(pos, 4, 1);
+    pos += 1;
+    // enum { anonymous(0), rsa(1), dsa(2), ecdsa(3), (255) } SignatureAlgorithm;
+    memset(pos, 1, 1);
+    pos += 1;
+    pre_len = htons(sign_out_len);
+    memcpy(pos, &pre_len, 2);
+    pos += 2;
+    memcpy(pos, sign_out, sign_out_len);
+
+    if (send_handshake_message(connection, certificate_verify, send_buffer, send_buffer_size, parameters)) {
+        return -1;
+    }
 
     return 0;
 }
@@ -2246,17 +2316,6 @@ unsigned char* parse_client_key_exchange(
 
     return read_pos + pdu_length;
 }
-
-//RFC 3447-9.2 EMSA-PKCS1-v1_5
-// DigestInfo ::= SEQUENCE {
-//     digestAlgorithm AlgorithmIdentifier,
-//     digest OCTET STRING
-// }
-const static unsigned char MD5_DER_PRE[] = { 0x30, 0x20, 0x30, 0x0c, 0x06, 0x08, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x02, 0x05, 0x05, 0x00, 0x04, 0x10 };
-const static unsigned char SHA_1_DER_PRE[] = { 0x30, 0x21, 0x30, 0x09, 0x06, 0x05, 0x2b, 0x0e, 0x03, 0x02, 0x1a, 0x05, 0x00, 0x04, 0x14 };
-const static unsigned char SHA_256_DER_PRE[] = { 0x30, 0x31, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01, 0x05, 0x00, 0x04, 0x20 };
-const static unsigned char SHA_384_DER_PRE[] = { 0x30, 0x41, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x02, 0x05, 0x00, 0x04, 0x30 };
-const static unsigned char sha_512_DER_PRE[] = { 0x30, 0x51, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03, 0x05, 0x00, 0x04, 0x40 };
 
 int send_server_key_exchange_with_dh(int connection, TLSParameters* parameters, int sign_algorithm) {
     unsigned char* key_exchange_message;
@@ -3491,7 +3550,7 @@ int tls2_accept(int connection, TLSParameters* parameters) {
 
     // Handshake is complete; now ready to start sending encrypted data
     return 0;
-}
+    }
 
 int tls3_accept(int connection, TLSParameters* parameters) {
     // The client sends the first message
@@ -3512,18 +3571,24 @@ int tls3_accept(int connection, TLSParameters* parameters) {
     if (!(send_change_cipher_spec(connection, parameters))) {
         perror("Unable to send client change cipher spec");
         send_alert_message(connection, handshake_failure, &parameters->send_parameters);
-        return 6;
+        return 3;
     }
 
     if (send_encrypted_extensions(connection, parameters)) {
         perror("Unable to send encrypted extensions");
         send_alert_message(connection, handshake_failure, &parameters->send_parameters);
-        return 6;
+        return 4;
     }
 
     if (send_certificate(connection, parameters)) {
         send_alert_message(connection, handshake_failure, &parameters->send_parameters);
-        return 3;
+        return 5;
+    }
+
+    if ((send_server_certificate_verify(connection, parameters))) {
+        perror("Unable to send certificate_verify");
+        send_alert_message(connection, handshake_failure, &parameters->send_parameters);
+        return 6;
     }
 
     if (!(send_finished(connection, parameters))) {
@@ -3537,7 +3602,7 @@ int tls3_accept(int connection, TLSParameters* parameters) {
         if (receive_tls_msg(connection, NULL, 0, parameters) < 0) {
             perror("Unable to receive client finished");
             send_alert_message(connection, handshake_failure, &parameters->send_parameters);
-            return 5;
+            return 8;
         }
     }
 
@@ -3546,7 +3611,7 @@ int tls3_accept(int connection, TLSParameters* parameters) {
         if (receive_tls_msg(connection, NULL, 0, parameters) < 0) {
             perror("Unable to receive client ping");
             send_alert_message(connection, handshake_failure, &parameters->send_parameters);
-            return 5;
+            return 9;
         }
     }
 
