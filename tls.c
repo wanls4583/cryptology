@@ -28,10 +28,12 @@
 #include "ecdsa.h"
 #include "hkdf.h"
 
+#define VERIFY_DATA_LEN 12
+
 // session_id 和 session_ticket 机制不能同时启用
-#ifndef USE_SESSION_ID
-#define USE_SESSION_TICKET
-#endif
+// #ifndef USE_SESSION_ID
+// #define USE_SESSION_TICKET
+// #endif
 
 #ifndef USE_SESSION_TICKET
 #define USE_SESSION_ID
@@ -584,6 +586,153 @@ void find_stored_session(TLSParameters* parameters) {
     }
 }
 
+void compute_handshake_hash(TLSParameters* parameters, unsigned char* handshake_hash) {
+    digest_ctx tmp_md5_handshake_digest;
+    digest_ctx tmp_sha1_handshake_digest;
+    digest_ctx tmp_sha256_handshake_digest;
+    digest_ctx tmp_sha384_handshake_digest;
+    CipherSuite* send_suite = &(suites[parameters->send_parameters.suite]);
+
+    if (TLS_VERSION_MINOR >= 3) {
+        if (send_suite->new_digest == new_sha384_digest) {
+            copy_digest(&tmp_sha384_handshake_digest, &parameters->sha384_handshake_digest);
+            finalize_digest(&tmp_sha384_handshake_digest);
+
+            memcpy(handshake_hash, tmp_sha384_handshake_digest.hash, SHA384_BYTE_SIZE);
+            free(tmp_sha384_handshake_digest.hash);
+        } else {
+            copy_digest(&tmp_sha256_handshake_digest, &parameters->sha256_handshake_digest);
+            finalize_digest(&tmp_sha256_handshake_digest);
+
+            memcpy(handshake_hash, tmp_sha256_handshake_digest.hash, SHA256_BYTE_SIZE);
+            free(tmp_sha256_handshake_digest.hash);
+        }
+    } else {
+        // "cheating".  Copy the handshake digests into local memory (and change
+        // the hash pointer) so that we can finalize twice (
+        copy_digest(&tmp_md5_handshake_digest, &parameters->md5_handshake_digest);
+        copy_digest(&tmp_sha1_handshake_digest, &parameters->sha1_handshake_digest);
+
+        finalize_digest(&tmp_md5_handshake_digest);
+        finalize_digest(&tmp_sha1_handshake_digest);
+
+        memcpy(handshake_hash, tmp_md5_handshake_digest.hash, MD5_BYTE_SIZE);
+        memcpy(handshake_hash + MD5_BYTE_SIZE, tmp_sha1_handshake_digest.hash, SHA1_BYTE_SIZE);
+
+        free(tmp_md5_handshake_digest.hash);
+        free(tmp_sha1_handshake_digest.hash);
+    }
+}
+
+void calculate_handshake_keys(TLSParameters* parameters) {
+    CipherSuite* send_suite = &(suites[parameters->send_parameters.suite]);
+    digest_ctx ctx;
+    send_suite->new_digest(&ctx);
+    unsigned char handshake_hash[ctx.result_size];
+
+    unsigned char* shared_secret;
+    unsigned char zero_key[ctx.result_size];
+    unsigned char early_secret[ctx.result_size];
+    unsigned char derived_secret[ctx.result_size];
+    unsigned char handshake_secret[ctx.result_size];
+    unsigned char handshake_traffic_secret[ctx.result_size];
+    unsigned char* handshake_key = (unsigned char*)malloc(send_suite->key_size);
+    unsigned char* handshake_iv = (unsigned char*)malloc(send_suite->IV_size);
+    unsigned char* finished_key = (unsigned char*)malloc(send_suite->hash_size);
+    unsigned char traffic_label[12];
+    int share_secret_len = huge_bytes(&parameters->key_share);
+
+    huge_unload(&parameters->key_share, shared_secret, share_secret_len);
+    compute_handshake_hash(parameters, handshake_hash);
+    memset(zero_key, 0, ctx.result_size);
+
+    HKDF_extract(NULL, 0, zero_key, ctx.result_size, early_secret, ctx);
+    derive_secret(early_secret, ctx.result_size, (unsigned char*)"derived", 7, NULL, 0, derived_secret, ctx.result_size, ctx);
+    HKDF_extract(derived_secret, ctx.result_size, shared_secret, share_secret_len, handshake_secret, ctx);
+    parameters->handshake_secret = (unsigned char*)malloc(ctx.result_size);
+    memcpy(parameters->handshake_secret, handshake_secret, ctx.result_size);
+
+    if (connection_end_client == parameters->connection_end) {
+        memcpy(traffic_label, (void*)"c hs traffic", 12);
+    } else {
+        memcpy(traffic_label, (void*)"s hs traffic", 12);
+    }
+    HKDF_expand_label(handshake_secret, ctx.result_size, traffic_label, 12, handshake_hash, ctx.result_size, handshake_traffic_secret, ctx.result_size, ctx);
+    HKDF_expand_label(handshake_traffic_secret, ctx.result_size, (unsigned char*)"key", 3, NULL, 0, handshake_key, send_suite->key_size, ctx);
+    HKDF_expand_label(handshake_traffic_secret, ctx.result_size, (unsigned char*)"iv", 2, NULL, 0, handshake_iv, send_suite->IV_size, ctx);
+    HKDF_expand_label(handshake_traffic_secret, ctx.result_size, (unsigned char*)"finished", 8, NULL, 0, finished_key, ctx.result_size, ctx);
+    parameters->send_parameters.tls3_keys.handshake_key = handshake_key;
+    parameters->send_parameters.tls3_keys.handshake_iv = handshake_iv;
+    parameters->send_parameters.tls3_keys.finished_key = finished_key;
+
+    if (connection_end_client == parameters->connection_end) {
+        memcpy(traffic_label, (void*)"s hs traffic", 12);
+    } else {
+        memcpy(traffic_label, (void*)"c hs traffic", 12);
+    }
+    HKDF_expand_label(handshake_secret, ctx.result_size, traffic_label, 12, handshake_hash, ctx.result_size, handshake_traffic_secret, ctx.result_size, ctx);
+    HKDF_expand_label(handshake_traffic_secret, ctx.result_size, (unsigned char*)"key", 3, NULL, 0, handshake_key, send_suite->key_size, ctx);
+    HKDF_expand_label(handshake_traffic_secret, ctx.result_size, (unsigned char*)"iv", 2, NULL, 0, handshake_iv, send_suite->IV_size, ctx);
+    HKDF_expand_label(handshake_traffic_secret, ctx.result_size, (unsigned char*)"finished", 8, NULL, 0, finished_key, ctx.result_size, ctx);
+    parameters->recv_parameters.tls3_keys.handshake_key = handshake_key;
+    parameters->recv_parameters.tls3_keys.handshake_iv = handshake_iv;
+    parameters->recv_parameters.tls3_keys.finished_key = finished_key;
+}
+
+void calculate_application_keys(TLSParameters* parameters) {
+    CipherSuite* send_suite = &(suites[parameters->send_parameters.suite]);
+    digest_ctx ctx;
+    send_suite->new_digest(&ctx);
+    unsigned char handshake_hash[ctx.result_size];
+
+    unsigned char zero_key[ctx.result_size];
+    unsigned char master_secret[ctx.result_size];
+    unsigned char derived_secret[ctx.result_size];
+    unsigned char application_traffic_secret[ctx.result_size];
+    unsigned char* application_key = (unsigned char*)malloc(send_suite->key_size);
+    unsigned char* application_iv = (unsigned char*)malloc(send_suite->IV_size);
+    unsigned char traffic_label[12];
+
+    compute_handshake_hash(parameters, handshake_hash);
+    memset(zero_key, 0, ctx.result_size);
+
+    derive_secret(parameters->handshake_secret, ctx.result_size, (unsigned char*)"derived", 7, NULL, 0, derived_secret, ctx.result_size, ctx);
+    HKDF_extract(derived_secret, ctx.result_size, zero_key, ctx.result_size, master_secret, ctx);
+
+    if (connection_end_client == parameters->connection_end) {
+        memcpy(traffic_label, (void*)"c ap traffic", 12);
+    } else {
+        memcpy(traffic_label, (void*)"s ap traffic", 12);
+    }
+    HKDF_expand_label(master_secret, ctx.result_size, traffic_label, 12, handshake_hash, ctx.result_size, application_traffic_secret, ctx.result_size, ctx);
+    HKDF_expand_label(application_traffic_secret, ctx.result_size, (unsigned char*)"key", 3, NULL, 0, application_key, send_suite->key_size, ctx);
+    HKDF_expand_label(application_traffic_secret, ctx.result_size, (unsigned char*)"iv", 2, NULL, 0, application_iv, send_suite->IV_size, ctx);
+    parameters->send_parameters.tls3_keys.application_key = application_key;
+    parameters->send_parameters.tls3_keys.application_iv = application_iv;
+
+    if (connection_end_client == parameters->connection_end) {
+        memcpy(traffic_label, (void*)"s ap traffic", 12);
+    } else {
+        memcpy(traffic_label, (void*)"c ap traffic", 12);
+    }
+    HKDF_expand_label(master_secret, ctx.result_size, traffic_label, 12, handshake_hash, ctx.result_size, application_traffic_secret, ctx.result_size, ctx);
+    HKDF_expand_label(application_traffic_secret, ctx.result_size, (unsigned char*)"key", 3, NULL, 0, application_key, send_suite->key_size, ctx);
+    HKDF_expand_label(application_traffic_secret, ctx.result_size, (unsigned char*)"iv", 2, NULL, 0, application_iv, send_suite->IV_size, ctx);
+    parameters->recv_parameters.tls3_keys.application_key = application_key;
+    parameters->recv_parameters.tls3_keys.application_iv = application_iv;
+}
+
+void compute_tls3_verify_data(unsigned char* finished_key, unsigned char* verify_data, TLSParameters* parameters) {
+    CipherSuite* send_suite = &(suites[parameters->send_parameters.suite]);
+    digest_ctx ctx;
+    send_suite->new_digest(&ctx);
+    unsigned char handshake_hash[ctx.result_size];
+
+    compute_handshake_hash(parameters, handshake_hash);
+    hmac(&ctx, finished_key, ctx.result_size, handshake_hash, ctx.result_size);
+    memcpy(verify_data, ctx.hash, ctx.result_size);
+}
+
 void tls_prf(
     TLSParameters* parameters,
     unsigned char* secret,
@@ -606,6 +755,134 @@ void tls_prf(
     } else {
         PRF(secret, secret_len, label, label_len, seed, seed_len, output, out_len);
     }
+}
+
+/**
+ * 7.4.9:
+ * verify_data = PRF( master_secret, "client finished", MD5(handshake_messages) +
+ *  SHA-1(handshake_messages)) [0..11]
+ *
+ * master_secret = PRF( pre_master_secret, "master secret", ClientHello.random +
+ *  ServerHello.random );
+ * always 48 bytes in length.
+ */
+void compute_verify_data(
+    unsigned char* finished_label,
+    TLSParameters* parameters,
+    unsigned char* verify_data
+) {
+    CipherSuite* send_suite = &(suites[parameters->send_parameters.suite]);
+    int hash_bytes = TLS_VERSION_MINOR >= 3 ? (send_suite->new_digest == new_sha384_digest ? SHA384_BYTE_SIZE : SHA256_BYTE_SIZE) : MD5_BYTE_SIZE + SHA1_BYTE_SIZE;
+    unsigned char handshake_hash[hash_bytes];
+
+    compute_handshake_hash(parameters, handshake_hash);
+    tls_prf(
+        parameters,
+        parameters->master_secret, MASTER_SECRET_LENGTH,
+        finished_label, strlen((char*)finished_label),
+        handshake_hash, hash_bytes,
+        verify_data, VERIFY_DATA_LEN
+    );
+}
+
+/**
+ * Turn the premaster secret into an actual master secret (the
+ * server side will do this concurrently) as specified in section 8.1:
+ * master_secret = PRF( pre_master_secret, "master secret",
+ * ClientHello.random + ServerHello.random );
+ * ( premaster_secret, parameters );
+ * Note that, with DH, the master secret len is determined by the generator (p)
+ * value.
+ */
+void compute_master_secret(
+    unsigned char* premaster_secret,
+    int premaster_secret_len,
+    TLSParameters* parameters
+) {
+    unsigned char label[] = "master secret";
+
+    tls_prf(
+        parameters,
+        premaster_secret,
+        premaster_secret_len,
+        label, strlen((char*)label),
+        // Note - cheating, since client_random & server_random are defined
+        // sequentially in the structure
+        parameters->client_random, RANDOM_LENGTH * 2,
+        parameters->master_secret, MASTER_SECRET_LENGTH
+    );
+
+    printf("master_secret:");
+    show_hex(parameters->master_secret, 48, 1);
+}
+
+/**
+6.3:Compute a key block, including MAC secrets, keys, and IVs for client & server
+Notice that the seed is server random followed by client random (whereas for master
+secret computation, it's client random followed by server random).  Sheesh!
+*/
+void calculate_keys(TLSParameters* parameters) {
+    // XXX assuming send suite & recv suite will always be the same
+    CipherSuite* suite = &(suites[parameters->send_parameters.suite]);
+    unsigned char label[] = "key expansion";
+    int key_block_length = suite->hash_size * 2 + suite->key_size * 2 + suite->IV_size * 2;
+    int iv_fixed_len = suite->aead_encrypt ? 4 : suite->IV_size;
+    unsigned char seed[RANDOM_LENGTH * 2];
+    unsigned char* key_block = (unsigned char*)malloc(key_block_length);
+    unsigned char* key_block_ptr;
+
+    ProtectionParameters* send_parameters = &parameters->send_parameters;
+    ProtectionParameters* recv_parameters = &parameters->recv_parameters;
+
+    memcpy(seed, parameters->server_random, RANDOM_LENGTH);
+    memcpy(seed + RANDOM_LENGTH, parameters->client_random, RANDOM_LENGTH);
+
+    tls_prf(parameters, parameters->master_secret, MASTER_SECRET_LENGTH, label, strlen((const char*)label), seed, RANDOM_LENGTH * 2, key_block, key_block_length);
+    send_parameters->MAC_secret = (unsigned char*)malloc(suite->hash_size);
+    recv_parameters->MAC_secret = (unsigned char*)malloc(suite->hash_size);
+    send_parameters->key = (unsigned char*)malloc(suite->key_size);
+    recv_parameters->key = (unsigned char*)malloc(suite->key_size);
+    send_parameters->IV = (unsigned char*)malloc(suite->IV_size);
+    recv_parameters->IV = (unsigned char*)malloc(suite->IV_size);
+
+    if (parameters->connection_end == connection_end_client) {
+        key_block_ptr = read_buffer(send_parameters->MAC_secret, key_block, suite->hash_size);
+        key_block_ptr = read_buffer(recv_parameters->MAC_secret, key_block_ptr, suite->hash_size);
+        key_block_ptr = read_buffer(send_parameters->key, key_block_ptr, suite->key_size);
+        key_block_ptr = read_buffer(recv_parameters->key, key_block_ptr, suite->key_size);
+        key_block_ptr = read_buffer(send_parameters->IV, key_block_ptr, iv_fixed_len);
+        key_block_ptr = read_buffer(recv_parameters->IV, key_block_ptr, iv_fixed_len);
+    } else  // I'm the server
+    {
+        key_block_ptr = read_buffer(recv_parameters->MAC_secret, key_block, suite->hash_size);
+        key_block_ptr = read_buffer(send_parameters->MAC_secret, key_block_ptr, suite->hash_size);
+        key_block_ptr = read_buffer(recv_parameters->key, key_block_ptr, suite->key_size);
+        key_block_ptr = read_buffer(send_parameters->key, key_block_ptr, suite->key_size);
+        key_block_ptr = read_buffer(recv_parameters->IV, key_block_ptr, iv_fixed_len);
+        key_block_ptr = read_buffer(send_parameters->IV, key_block_ptr, iv_fixed_len);
+    }
+
+    switch (suite->id) {
+    case TLS_RSA_EXPORT_WITH_RC4_40_MD5:
+    case TLS_RSA_WITH_RC4_128_MD5:
+    case TLS_RSA_WITH_RC4_128_SHA:
+    case TLS_DH_anon_EXPORT_WITH_RC4_40_MD5:
+    case TLS_DH_anon_WITH_RC4_128_MD5:
+    {
+        rc4_state* read_state = malloc(sizeof(rc4_state));
+        rc4_state* write_state = malloc(sizeof(rc4_state));
+        read_state->i = read_state->j = write_state->i = write_state->j = 0;
+        send_parameters->IV = (unsigned char*)read_state;
+        recv_parameters->IV = (unsigned char*)write_state;
+        memset(read_state->S, '\0', RC4_STATE_ARRAY_LEN);
+        memset(write_state->S, '\0', RC4_STATE_ARRAY_LEN);
+    }
+    break;
+    default:
+        break;
+    }
+
+    free(key_block);
 }
 
 int send_tls2_message(
@@ -953,106 +1230,6 @@ int send_handshake_message(
     free(send_buffer);
 
     return response;
-}
-
-/**
-6.3:Compute a key block, including MAC secrets, keys, and IVs for client & server
-Notice that the seed is server random followed by client random (whereas for master
-secret computation, it's client random followed by server random).  Sheesh!
-*/
-void calculate_keys(TLSParameters* parameters) {
-    // XXX assuming send suite & recv suite will always be the same
-    CipherSuite* suite = &(suites[parameters->send_parameters.suite]);
-    unsigned char label[] = "key expansion";
-    int key_block_length = suite->hash_size * 2 + suite->key_size * 2 + suite->IV_size * 2;
-    int iv_fixed_len = suite->aead_encrypt ? 4 : suite->IV_size;
-    unsigned char seed[RANDOM_LENGTH * 2];
-    unsigned char* key_block = (unsigned char*)malloc(key_block_length);
-    unsigned char* key_block_ptr;
-
-    ProtectionParameters* send_parameters = &parameters->send_parameters;
-    ProtectionParameters* recv_parameters = &parameters->recv_parameters;
-
-    memcpy(seed, parameters->server_random, RANDOM_LENGTH);
-    memcpy(seed + RANDOM_LENGTH, parameters->client_random, RANDOM_LENGTH);
-
-    tls_prf(parameters, parameters->master_secret, MASTER_SECRET_LENGTH, label, strlen((const char*)label), seed, RANDOM_LENGTH * 2, key_block, key_block_length);
-    send_parameters->MAC_secret = (unsigned char*)malloc(suite->hash_size);
-    recv_parameters->MAC_secret = (unsigned char*)malloc(suite->hash_size);
-    send_parameters->key = (unsigned char*)malloc(suite->key_size);
-    recv_parameters->key = (unsigned char*)malloc(suite->key_size);
-    send_parameters->IV = (unsigned char*)malloc(suite->IV_size);
-    recv_parameters->IV = (unsigned char*)malloc(suite->IV_size);
-
-    if (parameters->connection_end == connection_end_client) {
-        key_block_ptr = read_buffer(send_parameters->MAC_secret, key_block, suite->hash_size);
-        key_block_ptr = read_buffer(recv_parameters->MAC_secret, key_block_ptr, suite->hash_size);
-        key_block_ptr = read_buffer(send_parameters->key, key_block_ptr, suite->key_size);
-        key_block_ptr = read_buffer(recv_parameters->key, key_block_ptr, suite->key_size);
-        key_block_ptr = read_buffer(send_parameters->IV, key_block_ptr, iv_fixed_len);
-        key_block_ptr = read_buffer(recv_parameters->IV, key_block_ptr, iv_fixed_len);
-    } else  // I'm the server
-    {
-        key_block_ptr = read_buffer(recv_parameters->MAC_secret, key_block, suite->hash_size);
-        key_block_ptr = read_buffer(send_parameters->MAC_secret, key_block_ptr, suite->hash_size);
-        key_block_ptr = read_buffer(recv_parameters->key, key_block_ptr, suite->key_size);
-        key_block_ptr = read_buffer(send_parameters->key, key_block_ptr, suite->key_size);
-        key_block_ptr = read_buffer(recv_parameters->IV, key_block_ptr, iv_fixed_len);
-        key_block_ptr = read_buffer(send_parameters->IV, key_block_ptr, iv_fixed_len);
-    }
-
-    switch (suite->id) {
-    case TLS_RSA_EXPORT_WITH_RC4_40_MD5:
-    case TLS_RSA_WITH_RC4_128_MD5:
-    case TLS_RSA_WITH_RC4_128_SHA:
-    case TLS_DH_anon_EXPORT_WITH_RC4_40_MD5:
-    case TLS_DH_anon_WITH_RC4_128_MD5:
-    {
-        rc4_state* read_state = malloc(sizeof(rc4_state));
-        rc4_state* write_state = malloc(sizeof(rc4_state));
-        read_state->i = read_state->j = write_state->i = write_state->j = 0;
-        send_parameters->IV = (unsigned char*)read_state;
-        recv_parameters->IV = (unsigned char*)write_state;
-        memset(read_state->S, '\0', RC4_STATE_ARRAY_LEN);
-        memset(write_state->S, '\0', RC4_STATE_ARRAY_LEN);
-    }
-    break;
-    default:
-        break;
-    }
-
-    free(key_block);
-}
-
-/**
- * Turn the premaster secret into an actual master secret (the
- * server side will do this concurrently) as specified in section 8.1:
- * master_secret = PRF( pre_master_secret, "master secret",
- * ClientHello.random + ServerHello.random );
- * ( premaster_secret, parameters );
- * Note that, with DH, the master secret len is determined by the generator (p)
- * value.
- */
-void compute_master_secret(
-    unsigned char* premaster_secret,
-    int premaster_secret_len,
-    TLSParameters* parameters
-) {
-    unsigned char label[] = "master secret";
-
-    tls_prf(
-        parameters,
-        premaster_secret,
-        premaster_secret_len,
-        label, strlen((char*)label),
-        // Note - cheating, since client_random & server_random are defined
-        // sequentially in the structure
-        parameters->client_random, RANDOM_LENGTH * 2,
-        parameters->master_secret, MASTER_SECRET_LENGTH
-    );
-
-    printf("master_secret:");
-    show_hex(parameters->master_secret, 48, 1);
 }
 
 unsigned char* set_renegotiat_extension(int* out_len) {
@@ -1422,61 +1599,6 @@ unsigned char* parse_client_hello(
     return read_pos;
 }
 
-void calculate_handshake_keys(TLSParameters* parameters) {
-    CipherSuite* send_suite = &(suites[parameters->send_parameters.suite]);
-    digest_ctx ctx;
-    send_suite->new_digest(&ctx);
-    unsigned char handshake_hash[ctx.result_size];
-
-    unsigned char* shared_secret;
-    unsigned char zero_key[ctx.result_size];
-    unsigned char early_secret[ctx.result_size];
-    unsigned char derived_secret[ctx.result_size];
-    unsigned char handshake_secret[ctx.result_size];
-    unsigned char handshake_traffic_secret[ctx.result_size];
-    unsigned char handshake_key = (unsigned char*)malloc(send_suite->key_size);
-    unsigned char handshake_iv = (unsigned char*)malloc(send_suite->IV_size);
-    unsigned char finished_key = (unsigned char*)malloc(send_suite->hash_size);
-    unsigned char traffic_label[12];
-    int share_secret_len = huge_bytes(shared_secret);
-
-    huge_unload(&parameters->key_share, shared_secret, share_secret_len);
-    compute_handshake_hash(parameters, handshake_hash);
-    memset(zero_key, 0, ctx.result_size);
-
-    HKDF_extract(NULL, 0, zero_key, ctx.result_size, early_secret, ctx);
-    derive_secret(early_secret, ctx.result_size, (unsigned char*)"derived", 7, NULL, 0, derived_secret, ctx.result_size, ctx);
-    HKDF_extract(derived_secret, ctx.result_size, shared_secret, share_secret_len, handshake_secret, ctx);
-    parameters->handshake_secret = (unsigned char*)malloc(ctx.result_size);
-    memcpy(parameters->handshake_secret, handshake_secret, ctx.result_size);
-
-    if (connection_end_client == parameters->connection_end) {
-        memcpy(traffic_label, (void*)"c hs traffic", 12);
-    } else {
-        memcpy(traffic_label, (void*)"s hs traffic", 12);
-    }
-    HKDF_expand_label(handshake_secret, ctx.result_size, traffic_label, 12, handshake_hash, ctx.result_size, handshake_traffic_secret, ctx.result_size, ctx);
-    HKDF_expand_label(handshake_traffic_secret, ctx.result_size, (unsigned char*)"key", 3, NULL, 0, handshake_key, send_suite->key_size, ctx);
-    HKDF_expand_label(handshake_traffic_secret, ctx.result_size, (unsigned char*)"iv", 2, NULL, 0, handshake_iv, send_suite->IV_size, ctx);
-    HKDF_expand_label(handshake_traffic_secret, ctx.result_size, (unsigned char*)"finished", 8, NULL, 0, finished_key, ctx.result_size, ctx);
-    parameters->send_parameters.tls3_keys.handshake_key = handshake_key;
-    parameters->send_parameters.tls3_keys.handshake_iv = handshake_iv;
-    parameters->send_parameters.tls3_keys.finished_key = finished_key;
-
-    if (connection_end_client == parameters->connection_end) {
-        memcpy(traffic_label, (void*)"s hs traffic", 12);
-    } else {
-        memcpy(traffic_label, (void*)"c hs traffic", 12);
-    }
-    HKDF_expand_label(handshake_secret, ctx.result_size, traffic_label, 12, handshake_hash, ctx.result_size, handshake_traffic_secret, ctx.result_size, ctx);
-    HKDF_expand_label(handshake_traffic_secret, ctx.result_size, (unsigned char*)"key", 3, NULL, 0, handshake_key, send_suite->key_size, ctx);
-    HKDF_expand_label(handshake_traffic_secret, ctx.result_size, (unsigned char*)"iv", 2, NULL, 0, handshake_iv, send_suite->IV_size, ctx);
-    HKDF_expand_label(handshake_traffic_secret, ctx.result_size, (unsigned char*)"finished", 8, NULL, 0, finished_key, ctx.result_size, ctx);
-    parameters->recv_parameters.tls3_keys.handshake_key = handshake_key;
-    parameters->recv_parameters.tls3_keys.handshake_iv = handshake_iv;
-    parameters->recv_parameters.tls3_keys.finished_key = finished_key;
-}
-
 int send_server_hello(int connection, TLSParameters* parameters) {
     ServerHello       package;
     int               ext_len = 0;
@@ -1548,7 +1670,9 @@ int send_server_hello(int connection, TLSParameters* parameters) {
     show_hex(send_buffer, send_buffer_size, 1);
 
     send_handshake_message(connection, server_hello, send_buffer, send_buffer_size, parameters);
-    calculate_handshake_keys(parameters);
+    if (TLS_VERSION_MINOR > 3) {
+        calculate_handshake_keys(parameters);
+    }
 
     free(send_buffer);
 
@@ -2549,74 +2673,6 @@ int send_server_key_exchange(int connection, TLSParameters* parameters) {
     }
 }
 
-void compute_handshake_hash(TLSParameters* parameters, unsigned char* handshake_hash) {
-    digest_ctx tmp_md5_handshake_digest;
-    digest_ctx tmp_sha1_handshake_digest;
-    digest_ctx tmp_sha256_handshake_digest;
-    digest_ctx tmp_sha384_handshake_digest;
-    CipherSuite* send_suite = &(suites[parameters->send_parameters.suite]);
-
-    if (TLS_VERSION_MINOR >= 3) {
-        if (send_suite->new_digest == new_sha384_digest) {
-            copy_digest(&tmp_sha384_handshake_digest, &parameters->sha384_handshake_digest);
-            finalize_digest(&tmp_sha384_handshake_digest);
-
-            memcpy(handshake_hash, tmp_sha384_handshake_digest.hash, SHA384_BYTE_SIZE);
-            free(tmp_sha384_handshake_digest.hash);
-        } else {
-            copy_digest(&tmp_sha256_handshake_digest, &parameters->sha256_handshake_digest);
-            finalize_digest(&tmp_sha256_handshake_digest);
-
-            memcpy(handshake_hash, tmp_sha256_handshake_digest.hash, SHA256_BYTE_SIZE);
-            free(tmp_sha256_handshake_digest.hash);
-        }
-    } else {
-        // "cheating".  Copy the handshake digests into local memory (and change
-        // the hash pointer) so that we can finalize twice (
-        copy_digest(&tmp_md5_handshake_digest, &parameters->md5_handshake_digest);
-        copy_digest(&tmp_sha1_handshake_digest, &parameters->sha1_handshake_digest);
-
-        finalize_digest(&tmp_md5_handshake_digest);
-        finalize_digest(&tmp_sha1_handshake_digest);
-
-        memcpy(handshake_hash, tmp_md5_handshake_digest.hash, MD5_BYTE_SIZE);
-        memcpy(handshake_hash + MD5_BYTE_SIZE, tmp_sha1_handshake_digest.hash, SHA1_BYTE_SIZE);
-
-        free(tmp_md5_handshake_digest.hash);
-        free(tmp_sha1_handshake_digest.hash);
-    }
-}
-
-/**
- * 7.4.9:
- * verify_data = PRF( master_secret, "client finished", MD5(handshake_messages) +
- *  SHA-1(handshake_messages)) [0..11]
- *
- * master_secret = PRF( pre_master_secret, "master secret", ClientHello.random +
- *  ServerHello.random );
- * always 48 bytes in length.
- */
-#define VERIFY_DATA_LEN 12
-
-void compute_verify_data(
-    unsigned char* finished_label,
-    TLSParameters* parameters,
-    unsigned char* verify_data
-) {
-    CipherSuite* send_suite = &(suites[parameters->send_parameters.suite]);
-    int hash_bytes = TLS_VERSION_MINOR >= 3 ? (send_suite->new_digest == new_sha384_digest ? SHA384_BYTE_SIZE : SHA256_BYTE_SIZE) : MD5_BYTE_SIZE + SHA1_BYTE_SIZE;
-    unsigned char handshake_hash[hash_bytes];
-
-    compute_handshake_hash(parameters, handshake_hash);
-    tls_prf(
-        parameters,
-        parameters->master_secret, MASTER_SECRET_LENGTH,
-        finished_label, strlen((char*)finished_label),
-        handshake_hash, hash_bytes,
-        verify_data, VERIFY_DATA_LEN
-    );
-}
-
 int send_change_cipher_spec(int connection, TLSParameters* parameters) {
     unsigned char send_buffer[1];
     send_buffer[0] = 1;
@@ -2627,60 +2683,6 @@ int send_change_cipher_spec(int connection, TLSParameters* parameters) {
     parameters->send_parameters.key_done = 1;
 
     return 1;
-}
-
-void calculate_application_keys(TLSParameters* parameters) {
-    CipherSuite* send_suite = &(suites[parameters->send_parameters.suite]);
-    digest_ctx ctx;
-    send_suite->new_digest(&ctx);
-    unsigned char handshake_hash[ctx.result_size];
-
-    unsigned char zero_key[ctx.result_size];
-    unsigned char master_secret[ctx.result_size];
-    unsigned char derived_secret[ctx.result_size];
-    unsigned char application_traffic_secret[ctx.result_size];
-    unsigned char application_key = (unsigned char*)malloc(send_suite->key_size);
-    unsigned char application_iv = (unsigned char*)malloc(send_suite->IV_size);
-    unsigned char traffic_label[12];
-
-    compute_handshake_hash(parameters, handshake_hash);
-    memset(zero_key, 0, ctx.result_size);
-
-    derive_secret(parameters->handshake_secret, ctx.result_size, (unsigned char*)"derived", 7, NULL, 0, derived_secret, ctx.result_size, ctx);
-    HKDF_extract(derived_secret, ctx.result_size, zero_key, ctx.result_size, master_secret, ctx);
-
-    if (connection_end_client == parameters->connection_end) {
-        memcpy(traffic_label, (void*)"c ap traffic", 12);
-    } else {
-        memcpy(traffic_label, (void*)"s ap traffic", 12);
-    }
-    HKDF_expand_label(master_secret, ctx.result_size, traffic_label, 12, handshake_hash, ctx.result_size, application_traffic_secret, ctx.result_size, ctx);
-    HKDF_expand_label(application_traffic_secret, ctx.result_size, (unsigned char*)"key", 3, NULL, 0, application_key, send_suite->key_size, ctx);
-    HKDF_expand_label(application_traffic_secret, ctx.result_size, (unsigned char*)"iv", 2, NULL, 0, application_iv, send_suite->IV_size, ctx);
-    parameters->send_parameters.tls3_keys.application_key = application_key;
-    parameters->send_parameters.tls3_keys.application_iv = application_iv;
-
-    if (connection_end_client == parameters->connection_end) {
-        memcpy(traffic_label, (void*)"s ap traffic", 12);
-    } else {
-        memcpy(traffic_label, (void*)"c ap traffic", 12);
-    }
-    HKDF_expand_label(master_secret, ctx.result_size, traffic_label, 12, handshake_hash, ctx.result_size, application_traffic_secret, ctx.result_size, ctx);
-    HKDF_expand_label(application_traffic_secret, ctx.result_size, (unsigned char*)"key", 3, NULL, 0, application_key, send_suite->key_size, ctx);
-    HKDF_expand_label(application_traffic_secret, ctx.result_size, (unsigned char*)"iv", 2, NULL, 0, application_iv, send_suite->IV_size, ctx);
-    parameters->recv_parameters.tls3_keys.application_key = application_key;
-    parameters->recv_parameters.tls3_keys.application_iv = application_iv;
-}
-
-void compute_tls3_verify_data(unsigned char* finished_key, unsigned char* verify_data, TLSParameters* parameters) {
-    CipherSuite* send_suite = &(suites[parameters->send_parameters.suite]);
-    digest_ctx ctx;
-    send_suite->new_digest(&ctx);
-    unsigned char handshake_hash[ctx.result_size];
-
-    compute_handshake_hash(parameters, handshake_hash);
-    hmac(&ctx, finished_key, ctx.result_size, handshake_hash, ctx.result_size);
-    memcpy(verify_data, ctx.hash, ctx.result_size);
 }
 
 int send_finished(int connection, TLSParameters* parameters) {
@@ -2712,6 +2714,8 @@ unsigned char* parse_finished(
     int pdu_length,
     TLSParameters* parameters
 ) {
+    CipherSuite* send_suite = &(suites[parameters->send_parameters.suite]);
+    int verify_data_len = TLS_VERSION_MINOR <= 3 ? VERIFY_DATA_LEN : send_suite->hash_size;
     unsigned char verify_data[64] = { 0 }; //最大64字节
 
     parameters->peer_finished = 1;
@@ -2726,7 +2730,7 @@ unsigned char* parse_finished(
         parameters->recv_parameters.seq_num = 0;
     }
 
-    if (memcmp(read_pos, verify_data, 64)) {
+    if (memcmp(read_pos, verify_data, verify_data_len)) {
         return NULL;
     }
 
@@ -2981,7 +2985,7 @@ int tls3_decrypt(
         return -1;
     }
 
-    decrypted_length = encrypted_message - active_suite->block_size;
+    decrypted_length = encrypted_length - active_suite->block_size;
     *decrypted_message = malloc(decrypted_length);
     memcpy(*decrypted_message, dec_msg, decrypted_length);
 

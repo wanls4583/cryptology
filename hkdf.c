@@ -128,7 +128,7 @@ void HKDF(
     HKDF_expand(PRK, sizeof(PRK), info, info_len, out, out_len, ctx);
 }
 
-#define TEST_HKDF
+// #define TEST_HKDF
 #ifdef TEST_HKDF
 #include "digest.h"
 #include "sha.h"
