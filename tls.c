@@ -1885,8 +1885,6 @@ int send_certificate(int connection, TLSParameters* parameters) {
     case TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA:
     case TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384:
     case TLS_RSA_WITH_AES_256_GCM_SHA384:
-    case TLS_AES_128_GCM_SHA256:
-    case TLS_AES_256_GCM_SHA384:
         strcpy(cert_url, "./res/rsa_cert.pem");
         break;
     case TLS_ECDH_RSA_WITH_AES_128_CBC_SHA:
@@ -1899,6 +1897,10 @@ int send_certificate(int connection, TLSParameters* parameters) {
         break;
     case TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA:
     case TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA:
+        strcpy(cert_url, "./res/ecdsa_cert.pem");
+        break;
+    case TLS_AES_128_GCM_SHA256:
+    case TLS_AES_256_GCM_SHA384:
         strcpy(cert_url, "./res/ecdsa_cert.pem");
         break;
     default:
@@ -1964,7 +1966,7 @@ int send_certificate(int connection, TLSParameters* parameters) {
     return 0;
 }
 
-int send_server_certificate_verify(int connection, TLSParameters* parameters) {
+int send_server_certificate_verify_with_rsa(int connection, TLSParameters* parameters) {
     CipherSuite* send_suite = &(suites[parameters->send_parameters.suite]);
     digest_ctx ctx, sha256;
     send_suite->new_digest(&ctx);
@@ -2020,6 +2022,109 @@ int send_server_certificate_verify(int connection, TLSParameters* parameters) {
     }
 
     return 0;
+}
+
+int send_server_certificate_verify_with_ecdsa(int connection, TLSParameters* parameters) {
+    CipherSuite* send_suite = &(suites[parameters->send_parameters.suite]);
+    digest_ctx ctx, sha256;
+    send_suite->new_digest(&ctx);
+    new_sha256_digest(&sha256);
+
+    unsigned char handshake_hash[ctx.result_size];
+    int content_len = 64 + 33 + 1 + ctx.result_size;
+    unsigned char content[content_len];
+    unsigned char* pos = content;
+    int sign_in_len = sha256.result_size;
+    unsigned char sign_input[sign_in_len];
+
+    compute_handshake_hash(parameters, handshake_hash);
+    memset(pos, 0x20, 64);
+    pos += 64;
+    memcpy(pos, (void*)"TLS 1.3, server CertificateVerify", 33);
+    pos += 33;
+    pos[0] = 0;
+    pos += 1;
+    memcpy(pos, handshake_hash, ctx.result_size);
+    pos += ctx.result_size;
+
+    digest_hash(&sha256, content, content_len);
+    memcpy(sign_input, sha256.hash, sha256.result_size);
+
+    unsigned char* sign_out;
+    unsigned char* buffer;
+    int r_len = 0, s_len = 0, sign_out_len = 0;
+    unsigned char* r;
+    unsigned char* s;
+    ecdsa_signature signature;
+    huge_set(&signature.r, 0);
+    huge_set(&signature.s, 0);
+
+    ecdsa_sign(&private_ecdsa_key.curve, &private_ecdsa_key, sign_input, sign_in_len, &signature);
+
+    r_len = huge_bytes(&signature.r);
+    s_len = huge_bytes(&signature.s);
+    r = (unsigned char*)malloc(r_len);
+    s = (unsigned char*)malloc(s_len);
+    huge_unload(&signature.r, r, r_len);
+    huge_unload(&signature.s, s, s_len);
+    /*
+    tls1.0-4.7:
+    Ecdsa-Sig-Value  ::=  SEQUENCE  {
+        r       INTEGER,
+        s       INTEGER
+    }
+    */
+    //ASN.1整数编码有符号位，最高位为符号位
+    int r_sign = (r[0] & 0x80 ? 1 : 0);
+    int s_sign = (s[0] & 0x80 ? 1 : 0);
+    sign_out_len = r_len + s_len + 6 + r_sign + s_sign;
+    sign_out = (unsigned char*)malloc(sign_out_len);
+    memset(sign_out, 0, sign_out_len);
+    buffer = sign_out;
+
+    buffer[0] = ASN1_SEQUENCE_OF;
+    buffer[1] = sign_out_len - 2;
+    buffer += 2;
+
+    buffer[0] = ASN1_INTEGER;
+    buffer[1] = r_len + r_sign;
+    buffer += 2 + r_sign;
+    memcpy(buffer, r, r_len);
+    buffer += r_len;
+
+    buffer[0] = ASN1_INTEGER;
+    buffer[1] = s_len + s_sign;
+    buffer += 2 + s_sign;
+    memcpy(buffer, s, s_len);
+
+    int send_buffer_size = 2 + sign_out_len + 2;
+    unsigned char send_buffer[send_buffer_size];
+    pos = send_buffer;
+
+    // enum {
+    //   none(0), md5(1), sha1(2), sha224(3), sha256(4), sha384(5),
+    //   sha512(6), (255)
+    // } HashAlgorithm;
+    memset(pos, 4, 1);
+    pos += 1;
+    // enum { anonymous(0), rsa(1), dsa(2), ecdsa(3), (255) } SignatureAlgorithm;
+    memset(pos, 3, 1);
+    pos += 1;
+    r_len = htons(sign_out_len);
+    memcpy(pos, &r_len, 2);
+    pos += 2;
+    memcpy(pos, sign_out, sign_out_len);
+
+    if (send_handshake_message(connection, certificate_verify, send_buffer, send_buffer_size, parameters)) {
+        return -1;
+    }
+
+    return 0;
+}
+
+int send_server_certificate_verify(int connection, TLSParameters* parameters) {
+    // return send_server_certificate_verify_with_rsa(connection, parameters); //OpenSSL 3.1.4不支持此消息的rsa签名
+    return send_server_certificate_verify_with_ecdsa(connection, parameters);
 }
 
 int send_server_hello_done(int connection, TLSParameters* parameters) {
@@ -3519,7 +3624,7 @@ int tls2_accept(int connection, TLSParameters* parameters) {
 #ifdef USE_SESSION_TICKET
         if (parameters->session_ticket_length == 0) {
             send_server_session_ticket(connection, parameters);
-    }
+        }
 #endif
         if (!(send_change_cipher_spec(connection, parameters))) {
             perror("Unable to send client change cipher spec");
@@ -3536,9 +3641,9 @@ int tls2_accept(int connection, TLSParameters* parameters) {
 #ifdef USE_SESSION_ID
         remember_session(parameters);
 #endif
-}
+    }
 
-    // Handshake is complete; now ready to start sending encrypted data
+        // Handshake is complete; now ready to start sending encrypted data
     return 0;
 }
 
