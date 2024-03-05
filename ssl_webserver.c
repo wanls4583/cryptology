@@ -116,6 +116,8 @@ int main(int argc, char* argv[]) {
   struct sockaddr_in local_addr;
   struct sockaddr_in client_addr;
   int client_addr_len = sizeof(client_addr);
+
+  signal(SIGPIPE, SIG_IGN); // 屏蔽SIGPIPE信号，防止进程退出
 #ifdef WIN32
   WSADATA wsaData;
 
