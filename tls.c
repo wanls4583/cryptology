@@ -1177,7 +1177,7 @@ int send_tls3_message(
 
     unsigned char* tmp = (unsigned char*)malloc(content_len + 1);
     memcpy(tmp, content, content_len);
-    tmp[content_len] = parameters->tls3_keys.application_key ? 0x17 : 0x16; //tls3中，最后一个字节代表了真实record type
+    tmp[content_len] = content_type; //tls3中，最后一个字节代表了真实record type
     content = tmp;
     content_len += 1;
     header.type = content_application_data;
@@ -1812,7 +1812,7 @@ unsigned char* parse_server_hello(
     return read_pos;
 }
 
-int send_server_session_ticket(int connection, TLSParameters* parameters) {
+int send_tls2_server_session_ticket(int connection, TLSParameters* parameters) {
     unsigned char* sign_out;
     unsigned char iv[12] = { 0 };
     unsigned char encrypted[MASTER_SECRET_LENGTH + 16];
@@ -1834,6 +1834,41 @@ int send_server_session_ticket(int connection, TLSParameters* parameters) {
     memcpy(buffer, encrypted, sizeof(encrypted));
 
     return send_handshake_message(connection, session_ticket, send_bufer, send_buffer_size, parameters);
+}
+
+int send_tls3_server_session_ticket(int connection, TLSParameters* parameters) {
+    unsigned short send_buffer_size = 4 + 4 + 9 + 50 + 2;
+    unsigned char* send_bufer = (unsigned char*)malloc(send_buffer_size);
+    unsigned char* buffer = send_bufer;
+
+    memset(buffer, 0, send_buffer_size);
+    int lift_time = htonl(2 * 3600);
+    memcpy(buffer, &lift_time, 4);
+    buffer += 4;
+    int age_add = htonl(0);
+    memcpy(buffer, &age_add, 4);
+    buffer += 4;
+    // Ticket Nonce
+    buffer[0] = 8;
+    buffer += 9;
+    int session_ticket_length = htons(48);
+    memcpy(buffer, &session_ticket_length, 2);
+    buffer += 2;
+    memset(buffer, 1, 48);
+    buffer += 48;
+    // Ticket Extensions
+    buffer[0] = 0;
+    buffer[1] = 0;
+
+    return send_handshake_message(connection, session_ticket, send_bufer, send_buffer_size, parameters);
+}
+
+int send_server_session_ticket(int connection, TLSParameters* parameters) {
+    if (TLS_VERSION_MINOR <= 3) {
+        return send_tls2_server_session_ticket(connection, parameters);
+    } else {
+        return send_tls3_server_session_ticket(connection, parameters);
+    }
 }
 
 int send_certificate(int connection, TLSParameters* parameters) {
@@ -3700,6 +3735,8 @@ int tls3_accept(int connection, TLSParameters* parameters) {
             return 8;
         }
     }
+
+    send_server_session_ticket(connection, parameters);
 
     return 0;
 }
