@@ -60,6 +60,7 @@ static unsigned char KEY_SHARE_EXT[] = { 0x00, 0x33 };
 static unsigned char KEY_SHARE_GROUP_X25519[] = { 0x00, 0x1d };
 static unsigned char SUPPORT_VERSION_EXT[] = { 0x00, 0x2b };
 static unsigned char RENEGOTIATE_INF_EXT[] = { 0xff, 0x01 };
+static unsigned char PRE_SHARE_KEY[] = { 0x00, 0x29 };
 static unsigned char session_key[] = { 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01 };
 
 //RFC 3447-9.2 EMSA-PKCS1-v1_5
@@ -560,6 +561,7 @@ void init_parameters(TLSParameters* parameters) {
     // tls1.3
     parameters->handshake_secret = NULL;
     parameters->tls3_master_secret = NULL;
+    parameters->tls3_psk_secret = NULL;
 }
 
 unsigned char* append_buffer(unsigned char* dest, unsigned char* src, size_t n) {
@@ -678,7 +680,7 @@ void calculate_handshake_keys(TLSParameters* parameters) {
     compute_handshake_hash(parameters, handshake_hash);
     memset(zero_key, 0, ctx.result_size);
 
-    HKDF_extract(NULL, 0, zero_key, ctx.result_size, early_secret, ctx);
+    HKDF_extract(NULL, 0, parameters->tls3_psk_secret ? parameters->tls3_psk_secret : zero_key, ctx.result_size, early_secret, ctx);
     derive_secret(early_secret, ctx.result_size, (unsigned char*)"derived", 7, NULL, 0, derived_secret, ctx.result_size, ctx);
     HKDF_extract(derived_secret, ctx.result_size, shared_secret, share_secret_len, handshake_secret, ctx);
     parameters->handshake_secret = (unsigned char*)malloc(ctx.result_size);
@@ -1413,6 +1415,28 @@ unsigned char* set_key_share_extension(int* out_len, TLSParameters* parameters) 
     return buffer;
 }
 
+unsigned char* set_pre_key_share_extension(int* out_len, TLSParameters* parameters) {
+    unsigned char* buffer = NULL;
+    unsigned char* tmp_buf = NULL;
+    unsigned short ext_item_len = 2;
+    unsigned short ext_item_len_n = htons(ext_item_len);
+
+    *out_len = 0;
+
+    if (TLS_VERSION_MINOR >= 4 && parameters->tls3_psk_secret) {
+        buffer = (unsigned char*)malloc(4 + ext_item_len);
+        memset(buffer, 0, 4 + ext_item_len);
+        tmp_buf = buffer;
+        memcpy(tmp_buf, PRE_SHARE_KEY, 2);
+        tmp_buf += 2;
+        memcpy(tmp_buf, &ext_item_len_n, 2);
+        tmp_buf += 2;
+        *out_len = 4 + ext_item_len;
+    }
+
+    return buffer;
+}
+
 unsigned char* set_server_hello_extensions(int* length, TLSParameters* parameters) {
     unsigned char* buffer = NULL;
     unsigned char* ext_buffer = NULL;
@@ -1451,6 +1475,13 @@ unsigned char* set_server_hello_extensions(int* length, TLSParameters* parameter
     }
 
     item_ext_buffer = set_key_share_extension(&item_ext_len, parameters);
+    if (item_ext_buffer) {
+        ext_len += item_ext_len;
+        ext_buffer = realloc(ext_buffer, ext_len + 2);
+        memcpy(ext_buffer + ext_len + 2 - item_ext_len, item_ext_buffer, item_ext_len);
+    }
+
+    item_ext_buffer = set_pre_key_share_extension(&item_ext_len, parameters);
     if (item_ext_buffer) {
         ext_len += item_ext_len;
         ext_buffer = realloc(ext_buffer, ext_len + 2);
@@ -1557,6 +1588,7 @@ unsigned char* parse_client_hello_extensions(
     }
 
     unsigned char* start_pos = read_pos;
+    unsigned char* pos;
     unsigned char ext_type[2];
     unsigned short ext_len = 0;
     unsigned short ext_item_len = 0;
@@ -1588,15 +1620,16 @@ unsigned char* parse_client_hello_extensions(
             elliptic_curve curve;
             huge pub;
 
-            read_pos += 2;
+            pos = read_pos;
+            pos += 2;
             while (len < ext_item_len) {
-                read_pos = read_buffer((void*)group, (void*)read_pos, 2);
-                read_pos = read_buffer((void*)&key_len, (void*)read_pos, 2);
+                pos = read_buffer((void*)group, (void*)pos, 2);
+                pos = read_buffer((void*)&key_len, (void*)pos, 2);
                 key_len = ntohs(key_len);
                 len += key_len + 4;
                 if (!memcmp(group, KEY_SHARE_GROUP_X25519, 2)) {
                     get_named_curve("x25519", &curve);
-                    huge_load(&pub, read_pos, key_len);
+                    huge_load(&pub, pos, key_len);
                     huge_reverse(&pub);
                     // printf("pub:");
                     // show_hex(pub.rep, pub.size, HUGE_WORD_BYTES);
@@ -1612,6 +1645,24 @@ unsigned char* parse_client_hello_extensions(
             }
 
         }
+
+        if (!memcmp(ext_type, PRE_SHARE_KEY, 2)) {
+            int len = 0;
+            short identitys_len = 0;
+            short identity_len = 0;
+            unsigned char* identity;
+
+            pos = read_pos;
+            pos = read_buffer((void*)&identitys_len, (void*)pos, 2);
+            identitys_len = ntohs(identitys_len);
+            pos = read_buffer((void*)&identity_len, (void*)pos, 2);
+            identity_len = ntohs(identity_len);
+            parameters->tls3_psk_secret = (unsigned char*)malloc(identity_len);
+            memcpy(parameters->tls3_psk_secret, pos, identity_len);
+            printf("pre_key_share:");
+            show_hex(parameters->tls3_psk_secret, identity_len, 1);
+        }
+
         read_pos += ext_item_len;
     }
 
@@ -1854,6 +1905,7 @@ int send_tls2_server_session_ticket(int connection, TLSParameters* parameters) {
     return send_handshake_message(connection, session_ticket, send_bufer, send_buffer_size, parameters);
 }
 
+int ticket_nonce = 0;
 int send_tls3_server_session_ticket(int connection, TLSParameters* parameters) {
     CipherSuite* send_suite = &(suites[parameters->send_parameters.suite]);
     digest_ctx ctx;
@@ -1863,9 +1915,10 @@ int send_tls3_server_session_ticket(int connection, TLSParameters* parameters) {
     unsigned char ticket[ctx.result_size];
     unsigned char* send_bufer = (unsigned char*)malloc(send_buffer_size);
     unsigned char* buffer = send_bufer;
-    unsigned char nonce[1] = { 0 };/*should be a counter*/
+    unsigned char nonce[1] = { ++ticket_nonce };/*should be a counter*/
     char nonce_label[] = "resumption";
 
+    calculate_resumption_master_secret(parameters);
     memset(buffer, 0, send_buffer_size);
 
     int lift_time = htonl(2 * 3600);
@@ -3071,9 +3124,6 @@ unsigned char* parse_finished(
         compute_tls3_verify_data(parameters->recv_parameters.tls3_keys.finished_key, verify_data, parameters);
         parameters->recv_parameters.seq_num = 0;
         parameters->recv_parameters.key_done = 2;
-        if (connection_end_server == parameters->connection_end) {
-            calculate_resumption_master_secret(parameters);
-        }
     }
 
     if (memcmp(read_pos, verify_data, verify_data_len)) {
@@ -3718,9 +3768,9 @@ int tls2_accept(int connection, TLSParameters* parameters) {
 #endif
     }
 
-        // Handshake is complete; now ready to start sending encrypted data
+    // Handshake is complete; now ready to start sending encrypted data
     return 0;
-}
+    }
 
 int tls3_accept(int connection, TLSParameters* parameters) {
     // The client sends the first message
@@ -3750,15 +3800,17 @@ int tls3_accept(int connection, TLSParameters* parameters) {
         return 4;
     }
 
-    if (send_certificate(connection, parameters)) {
-        send_alert_message(connection, handshake_failure, &parameters->send_parameters);
-        return 5;
-    }
+    if (!parameters->tls3_psk_secret) {
+        if (send_certificate(connection, parameters)) {
+            send_alert_message(connection, handshake_failure, &parameters->send_parameters);
+            return 5;
+        }
 
-    if ((send_server_certificate_verify(connection, parameters))) {
-        perror("Unable to send certificate_verify");
-        send_alert_message(connection, handshake_failure, &parameters->send_parameters);
-        return 6;
+        if ((send_server_certificate_verify(connection, parameters))) {
+            perror("Unable to send certificate_verify");
+            send_alert_message(connection, handshake_failure, &parameters->send_parameters);
+            return 6;
+        }
     }
 
     if (!(send_finished(connection, parameters))) {
@@ -3859,6 +3911,9 @@ int tls_shutdown(int connection, TLSParameters* parameters) {
     }
     if (parameters->tls3_master_secret) {
         free(parameters->tls3_master_secret);
+    }
+    if (parameters->tls3_psk_secret) {
+        free(parameters->tls3_psk_secret);
     }
     free_protection_parameters(&parameters->send_parameters);
     free_protection_parameters(&parameters->recv_parameters);

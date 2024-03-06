@@ -188,6 +188,7 @@ typedef struct {
 	unsigned char* unread_buffer;
 	unsigned char* handshake_secret;
 	unsigned char* tls3_master_secret;
+	unsigned char* tls3_psk_secret;
 }
 TLSParameters;
 
