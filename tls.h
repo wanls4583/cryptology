@@ -128,6 +128,7 @@ typedef struct {
 	unsigned char* finished_key;
 	unsigned char* application_key;
 	unsigned char* application_iv;
+	unsigned char* resumption_master_secret;
 }
 Tls3Keys;
 
@@ -186,6 +187,7 @@ typedef struct {
 	unsigned char* session_id;
 	unsigned char* unread_buffer;
 	unsigned char* handshake_secret;
+	unsigned char* tls3_master_secret;
 }
 TLSParameters;
 

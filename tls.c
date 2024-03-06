@@ -557,7 +557,9 @@ void init_parameters(TLSParameters* parameters) {
     parameters->unread_buffer = NULL;
     parameters->unread_length = 0;
 
+    // tls1.3
     parameters->handshake_secret = NULL;
+    parameters->tls3_master_secret = NULL;
 }
 
 unsigned char* append_buffer(unsigned char* dest, unsigned char* src, size_t n) {
@@ -748,6 +750,8 @@ void calculate_application_keys(TLSParameters* parameters) {
 
     derive_secret(parameters->handshake_secret, ctx.result_size, (unsigned char*)"derived", 7, NULL, 0, derived_secret, ctx.result_size, ctx);
     HKDF_extract(derived_secret, ctx.result_size, zero_key, ctx.result_size, master_secret, ctx);
+    parameters->tls3_master_secret = (unsigned char*)malloc(ctx.result_size);
+    memcpy(parameters->tls3_master_secret, master_secret, ctx.result_size);
 
     if (connection_end_client == parameters->connection_end) {
         memcpy(traffic_label, (void*)"c ap traffic", 12);
@@ -775,6 +779,20 @@ void calculate_application_keys(TLSParameters* parameters) {
     HKDF_expand_label(application_traffic_secret, ctx.result_size, (unsigned char*)"iv", 2, NULL, 0, application_iv, send_suite->IV_size, ctx);
     parameters->recv_parameters.tls3_keys.application_key = application_key;
     parameters->recv_parameters.tls3_keys.application_iv = application_iv;
+}
+
+void calculate_resumption_master_secret(TLSParameters* parameters) {
+    CipherSuite* send_suite = &(suites[parameters->send_parameters.suite]);
+    digest_ctx ctx;
+    send_suite->new_digest(&ctx);
+    unsigned char handshake_hash[ctx.result_size];
+
+    unsigned char* resumption_master_secret = (unsigned char*)malloc(ctx.result_size);
+
+    compute_handshake_hash(parameters, handshake_hash);
+
+    HKDF_expand_label(parameters->tls3_master_secret, ctx.result_size, (unsigned char*)"res master", 10, handshake_hash, ctx.result_size, resumption_master_secret, ctx.result_size, ctx);
+    parameters->send_parameters.tls3_keys.resumption_master_secret = resumption_master_secret;
 }
 
 void compute_tls3_verify_data(unsigned char* finished_key, unsigned char* verify_data, TLSParameters* parameters) {
@@ -1837,25 +1855,44 @@ int send_tls2_server_session_ticket(int connection, TLSParameters* parameters) {
 }
 
 int send_tls3_server_session_ticket(int connection, TLSParameters* parameters) {
-    unsigned short send_buffer_size = 4 + 4 + 9 + 50 + 2;
+    CipherSuite* send_suite = &(suites[parameters->send_parameters.suite]);
+    digest_ctx ctx;
+    send_suite->new_digest(&ctx);
+
+    unsigned short send_buffer_size = 4 + 4 + 2 + 2 + ctx.result_size + 2;
+    unsigned char ticket[ctx.result_size];
     unsigned char* send_bufer = (unsigned char*)malloc(send_buffer_size);
     unsigned char* buffer = send_bufer;
+    unsigned char nonce[1] = { 0 };/*should be a counter*/
+    char nonce_label[] = "resumption";
 
     memset(buffer, 0, send_buffer_size);
+
     int lift_time = htonl(2 * 3600);
     memcpy(buffer, &lift_time, 4);
     buffer += 4;
+
     int age_add = htonl(0);
     memcpy(buffer, &age_add, 4);
     buffer += 4;
+
     // Ticket Nonce
-    buffer[0] = 8;
-    buffer += 9;
-    int session_ticket_length = htons(48);
+    buffer[0] = 1;
+    buffer += 1;
+    buffer[0] = nonce[0];
+    buffer += 1;
+
+    // session_ticket
+    int session_ticket_length = htons(ctx.result_size);
     memcpy(buffer, &session_ticket_length, 2);
     buffer += 2;
-    memset(buffer, 1, 48);
-    buffer += 48;
+    HKDF_expand_label(
+        parameters->send_parameters.tls3_keys.resumption_master_secret, ctx.result_size,
+        (unsigned char*)"resumption", 10, nonce, sizeof(nonce), ticket, ctx.result_size, ctx
+    );
+    memcpy(buffer, ticket, ctx.result_size);
+    buffer += ctx.result_size;
+
     // Ticket Extensions
     buffer[0] = 0;
     buffer[1] = 0;
@@ -3034,6 +3071,9 @@ unsigned char* parse_finished(
         compute_tls3_verify_data(parameters->recv_parameters.tls3_keys.finished_key, verify_data, parameters);
         parameters->recv_parameters.seq_num = 0;
         parameters->recv_parameters.key_done = 2;
+        if (connection_end_server == parameters->connection_end) {
+            calculate_resumption_master_secret(parameters);
+        }
     }
 
     if (memcmp(read_pos, verify_data, verify_data_len)) {
@@ -3816,6 +3856,9 @@ int tls_shutdown(int connection, TLSParameters* parameters) {
     }
     if (parameters->handshake_secret) {
         free(parameters->handshake_secret);
+    }
+    if (parameters->tls3_master_secret) {
+        free(parameters->tls3_master_secret);
     }
     free_protection_parameters(&parameters->send_parameters);
     free_protection_parameters(&parameters->recv_parameters);
