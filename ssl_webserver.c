@@ -34,14 +34,7 @@ char* read_line(int connection, TLSParameters* tls_context) {
     if (size == 0) {
       continue;
     }
-    // if ((c == '\n') && (line[pos - 1] == '\r')) {
-    //   line[pos - 1] = '\0';
-    //   break;
-    // }
-    if (c == '\n') {
-      line[pos - 1] = '\0';
-      break;
-    }
+    
     line[pos++] = c;
 
     if (pos > line_len) {
@@ -88,11 +81,6 @@ static void process_https_request(int connection) {
       // Only supports "GET" requests
       // build_error_response(connection, 400, &tls_context);
     } else {
-      // Skip over all header lines, don't care
-      while (strcmp(read_line(connection, &tls_context), "")) {
-        // printf("skipped a header line\n");
-      }
-
       build_success_response(connection, &tls_context);
     }
 

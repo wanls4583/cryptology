@@ -128,6 +128,8 @@ typedef struct {
 	unsigned char* finished_key;
 	unsigned char* application_key;
 	unsigned char* application_iv;
+	unsigned char* early_data_key;
+	unsigned char* early_data_iv;
 	unsigned char* resumption_master_secret;
 }
 Tls3Keys;
@@ -175,7 +177,8 @@ typedef struct {
 	int                   got_client_hello;
 	int                   server_hello_done;
 	int                   peer_finished;
-	int                   peer_ping;
+	int                   peer_early_data;
+
 	digest_ctx            md5_handshake_digest;
 	digest_ctx            sha1_handshake_digest;
 	digest_ctx            sha256_handshake_digest;
@@ -183,12 +186,14 @@ typedef struct {
 	int					  session_id_length;
 	int					  session_ticket_length;
 	int                   unread_length;
+	int                   early_data_length;
 	unsigned char* session_ticket;
 	unsigned char* session_id;
 	unsigned char* unread_buffer;
 	unsigned char* handshake_secret;
 	unsigned char* tls3_master_secret;
 	unsigned char* tls3_psk_secret;
+	unsigned char* early_data;
 }
 TLSParameters;
 
@@ -268,6 +273,7 @@ typedef enum {
 	client_hello = 1,
 	server_hello = 2,
 	session_ticket = 4,
+	end_of_early_data = 5,
 	encrypted_extensions = 8,
 	certificate = 11,
 	server_key_exchange = 12,
