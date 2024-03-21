@@ -29,6 +29,8 @@ u32 sha256_initial_hash[SHA256_RESULT_SIZE];
 u64 sha512_initial_hash[SHA512_RESULT_SIZE];
 
 int sha1_hash(u8* input, int len, u32 hash[SHA1_RESULT_SIZE]);
+int sha256_hash(u8* input, int len, u32 hash[SHA256_RESULT_SIZE]);
+int sha512_hash(u8* input, int len, u64 hash[SHA512_RESULT_SIZE]);
 void sha1_block_operate(const u8* block, u32 hash[SHA1_RESULT_SIZE]);
 void sha256_block_operate(const u8* block, u32 hash[SHA256_RESULT_SIZE]);
 void sha512_block_operate(const u8* block, u64 hash[SHA512_RESULT_SIZE]);

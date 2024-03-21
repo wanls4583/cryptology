@@ -413,14 +413,17 @@ int sha256_hash(u8* input, int len, u32 hash[SHA256_RESULT_SIZE]) {
     u8 padded_block[SHA256_BLOCK_SIZE];
     int length_in_bits = len * 8;
 
-    hash[0] = sha1_initial_hash[0];
-    hash[1] = sha1_initial_hash[1];
-    hash[2] = sha1_initial_hash[2];
-    hash[3] = sha1_initial_hash[3];
-    hash[4] = sha1_initial_hash[4];
+    hash[0] = sha256_initial_hash[0];
+    hash[1] = sha256_initial_hash[1];
+    hash[2] = sha256_initial_hash[2];
+    hash[3] = sha256_initial_hash[3];
+    hash[4] = sha256_initial_hash[4];
+    hash[5] = sha256_initial_hash[5];
+    hash[6] = sha256_initial_hash[6];
+    hash[7] = sha256_initial_hash[7];
 
     while (len >= SHA256_BLOCK_SIZE) {
-        sha1_block_operate(input, hash);
+        sha256_block_operate(input, hash);
         len -= SHA256_BLOCK_SIZE;
         input += SHA256_BLOCK_SIZE;
     }
@@ -432,13 +435,50 @@ int sha256_hash(u8* input, int len, u32 hash[SHA256_RESULT_SIZE]) {
         memcpy(padded_block, input, len);
         padded_block[len] = 0x80;
         if (len >= SHA256_INPUT_BLOCK_SIZE) {
-            sha1_block_operate(padded_block, hash);
+            sha256_block_operate(padded_block, hash);
             memset(padded_block, 0, SHA256_BLOCK_SIZE);
         }
     }
 
     sha1_finalize(padded_block, length_in_bits);
     sha256_block_operate(padded_block, hash);
+
+    return 0;
+}
+
+int sha512_hash(u8* input, int len, u64 hash[SHA512_RESULT_SIZE]) {
+    u8 padded_block[SHA512_BLOCK_SIZE];
+    int length_in_bits = len * 8;
+
+    hash[0] = sha512_initial_hash[0];
+    hash[1] = sha512_initial_hash[1];
+    hash[2] = sha512_initial_hash[2];
+    hash[3] = sha512_initial_hash[3];
+    hash[4] = sha512_initial_hash[4];
+    hash[5] = sha512_initial_hash[5];
+    hash[6] = sha512_initial_hash[6];
+    hash[7] = sha512_initial_hash[7];
+
+    while (len >= SHA512_BLOCK_SIZE) {
+        sha512_block_operate(input, hash);
+        len -= SHA512_BLOCK_SIZE;
+        input += SHA512_BLOCK_SIZE;
+    }
+
+    memset(padded_block, 0, SHA512_BLOCK_SIZE);
+    padded_block[0] = 0x80;
+
+    if (len) {
+        memcpy(padded_block, input, len);
+        padded_block[len] = 0x80;
+        if (len >= SHA512_INPUT_BLOCK_SIZE) {
+            sha512_block_operate(padded_block, hash);
+            memset(padded_block, 0, SHA512_BLOCK_SIZE);
+        }
+    }
+
+    sha512_finalize(padded_block, length_in_bits);
+    sha512_block_operate(padded_block, hash);
 
     return 0;
 }
