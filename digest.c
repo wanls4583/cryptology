@@ -14,26 +14,26 @@ void show_hash(void* hash, int result_size) {
     printf("\n");
 }
 
-int digest_hash(digest_ctx* context, u8* input, int len) {
+int digest_hash(digest_ctx* context, u8* input, int input_len) {
     u8* padded_block = (u8*)malloc(context->digest_block_size);
-    int length_in_bits = len * 8;
+    int length_in_bits = input_len * 8;
 
-    context->input = (unsigned char*)malloc(len);
-    memcpy(context->input, input, len);
+    context->input = (unsigned char*)malloc(input_len);
+    memcpy(context->input, input, input_len);
 
-    while (len >= context->digest_block_size) {
+    while (input_len >= context->digest_block_size) {
         context->block_operate(input, context->hash);
-        len -= context->digest_block_size;
+        input_len -= context->digest_block_size;
         input += context->digest_block_size;
     }
 
     memset(padded_block, 0, context->digest_block_size);
     padded_block[0] = 0x80;
 
-    if (len) {
-        memcpy(padded_block, input, len);
-        padded_block[len] = 0x80;
-        if (len >= context->digest_input_block_size) {
+    if (input_len) {
+        memcpy(padded_block, input, input_len);
+        padded_block[input_len] = 0x80;
+        if (input_len >= context->digest_input_block_size) {
             context->block_operate(padded_block, context->hash);
             memset(padded_block, 0, context->digest_block_size);
         }
@@ -51,26 +51,24 @@ void update_digest(digest_ctx* context, u8* input, int input_len) {
     memcpy(context->input + context->input_len, input, input_len);
     context->input_len += input_len;
 
-    if (context->block_len && context->block_len + input_len >= context->digest_block_size) {
-        int size = context->digest_block_size - context->block_len;
-        memcpy(context->block + context->block_len, input, size);
-        context->block_operate(context->block, context->hash);
-        memset(context->block, 0, context->digest_block_size);
-        context->block_len = 0;
-        input_len -= size;
-        input += size;
-    }
-
+    u8* block = (u8*)malloc(context->block_len + input_len);
+    memcpy(block, context->block, context->block_len);
+    memcpy(block + context->block_len, input, input_len);
+    input = block;
+    input_len += context->block_len;
     while (input_len >= context->digest_block_size) {
         context->block_operate(input, context->hash);
         input_len -= context->digest_block_size;
         input += context->digest_block_size;
     }
 
+    memset(context->block, 0, context->digest_block_size);
+    context->block_len = input_len;
     if (input_len) {
-        memcpy(context->block + context->block_len, input, input_len);
-        context->block_len += input_len;
+        memcpy(context->block, block, input_len);
     }
+
+    free(block);
 }
 
 // 消息添加结束，生成最终的摘要
