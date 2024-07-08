@@ -37,6 +37,10 @@ char* read_line(int connection, TLSParameters* tls_context) {
     
     line[pos++] = c;
 
+    if (c == '\n') {
+      break;
+    }
+    
     if (pos > line_len) {
       line_len *= 2;
       line = realloc(line, line_len);

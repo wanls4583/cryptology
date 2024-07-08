@@ -65,7 +65,7 @@ void update_digest(digest_ctx* context, u8* input, int input_len) {
     memset(context->block, 0, context->digest_block_size);
     context->block_len = input_len;
     if (input_len) {
-        memcpy(context->block, block, input_len);
+        memcpy(context->block, input, input_len);
     }
 
     free(block);
